@@ -9,7 +9,6 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/tui/statemachine"
 	"github.com/dkaman/recordbaux/internal/physical"
-	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 type MainMenuState struct {
@@ -24,9 +23,6 @@ func New() MainMenuState {
 	shelves.DisableQuitKeybindings()
 	shelves.SetShowTitle(true)
 	shelves.Title = "shelves"
-	shelves.Styles.Title = style.LabelStyle
-	shelves.Styles.TitleBar = style.LabelStyle
-	shelves.Styles.NoItems = style.PlaceholderStyle
 	shelves.SetStatusBarItemName("shelf", "shelves")
 
 	return MainMenuState{
