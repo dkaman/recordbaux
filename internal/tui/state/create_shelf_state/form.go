@@ -1,6 +1,7 @@
-package tui
+package create_shelf_state
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/charmbracelet/huh"
@@ -22,6 +23,16 @@ type form struct {
 	dimY    string
 	binSize string
 	numBins string
+}
+
+func validateNum(s string) error {
+	if s == "" {
+		return fmt.Errorf("required")
+	}
+	if _, err := strconv.Atoi(s); err != nil {
+		return fmt.Errorf("must be a number")
+	}
+	return nil
 }
 
 func newShelfCreateForm() *form {
