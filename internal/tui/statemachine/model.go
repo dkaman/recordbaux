@@ -1,4 +1,4 @@
-package state
+package statemachine
 
 import (
 	"errors"
@@ -24,31 +24,31 @@ type State interface {
 	Next(tea.Msg) (*StateType, error)
 }
 
-type Machine struct {
+type Model struct {
 	currentState     State
 	currentStateType StateType
 	allStates        map[StateType]State
 }
 
-func NewMachine(initialState StateType, states map[StateType]State) (Machine, error) {
+func New(initialState StateType, states map[StateType]State) (Model, error) {
 	s, ok := states[initialState]
 	if !ok {
-		return Machine{}, StateNotFoundErr
+		return Model{}, StateNotFoundErr
 
 	}
 
-	return Machine{
+	return Model{
 		currentState:     s,
 		currentStateType: initialState,
 		allStates:        states,
 	}, nil
 }
 
-func (m Machine) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return m.currentState.Init()
 }
 
-func (m Machine) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	prevType := m.currentStateType
@@ -81,6 +81,6 @@ func (m Machine) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Machine) View() string {
+func (m Model) View() string {
 	return m.currentState.View()
 }

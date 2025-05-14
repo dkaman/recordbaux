@@ -1,4 +1,4 @@
-package main_menu_state
+package mainmenu
 
 import (
 	tea "github.com/charmbracelet/bubbletea"

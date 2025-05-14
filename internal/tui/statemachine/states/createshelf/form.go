@@ -1,4 +1,4 @@
-package create_shelf_state
+package createshelf
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package main_menu_state
+package mainmenu
 
 import (
 	"fmt"
@@ -7,8 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
-	sm "github.com/dkaman/recordbaux/internal/tui/statemachine"
-
+	"github.com/dkaman/recordbaux/internal/tui/statemachine"
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
@@ -17,7 +16,7 @@ type MainMenuState struct {
 	keys        keyMap
 	loadedShelf *physical.Shelf
 	shelves     list.Model
-	nextState   sm.StateType
+	nextState   statemachine.StateType
 }
 
 func New() MainMenuState {
@@ -52,12 +51,12 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				s.loadedShelf = i
 			}
-			s.nextState = sm.MainMenu
+			s.nextState = statemachine.MainMenu
 		case key.Matches(msg, s.keys.NewShelf):
-			s.nextState = sm.CreateShelf
+			s.nextState = statemachine.CreateShelf
 		}
 	case NewShelfMsg:
-		s.nextState = sm.MainMenu
+		s.nextState = statemachine.MainMenu
 
 		if msg.Shelf != nil {
 			insCmds := s.shelves.InsertItem(0, msg.Shelf)
@@ -94,6 +93,6 @@ func (s MainMenuState) View() string {
 	return list + "\n"
 }
 
-func (s MainMenuState) Next(msg tea.Msg) (*sm.StateType, error) {
+func (s MainMenuState) Next(msg tea.Msg) (*statemachine.StateType, error) {
 	return &s.nextState, nil
 }
