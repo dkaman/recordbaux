@@ -7,8 +7,9 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
+	sm "github.com/dkaman/recordbaux/internal/tui/statemachine"
+
 	"github.com/dkaman/recordbaux/internal/physical"
-	"github.com/dkaman/recordbaux/internal/tui/state"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
@@ -16,7 +17,7 @@ type MainMenuState struct {
 	keys        keyMap
 	loadedShelf *physical.Shelf
 	shelves     list.Model
-	nextState   state.StateType
+	nextState   sm.StateType
 }
 
 func New() MainMenuState {
@@ -51,12 +52,12 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				s.loadedShelf = i
 			}
-			s.nextState = state.MainMenu
+			s.nextState = sm.MainMenu
 		case key.Matches(msg, s.keys.NewShelf):
-			s.nextState = state.CreateShelf
+			s.nextState = sm.CreateShelf
 		}
 	case NewShelfMsg:
-		s.nextState = state.MainMenu
+		s.nextState = sm.MainMenu
 
 		if msg.Shelf != nil {
 			insCmds := s.shelves.InsertItem(0, msg.Shelf)
@@ -73,26 +74,26 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (s MainMenuState) View() string {
 	if len(s.shelves.Items()) == 0 {
-			return "no currently defined shelves"
-		}
+		return "no currently defined shelves"
+	}
 
-		list := s.shelves.View()
+	list := s.shelves.View()
 
-		if s.loadedShelf != nil {
-			name := s.loadedShelf.Name
-			nBins := len(s.loadedShelf.Bins)
-			sz := s.loadedShelf.BinSize
-			capacity := nBins * sz
+	if s.loadedShelf != nil {
+		name := s.loadedShelf.Name
+		nBins := len(s.loadedShelf.Bins)
+		sz := s.loadedShelf.BinSize
+		capacity := nBins * sz
 
-			list = list + fmt.Sprintf(
-				"\n\nshelf name: %s\nnum bins: %d\nbin size: %d\n\nshelf %s has a capacity of %d records!",
-				name, nBins, sz, name, capacity,
-			)
-		}
+		list = list + fmt.Sprintf(
+			"\n\nshelf name: %s\nnum bins: %d\nbin size: %d\n\nshelf %s has a capacity of %d records!",
+			name, nBins, sz, name, capacity,
+		)
+	}
 
-		return list + "\n"
+	return list + "\n"
 }
 
-func (s MainMenuState) Next(msg tea.Msg) (*state.StateType, error) {
+func (s MainMenuState) Next(msg tea.Msg) (*sm.StateType, error) {
 	return &s.nextState, nil
 }

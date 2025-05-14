@@ -4,22 +4,23 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/config"
-	"github.com/dkaman/recordbaux/internal/tui/state"
-	css "github.com/dkaman/recordbaux/internal/tui/state/create_shelf_state"
-	mms "github.com/dkaman/recordbaux/internal/tui/state/main_menu_state"
+
+	sm "github.com/dkaman/recordbaux/internal/tui/statemachine"
+	css "github.com/dkaman/recordbaux/internal/tui/statemachine/states/createshelf"
+	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
 )
 
 // Model holds the application state
 type Model struct {
 	cfg          *config.Config
-	stateMachine state.Machine
+	stateMachine sm.Machine
 }
 
 // New initializes the TUI model
 func New(c *config.Config) Model {
-	sm, _ := state.NewMachine(state.MainMenu, map[state.StateType]state.State{
-		state.MainMenu:    mms.New(),
-		state.CreateShelf: css.New(),
+	sm, _ := sm.NewMachine(sm.MainMenu, map[sm.StateType]sm.State{
+		sm.MainMenu:    mms.New(),
+		sm.CreateShelf: css.New(),
 	})
 
 	m := Model{
@@ -47,7 +48,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	stateMachineModel, stateMachineCmds := m.stateMachine.Update(msg)
-	if sm, ok := stateMachineModel.(state.Machine); ok {
+	if sm, ok := stateMachineModel.(sm.Machine); ok {
 		m.stateMachine = sm
 	}
 

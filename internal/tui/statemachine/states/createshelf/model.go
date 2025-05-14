@@ -5,13 +5,14 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/dkaman/recordbaux/internal/physical"
-	"github.com/dkaman/recordbaux/internal/tui/state"
-	mms "github.com/dkaman/recordbaux/internal/tui/state/main_menu_state"
+
+	sm "github.com/dkaman/recordbaux/internal/tui/statemachine"
+	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
 )
 
 type CreateShelfState struct {
 	createShelfForm *form
-	nextState       state.StateType
+	nextState       sm.StateType
 }
 
 func New() CreateShelfState {
@@ -36,7 +37,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, formUpdateCmds)
 
-	s.nextState = state.CreateShelf
+	s.nextState = sm.CreateShelf
 
 	// once done
 	if s.createShelfForm.State == huh.StateCompleted {
@@ -57,7 +58,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.createShelfForm = newShelfCreateForm()
 
-		s.nextState = state.MainMenu
+		s.nextState = sm.MainMenu
 	}
 
 	return s, tea.Batch(cmds...)
@@ -67,6 +68,6 @@ func (s CreateShelfState) View() string {
 	return s.createShelfForm.View()
 }
 
-func (s CreateShelfState) Next(msg tea.Msg) (*state.StateType, error) {
+func (s CreateShelfState) Next(msg tea.Msg) (*sm.StateType, error) {
 	return &s.nextState, nil
 }
