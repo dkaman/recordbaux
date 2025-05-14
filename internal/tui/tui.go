@@ -9,9 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"github.com/dkaman/shelf/internal/config"
-	"github.com/dkaman/shelf/internal/physical"
-	"github.com/dkaman/shelf/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 // shelfDelegate implements Bubble Tea's list.ItemDelegate for shelves

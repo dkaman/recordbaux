@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbletea"
-	"github.com/dkaman/shelf/internal/config"
-	"github.com/dkaman/shelf/internal/tui"
+	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/tui"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/dkaman/shelf
+module github.com/dkaman/recordbaux
 
 go 1.23.2
 
