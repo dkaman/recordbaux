@@ -10,6 +10,8 @@ import (
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
+
+	lss "github.com/dkaman/recordbaux/internal/tui/statemachine/states/loadedshelf"
 )
 
 type MainMenuState struct {
@@ -63,8 +65,9 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := s.shelves.SelectedItem().(*physical.Shelf)
 			if ok {
 				s.loadedShelf = i
+				s.nextState = statemachine.LoadedShelf
+				cmds = append(cmds, lss.WithShelf(i))
 			}
-			s.nextState = statemachine.MainMenu
 		case key.Matches(msg, s.keys.NewShelf):
 			s.nextState = statemachine.CreateShelf
 		}
@@ -85,10 +88,6 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s MainMenuState) View() string {
-	if len(s.shelves.Items()) == 0 {
-		return "no currently defined shelves"
-	}
-
 	list := s.shelves.View()
 
 	if s.loadedShelf != nil {

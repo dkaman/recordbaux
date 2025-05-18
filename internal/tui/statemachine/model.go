@@ -12,6 +12,7 @@ const (
 	// states
 	MainMenu StateType = iota
 	CreateShelf
+	LoadedShelf
 	Quit
 )
 

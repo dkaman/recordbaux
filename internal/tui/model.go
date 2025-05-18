@@ -8,6 +8,7 @@ import (
 
 	css "github.com/dkaman/recordbaux/internal/tui/statemachine/states/createshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
+	lss "github.com/dkaman/recordbaux/internal/tui/statemachine/states/loadedshelf"
 )
 
 // Model holds the application state
@@ -22,6 +23,7 @@ func New(c *config.Config) Model {
 		map[statemachine.StateType]statemachine.State{
 			statemachine.MainMenu:    mms.New(),
 			statemachine.CreateShelf: css.New(),
+			statemachine.LoadedShelf: lss.New(),
 		},
 	)
 
