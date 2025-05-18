@@ -15,7 +15,9 @@ import (
 type shelfDelegate struct{ focused bool }
 
 func (d shelfDelegate) Height() int  { return 1 }
+
 func (d shelfDelegate) Spacing() int { return 0 }
+
 func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	sh, ok := listItem.(*physical.Shelf)
 	if !ok {
@@ -37,4 +39,5 @@ func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 
 	w.Write([]byte(sty.Render(prefix + display)))
 }
+
 func (d shelfDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }

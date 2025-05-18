@@ -7,8 +7,9 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/tui/statemachine"
 	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 type MainMenuState struct {
@@ -20,10 +21,26 @@ type MainMenuState struct {
 
 func New() MainMenuState {
 	shelves := list.New([]list.Item{}, shelfDelegate{focused: true}, 0, 10)
-	shelves.DisableQuitKeybindings()
-	shelves.SetShowTitle(true)
 	shelves.Title = "shelves"
 	shelves.SetStatusBarItemName("shelf", "shelves")
+
+	shelves.Styles.TitleBar = style.TableTitleBarStyle
+	shelves.Styles.Title = style.TableTitleStyle
+	shelves.Styles.Spinner = style.TableSpinnerStyle
+	shelves.Styles.FilterPrompt = style.TableFilterPromptStyle
+	shelves.Styles.FilterCursor = style.TableFilterCursorStyle
+	shelves.Styles.DefaultFilterCharacterMatch = style.TableDefaultFilterCharacterMatchStyle
+	shelves.Styles.StatusBar = style.TableStatusBarStyle
+	shelves.Styles.StatusEmpty = style.TableStatusEmptyStyle
+	shelves.Styles.StatusBarActiveFilter = style.TableStatusBarActiveFilterStyle
+	shelves.Styles.StatusBarFilterCount = style.TableStatusBarFilterCountStyle
+	shelves.Styles.NoItems = style.TableNoItemsStyle
+	shelves.Styles.ArabicPagination = style.TableArabicPaginationStyle
+	shelves.Styles.PaginationStyle = style.TablePaginationStyleStyle
+	shelves.Styles.HelpStyle = style.TableHelpStyleStyle
+	shelves.Styles.ActivePaginationDot = style.TableActivePaginationDotStyle
+	shelves.Styles.InactivePaginationDot = style.TableInactivePaginationDotStyle
+	shelves.Styles.DividerDot = style.TableDividerDotStyle
 
 	return MainMenuState{
 		keys:        defaultKeybinds(),

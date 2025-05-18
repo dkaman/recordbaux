@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/huh"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 type shape int
@@ -98,7 +99,7 @@ func newShelfCreateForm() *form {
 		).WithHideFunc(func() bool {
 			return f.shape != "irregular"
 		}),
-	)
+	).WithTheme(style.FormTheme())
 
 	return f
 }

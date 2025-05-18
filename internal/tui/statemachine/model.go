@@ -51,11 +51,11 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	prevType := m.currentStateType
+	currType := m.currentStateType
 
 	stateModel, stateCmds := m.currentState.Update(msg)
 	if s, ok := stateModel.(State); ok {
-		m.allStates[prevType] = s
+		m.allStates[currType] = s
 		m.currentState = s
 	}
 
@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if *nextStateType != prevType {
+	if *nextStateType != currType {
 		nextState, ok := m.allStates[*nextStateType]
 		if !ok {
 			return m, tea.Quit

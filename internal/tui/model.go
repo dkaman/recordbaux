@@ -18,10 +18,12 @@ type Model struct {
 
 // New initializes the TUI model
 func New(c *config.Config) Model {
-	sm, _ := statemachine.New(statemachine.MainMenu, map[statemachine.StateType]statemachine.State{
-		statemachine.MainMenu:    mms.New(),
-		statemachine.CreateShelf: css.New(),
-	})
+	sm, _ := statemachine.New(statemachine.MainMenu,
+		map[statemachine.StateType]statemachine.State{
+			statemachine.MainMenu:    mms.New(),
+			statemachine.CreateShelf: css.New(),
+		},
+	)
 
 	m := Model{
 		cfg:          c,
