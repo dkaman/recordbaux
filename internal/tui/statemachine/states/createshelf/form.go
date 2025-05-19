@@ -20,10 +20,15 @@ type form struct {
 	*huh.Form
 	name    string
 	shape   string
+
+	// square/rect shape
 	dimX    string
 	dimY    string
-	binSize string
+	binSizeRect string
+
+	// irregular shape
 	numBins string
+	binSizeIrr string
 }
 
 func validateNum(s string) error {
@@ -76,7 +81,7 @@ func newShelfCreateForm() *form {
 				Key("bin_size").
 				Title("Bin Size").
 				Placeholder("50").
-				Value(&f.binSize).
+				Value(&f.binSizeRect).
 				Validate(validateNum),
 		).WithHideFunc(func() bool {
 			return f.shape != "rect"
@@ -94,7 +99,7 @@ func newShelfCreateForm() *form {
 				Key("bin_size").
 				Title("Bin Size").
 				Placeholder("50").
-				Value(&f.binSize).
+				Value(&f.binSizeIrr).
 				Validate(validateNum),
 		).WithHideFunc(func() bool {
 			return f.shape != "irregular"
@@ -131,8 +136,12 @@ func (f *form) DimY() int {
 }
 
 func (f *form) BinSize() int {
-	bs, _ := strconv.Atoi(f.binSize)
-	return bs
+	if f.Shape() == Rect {
+		n, _ := strconv.Atoi(f.binSizeRect)
+		return n
+	}
+	m, _ := strconv.Atoi(f.binSizeIrr)
+	return m
 }
 
 func (f *form) NumBins() int {
