@@ -69,8 +69,9 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s CreateShelfState) View() string {
-	s.layout.WithSection(layouts.Overlay, s.createShelfForm.View())
-	return s.createShelfForm.View()
+	view := s.createShelfForm.View()
+	s.layout.WithSection(layouts.Overlay, view)
+	return view
 }
 
 func (s CreateShelfState) Next(msg tea.Msg) (*statemachine.StateType, error) {

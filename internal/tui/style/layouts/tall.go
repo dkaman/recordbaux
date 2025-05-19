@@ -20,19 +20,13 @@ const (
 	StatusLine
 )
 
-// backgroundModel implements tea.Model by rendering only the grid.
-// overlay.Overlay will composite FG over this.
-type backgroundModel struct{ layout TallLayout }
-func (b backgroundModel) Init() tea.Cmd                        { return nil }
-func (b backgroundModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return b, nil }
-func (b backgroundModel) View() string                         { return b.layout.Render() }
-
 // textModel is a trivial tea.Model for static overlay text.
 type textModel struct{ text string }
-func newTextModel(t string) textModel                          { return textModel{text: t} }
-func (t textModel) Init() tea.Cmd                              { return nil }
-func (t textModel) Update(tea.Msg) (tea.Model, tea.Cmd)       { return t, nil }
-func (t textModel) View() string                              {return t.text}
+
+func newTextModel(t string) textModel                   { return textModel{text: t} }
+func (t textModel) Init() tea.Cmd                       { return nil }
+func (t textModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return t, nil }
+func (t textModel) View() string                        { return t.text }
 
 // TallLayout represents a three-section layout (A, B, C) plus a status line.
 type TallLayout struct {
@@ -40,6 +34,7 @@ type TallLayout struct {
 	sectionA          lipgloss.Style
 	sectionB          lipgloss.Style
 	sectionC          lipgloss.Style
+	sectionOverlay    lipgloss.Style
 	statusLineStyle   lipgloss.Style
 	innerContentWidth int
 
@@ -100,6 +95,11 @@ func NewTallLayout() *TallLayout {
 		Width(contentRightW).Height(contentCH).
 		Align(lipgloss.Center, lipgloss.Center)
 
+	sectionOverlay := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Width(100)
+
 	// Default status line style: one line, full inner width
 	statusLineStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
@@ -110,6 +110,7 @@ func NewTallLayout() *TallLayout {
 		sectionA:          sectionA,
 		sectionB:          sectionB,
 		sectionC:          sectionC,
+		sectionOverlay:    sectionOverlay,
 		statusLineStyle:   statusLineStyle,
 		innerContentWidth: innerW,
 		sectionContent:    make(map[Section]string),
@@ -139,7 +140,6 @@ func (l *TallLayout) Render() string {
 		oView = ""
 	}
 
-
 	a := l.sectionA.Render(aView)
 	b := l.sectionB.Render(bView)
 	c := l.sectionC.Render(cView)
@@ -155,12 +155,15 @@ func (l *TallLayout) Render() string {
 	statusLine := l.statusLineStyle.Render(s)
 	combined := lipgloss.JoinVertical(lipgloss.Top, body, statusLine)
 
-	bg := newTextModel(l.container.Render(combined))
-	fg := newTextModel(oView)
-
-	overlayModel := overlay.New(fg, bg, overlay.Center, overlay.Center, 0, 0)
-
-	return overlayModel.View()
+	if oView == "" {
+		return l.container.Render(combined)
+	} else {
+		o := l.sectionOverlay.Render(oView)
+		bg := newTextModel(l.container.Render(combined))
+		fg := newTextModel(o)
+		overlayModel := overlay.New(fg, bg, overlay.Center, overlay.Center, 0, 0)
+		return overlayModel.View()
+	}
 }
 
 func (l *TallLayout) WithSection(sec Section, content string) *TallLayout {
