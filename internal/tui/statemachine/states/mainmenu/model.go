@@ -5,23 +5,30 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	lss "github.com/dkaman/recordbaux/internal/tui/statemachine/states/loadedshelf"
 )
 
 type MainMenuState struct {
-	keys        keyMap
-	loadedShelf *physical.Shelf
+	keys      keyMap
+	nextState statemachine.StateType
+
+	// tea models
+	loadedShelf shelf.Model
 	shelves     list.Model
-	nextState   statemachine.StateType
+
+	// styling/layout
+	layout *layouts.TallLayout
 }
 
-func New() MainMenuState {
+func New(l *layouts.TallLayout) MainMenuState {
 	shelves := list.New([]list.Item{}, shelfDelegate{focused: true}, 0, 10)
 	shelves.Title = "shelves"
 	shelves.SetStatusBarItemName("shelf", "shelves")
@@ -44,10 +51,13 @@ func New() MainMenuState {
 	shelves.Styles.InactivePaginationDot = style.TableInactivePaginationDotStyle
 	shelves.Styles.DividerDot = style.TableDividerDotStyle
 
+	loadedShelf := shelf.New(nil, style.ActiveTextStyle)
+
 	return MainMenuState{
 		keys:        defaultKeybinds(),
 		shelves:     shelves,
-		loadedShelf: nil,
+		loadedShelf: loadedShelf,
+		layout:      l,
 	}
 }
 
@@ -62,11 +72,10 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.SelectShelf):
-			i, ok := s.shelves.SelectedItem().(*physical.Shelf)
+			i, ok := s.shelves.SelectedItem().(shelf.Model)
 			if ok {
-				s.loadedShelf = i
 				s.nextState = statemachine.LoadedShelf
-				cmds = append(cmds, lss.WithShelf(i))
+				cmds = append(cmds, lss.WithShelf(i.PhysicalShelf()))
 			}
 		case key.Matches(msg, s.keys.NewShelf):
 			s.nextState = statemachine.CreateShelf
@@ -75,7 +84,8 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.nextState = statemachine.MainMenu
 
 		if msg.Shelf != nil {
-			insCmds := s.shelves.InsertItem(0, msg.Shelf)
+			m := shelf.New(msg.Shelf, style.ActiveTextStyle)
+			insCmds := s.shelves.InsertItem(0, m)
 			cmds = append(cmds, insCmds)
 		}
 	}
@@ -84,27 +94,48 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	s.shelves, listCmd = s.shelves.Update(msg)
 	cmds = append(cmds, listCmd)
 
+	selectedShelfModel := s.shelves.SelectedItem()
+	if sel, ok := selectedShelfModel.(shelf.Model); ok {
+		s.loadedShelf = sel
+	}
+
+	shelfModel, shelfCmds := s.loadedShelf.Update(msg)
+	if sh, ok := shelfModel.(shelf.Model); ok {
+		s.loadedShelf = sh
+	}
+	cmds = append(cmds, shelfCmds)
+
 	return s, tea.Batch(cmds...)
 }
 
 func (s MainMenuState) View() string {
 	list := s.shelves.View()
+	shelf := s.loadedShelf.View()
 
-	if s.loadedShelf != nil {
-		name := s.loadedShelf.Name
-		nBins := len(s.loadedShelf.Bins)
-		sz := s.loadedShelf.BinSize
-		capacity := nBins * sz
+	s.layout.WithSection(layouts.SideBar, list)
+	s.layout.WithSection(layouts.TopWindow, shelf)
 
-		list = list + fmt.Sprintf(
-			"\n\nshelf name: %s\nnum bins: %d\nbin size: %d\n\nshelf %s has a capacity of %d records!",
-			name, nBins, sz, name, capacity,
-		)
-	}
+	view := fmt.Sprintf("state: main menu\n\nshelf list:\n%s\n\nloaded shelf:\n%s\n", list, shelf)
 
-	return list + "\n"
+	return view
 }
 
 func (s MainMenuState) Next(msg tea.Msg) (*statemachine.StateType, error) {
 	return &s.nextState, nil
+}
+
+func (s MainMenuState) SelectedShelf() shelf.Model {
+	if sh, ok := s.shelves.SelectedItem().(shelf.Model); ok {
+		return sh
+	}
+
+	return shelf.Model{}
+}
+
+func (s MainMenuState) Shelves() list.Model {
+	return s.shelves
+}
+
+func (s MainMenuState) LoadedShelf() shelf.Model {
+	return s.loadedShelf
 }

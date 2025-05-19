@@ -1,11 +1,13 @@
 package createshelf
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
 )
@@ -13,13 +15,16 @@ import (
 type CreateShelfState struct {
 	createShelfForm *form
 	nextState       statemachine.StateType
+
+	layout  *layouts.TallLayout
 }
 
-func New() CreateShelfState {
+func New(l *layouts.TallLayout) CreateShelfState {
 	f := newShelfCreateForm()
 
 	return CreateShelfState{
 		createShelfForm: f,
+		layout:          l,
 	}
 }
 
@@ -34,7 +39,6 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if f, ok := fModel.(*form); ok {
 		s.createShelfForm = f
 	}
-
 	cmds = append(cmds, formUpdateCmds)
 
 	s.nextState = statemachine.CreateShelf
@@ -65,6 +69,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s CreateShelfState) View() string {
+	s.layout.WithSection(layouts.Overlay, s.createShelfForm.View())
 	return s.createShelfForm.View()
 }
 

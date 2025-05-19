@@ -2,8 +2,10 @@ package statemachine
 
 import (
 	"errors"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
 type StateType int
@@ -29,9 +31,11 @@ type Model struct {
 	currentState     State
 	currentStateType StateType
 	allStates        map[StateType]State
+
+	layout *layouts.TallLayout
 }
 
-func New(initialState StateType, states map[StateType]State) (Model, error) {
+func New(initialState StateType, states map[StateType]State, l *layouts.TallLayout) (Model, error) {
 	s, ok := states[initialState]
 	if !ok {
 		return Model{}, StateNotFoundErr
@@ -42,6 +46,7 @@ func New(initialState StateType, states map[StateType]State) (Model, error) {
 		currentState:     s,
 		currentStateType: initialState,
 		allStates:        states,
+		layout: l,
 	}, nil
 }
 
@@ -75,6 +80,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.currentState = nextState
 		m.currentStateType = *nextStateType
+		m.layout.WithSection(layouts.Overlay, "")
 
 		cmds = append(cmds, m.currentState.Init())
 	}
@@ -83,5 +89,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	statusLine := fmt.Sprintf("state: %s", m.CurrentStateType())
+	m.layout.WithSection(layouts.StatusLine, statusLine)
 	return m.currentState.View()
+}
+
+func (m Model) State(t StateType) State {
+	return m.allStates[t]
+}
+
+func (m Model) CurrentState() State {
+	return m.currentState
+}
+func (m Model) CurrentStateType() string {
+	switch m.currentStateType {
+	case MainMenu:
+		return "main menu"
+	case CreateShelf:
+		return "create shelf"
+	case LoadedShelf:
+		return "loaded shelf"
+	}
+
+	return "undefined"
 }

@@ -5,42 +5,54 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	css "github.com/dkaman/recordbaux/internal/tui/statemachine/states/createshelf"
-	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
 	lss "github.com/dkaman/recordbaux/internal/tui/statemachine/states/loadedshelf"
+	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
 )
 
-// Model holds the application state
 type Model struct {
+	// global application config
 	cfg          *config.Config
+
+	// tea models
 	stateMachine statemachine.Model
+
+	// styling/layout
+	layout       *layouts.TallLayout
 }
 
-// New initializes the TUI model
 func New(c *config.Config) Model {
-	sm, _ := statemachine.New(statemachine.MainMenu,
+	tallLayout := layouts.NewTallLayout()
+
+	tallLayout.WithSection(layouts.StatusLine, "state: main menu")
+
+	// Initialize state machine, passing bg into CreateShelfState
+	sm, _ := statemachine.New(
+		// our initial state is main menu
+		statemachine.MainMenu,
+
 		map[statemachine.StateType]statemachine.State{
-			statemachine.MainMenu:    mms.New(),
-			statemachine.CreateShelf: css.New(),
-			statemachine.LoadedShelf: lss.New(),
+			statemachine.MainMenu:    mms.New(tallLayout),
+			statemachine.CreateShelf: css.New(tallLayout),
+			statemachine.LoadedShelf: lss.New(tallLayout),
 		},
+
+		tallLayout,
 	)
 
-	m := Model{
+	return Model{
 		cfg:          c,
 		stateMachine: sm,
+		layout:       tallLayout,
 	}
-
-	return m
 }
 
-// Init is the Bubble Tea initialization command
 func (m Model) Init() tea.Cmd {
 	return m.stateMachine.Init()
 }
 
-// Update routes messages based on the current state
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -61,7 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// View renders UI based on current state
 func (m Model) View() string {
-	return m.stateMachine.View()
+	_ = m.stateMachine.View()
+	return m.layout.Render()
 }

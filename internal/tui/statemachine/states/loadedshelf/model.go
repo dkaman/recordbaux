@@ -1,17 +1,18 @@
 package loadedshelf
 
 import (
-    "strings"
+	"strings"
 
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
 
-    "github.com/dkaman/recordbaux/internal/physical"
-    "github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
 type LoadShelfMsg struct {
-    Shelf *physical.Shelf
+	Shelf *physical.Shelf
 }
 
 func WithShelf(shelf *physical.Shelf) tea.Cmd {
@@ -43,13 +44,16 @@ type LoadedShelfState struct {
 	selectedBin int
 	keys        keyMap
 	nextState   statemachine.StateType
+
+	layout *layouts.TallLayout
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New() LoadedShelfState {
+func New(l *layouts.TallLayout) LoadedShelfState {
 	return LoadedShelfState{
 		keys:      defaultKeys(),
 		nextState: statemachine.LoadedShelf,
+		layout:    l,
 	}
 }
 
@@ -83,18 +87,27 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s LoadedShelfState) View() string {
+	var view string
+
 	if s.shelf == nil {
-		return "\n  No shelf loaded\n"
-	}
-	var parts []string
-	for i := range s.shelf.Bins {
-		if i == s.selectedBin {
-			parts = append(parts, "[*]")
-		} else {
-			parts = append(parts, "[ ]")
+		view = "no shelf loaded"
+	} else {
+		var parts []string
+		for i := range s.shelf.Bins {
+			if i == s.selectedBin {
+				parts = append(parts, "[*]")
+			} else {
+				parts = append(parts, "[ ]")
+			}
 		}
+
+		view = "\n" + strings.Join(parts, " ") + "\n"
 	}
-	return "\n\n" + strings.Join(parts, " ") + "\n"
+
+
+	s.layout.WithSection(layouts.BottomWindow, view)
+
+	return view
 }
 
 func (s LoadedShelfState) Next(_ tea.Msg) (*statemachine.StateType, error) {

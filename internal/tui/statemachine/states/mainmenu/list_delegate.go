@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
@@ -19,12 +19,14 @@ func (d shelfDelegate) Height() int  { return 1 }
 func (d shelfDelegate) Spacing() int { return 0 }
 
 func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	sh, ok := listItem.(*physical.Shelf)
+	shM, ok := listItem.(shelf.Model)
 	if !ok {
 		return
 	}
 
-	display := fmt.Sprintf("%s (%d bins × size %d)", sh.Name, len(sh.Bins), sh.BinSize)
+	shPhy := shM.PhysicalShelf()
+
+	display := fmt.Sprintf("%s (%d bins × size %d)", shPhy.Name, len(shPhy.Bins), shPhy.BinSize)
 
 	sty := style.TextStyle
 
