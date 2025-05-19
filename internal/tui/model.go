@@ -4,12 +4,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/config"
-	"github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
-	css "github.com/dkaman/recordbaux/internal/tui/statemachine/states/createshelf"
-	lss "github.com/dkaman/recordbaux/internal/tui/statemachine/states/loadedshelf"
-	mms "github.com/dkaman/recordbaux/internal/tui/statemachine/states/mainmenu"
+	css "github.com/dkaman/recordbaux/internal/tui/models/states/createshelf"
+	lss "github.com/dkaman/recordbaux/internal/tui/models/states/loadedshelf"
+	mms "github.com/dkaman/recordbaux/internal/tui/models/states/mainmenu"
 )
 
 type Model struct {
@@ -28,17 +28,18 @@ func New(c *config.Config) Model {
 
 	tallLayout.WithSection(layouts.StatusLine, "state: main menu")
 
-	// Initialize state machine, passing bg into CreateShelfState
 	sm, _ := statemachine.New(
 		// our initial state is main menu
 		statemachine.MainMenu,
 
+		// pass the layout to all the states so they can add if they want
 		map[statemachine.StateType]statemachine.State{
 			statemachine.MainMenu:    mms.New(tallLayout),
 			statemachine.CreateShelf: css.New(tallLayout),
 			statemachine.LoadedShelf: lss.New(tallLayout),
 		},
 
+		// state machine's ref to the layout too
 		tallLayout,
 	)
 

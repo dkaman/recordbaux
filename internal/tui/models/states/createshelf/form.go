@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/huh"
+
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 

@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/charmbracelet/bubbles/list"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"

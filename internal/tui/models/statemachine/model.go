@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 

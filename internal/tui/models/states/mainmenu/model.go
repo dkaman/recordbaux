@@ -9,11 +9,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
-	lss "github.com/dkaman/recordbaux/internal/tui/statemachine/states/loadedshelf"
+	lss "github.com/dkaman/recordbaux/internal/tui/models/states/loadedshelf"
 )
 
 type MainMenuState struct {
