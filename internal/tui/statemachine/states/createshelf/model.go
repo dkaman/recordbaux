@@ -14,7 +14,6 @@ import (
 
 type CreateShelfState struct {
 	createShelfForm *form
-	nextState       statemachine.StateType
 
 	layout  *layouts.TallLayout
 }
@@ -33,6 +32,7 @@ func (s CreateShelfState) Init() tea.Cmd {
 }
 
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
 	var cmds []tea.Cmd
 
 	fModel, formUpdateCmds := s.createShelfForm.Update(msg)
@@ -40,8 +40,6 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.createShelfForm = f
 	}
 	cmds = append(cmds, formUpdateCmds)
-
-	s.nextState = statemachine.CreateShelf
 
 	// once done
 	if s.createShelfForm.State == huh.StateCompleted {
@@ -58,11 +56,12 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		newShelf := physical.NewShelf(s.createShelfForm.Name(), totalBins, size)
 
-		cmds = append(cmds, mms.WithShelf(newShelf))
-
 		s.createShelfForm = newShelfCreateForm()
 
-		s.nextState = statemachine.MainMenu
+		cmds = append(cmds,
+			mms.WithShelf(newShelf),
+			statemachine.WithNextState(statemachine.MainMenu),
+		)
 	}
 
 	return s, tea.Batch(cmds...)
@@ -72,8 +71,4 @@ func (s CreateShelfState) View() string {
 	view := s.createShelfForm.View()
 	s.layout.WithSection(layouts.Overlay, view)
 	return view
-}
-
-func (s CreateShelfState) Next(msg tea.Msg) (*statemachine.StateType, error) {
-	return &s.nextState, nil
 }

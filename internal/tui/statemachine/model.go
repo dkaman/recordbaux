@@ -24,7 +24,6 @@ var (
 
 type State interface {
 	tea.Model
-	Next(tea.Msg) (*StateType, error)
 }
 
 type Model struct {
@@ -57,33 +56,31 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	currType := m.currentStateType
+	switch msg := msg.(type) {
+	case stateTransitionMsg:
+		nextStateType := msg.nextState
 
-	stateModel, stateCmds := m.currentState.Update(msg)
-	if s, ok := stateModel.(State); ok {
-		m.allStates[currType] = s
-		m.currentState = s
-	}
-
-	cmds = append(cmds, stateCmds)
-
-	nextStateType, err := m.currentState.Next(msg)
-	if err != nil {
-		return m, tea.Quit
-	}
-
-	if *nextStateType != currType {
-		nextState, ok := m.allStates[*nextStateType]
+		nextState, ok := m.allStates[nextStateType]
 		if !ok {
 			return m, tea.Quit
 		}
 
 		m.currentState = nextState
-		m.currentStateType = *nextStateType
+		m.currentStateType = nextStateType
 		m.layout.WithSection(layouts.Overlay, "")
 
 		cmds = append(cmds, m.currentState.Init())
+
+		return m, tea.Batch(cmds...)
 	}
+
+	stateModel, stateCmds := m.currentState.Update(msg)
+	if s, ok := stateModel.(State); ok {
+		m.allStates[m.currentStateType] = s
+		m.currentState = s
+	}
+
+	cmds = append(cmds, stateCmds)
 
 	return m, tea.Batch(cmds...)
 }

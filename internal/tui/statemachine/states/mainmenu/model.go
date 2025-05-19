@@ -18,7 +18,6 @@ import (
 
 type MainMenuState struct {
 	keys      keyMap
-	nextState statemachine.StateType
 
 	// tea models
 	loadedShelf shelf.Model
@@ -74,15 +73,15 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, s.keys.SelectShelf):
 			i, ok := s.shelves.SelectedItem().(shelf.Model)
 			if ok {
-				s.nextState = statemachine.LoadedShelf
-				cmds = append(cmds, lss.WithShelf(i.PhysicalShelf()))
+				cmds = append(cmds,
+					lss.WithShelf(i.PhysicalShelf()),
+					statemachine.WithNextState(statemachine.LoadedShelf),
+				)
 			}
 		case key.Matches(msg, s.keys.NewShelf):
-			s.nextState = statemachine.CreateShelf
+			cmds = append(cmds, statemachine.WithNextState(statemachine.CreateShelf))
 		}
 	case NewShelfMsg:
-		s.nextState = statemachine.MainMenu
-
 		if msg.Shelf != nil {
 			m := shelf.New(msg.Shelf, style.ActiveTextStyle)
 			insCmds := s.shelves.InsertItem(0, m)
@@ -118,10 +117,6 @@ func (s MainMenuState) View() string {
 	view := fmt.Sprintf("state: main menu\n\nshelf list:\n%s\n\nloaded shelf:\n%s\n", list, shelf)
 
 	return view
-}
-
-func (s MainMenuState) Next(msg tea.Msg) (*statemachine.StateType, error) {
-	return &s.nextState, nil
 }
 
 func (s MainMenuState) SelectedShelf() shelf.Model {

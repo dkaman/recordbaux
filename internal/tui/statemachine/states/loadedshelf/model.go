@@ -35,7 +35,7 @@ func defaultKeys() keyMap {
 	return keyMap{
 		Next: key.NewBinding(key.WithKeys("right", "l")),
 		Prev: key.NewBinding(key.WithKeys("left", "h")),
-		Back: key.NewBinding(key.WithKeys("esc")),
+		Back: key.NewBinding(key.WithKeys("q")),
 	}
 }
 
@@ -43,7 +43,6 @@ type LoadedShelfState struct {
 	shelf       *physical.Shelf
 	selectedBin int
 	keys        keyMap
-	nextState   statemachine.StateType
 
 	layout *layouts.TallLayout
 }
@@ -52,7 +51,6 @@ type LoadedShelfState struct {
 func New(l *layouts.TallLayout) LoadedShelfState {
 	return LoadedShelfState{
 		keys:      defaultKeys(),
-		nextState: statemachine.LoadedShelf,
 		layout:    l,
 	}
 }
@@ -62,6 +60,8 @@ func (s LoadedShelfState) Init() tea.Cmd {
 }
 
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case LoadShelfMsg:
 		s.shelf = msg.Shelf
@@ -77,13 +77,14 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.selectedBin = (s.selectedBin - 1 + len(s.shelf.Bins)) % len(s.shelf.Bins)
 			}
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = statemachine.MainMenu
+			cmds = append(cmds, statemachine.WithNextState(statemachine.MainMenu))
+			s.shelf = nil
 		case msg.String() == "enter":
 			// TODO: handle bin selection
 		}
 	}
 
-	return s, nil
+	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedShelfState) View() string {
@@ -108,8 +109,4 @@ func (s LoadedShelfState) View() string {
 	s.layout.WithSection(layouts.BottomWindow, view)
 
 	return view
-}
-
-func (s LoadedShelfState) Next(_ tea.Msg) (*statemachine.StateType, error) {
-	return &s.nextState, nil
 }
