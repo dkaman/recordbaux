@@ -63,6 +63,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.currentState.Init())
 
 		return m, tea.Batch(cmds...)
+	case BroadcastLoadShelfMsg:
+		var broadcastCmds []tea.Cmd
+
+		for t, state := range m.allStates {
+			sModel, sCmds := state.Update(msg)
+			if s, ok := sModel.(State); ok {
+				m.allStates[t] = s
+			}
+			broadcastCmds = append(broadcastCmds, sCmds)
+		}
 	}
 
 	stateModel, stateCmds := m.currentState.Update(msg)

@@ -72,7 +72,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := s.shelves.SelectedItem().(shelf.Model)
 			if ok {
 				cmds = append(cmds,
-					statemachine.WithLoadShelf(i.PhysicalShelf()),
+					statemachine.WithLoadShelfBroadcast(i.PhysicalShelf()),
 					statemachine.WithNextState(statemachine.LoadedShelf),
 				)
 			}
@@ -84,7 +84,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := s.shelves.SelectedItem().(shelf.Model)
 			if ok {
 				cmds = append(cmds,
-					statemachine.WithLoadShelf(i.PhysicalShelf()),
+					statemachine.WithLoadShelfBroadcast(i.PhysicalShelf()),
 					statemachine.WithNextState(statemachine.LoadCollection),
 				)
 			}

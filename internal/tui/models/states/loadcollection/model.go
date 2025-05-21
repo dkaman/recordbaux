@@ -46,7 +46,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case statemachine.LoadShelfMsg:
+	case statemachine.BroadcastLoadShelfMsg:
 		sh := msg.Shelf
 		s.collection = shelf.New(sh, style.ActiveTextStyle)
 	case NewDiscogsCollectionMsg:

@@ -11,9 +11,10 @@ import (
 
 	discogs "github.com/dkaman/discogs-golang"
 	css "github.com/dkaman/recordbaux/internal/tui/models/states/createshelf"
+	lcs "github.com/dkaman/recordbaux/internal/tui/models/states/loadcollection"
+	lbs "github.com/dkaman/recordbaux/internal/tui/models/states/loadedbin"
 	lss "github.com/dkaman/recordbaux/internal/tui/models/states/loadedshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/models/states/mainmenu"
-	lcs "github.com/dkaman/recordbaux/internal/tui/models/states/loadcollection"
 )
 
 type Model struct {
@@ -49,10 +50,11 @@ func New(c *config.Config) Model {
 
 		// pass the layout to all the states so they can add if they want
 		map[statemachine.StateType]statemachine.State{
-			statemachine.MainMenu:    mms.New(tallLayout),
-			statemachine.CreateShelf: css.New(tallLayout),
-			statemachine.LoadedShelf: lss.New(tallLayout),
+			statemachine.MainMenu:       mms.New(tallLayout),
+			statemachine.CreateShelf:    css.New(tallLayout),
+			statemachine.LoadedShelf:    lss.New(tallLayout),
 			statemachine.LoadCollection: lcs.New(tallLayout, discogsClient, discogsUsername),
+			statemachine.LoadedBin:        lbs.New(tallLayout),
 		},
 
 		// state machine's ref to the layout too

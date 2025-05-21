@@ -1,9 +1,11 @@
 package loadedshelf
 
 import (
-	"strings"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/lipgloss"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/physical"
@@ -53,7 +55,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case statemachine.LoadShelfMsg:
+	case statemachine.BroadcastLoadShelfMsg:
 		s.shelf = msg.Shelf
 		s.selectedBin = 0
 	case tea.KeyMsg:
@@ -77,7 +79,10 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				statemachine.WithNextState(statemachine.LoadCollection),
 			)
 		case msg.String() == "enter":
-			// TODO: handle bin selection
+			cmds = append(cmds,
+				statemachine.WithLoadBin(s.shelf.Bins[s.selectedBin]),
+				statemachine.WithNextState(statemachine.LoadedBin),
+			)
 		}
 	}
 
@@ -85,24 +90,56 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s LoadedShelfState) View() string {
-	var view string
-
 	if s.shelf == nil {
-		view = "no shelf loaded"
-	} else {
-		var parts []string
-		for i := range s.shelf.Bins {
-			if i == s.selectedBin {
-				parts = append(parts, "[*]")
-			} else {
-				parts = append(parts, "[ ]")
-			}
-		}
-
-		view = "\n" + strings.Join(parts, " ") + "\n"
+		return "no shelf loaded"
 	}
 
-	s.layout.WithSection(layouts.BottomWindow, view)
+	// Lipgloss box style
+	base := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		Padding(0, 1).
+		Margin(0, 1).
+		Align(lipgloss.Center).
+		Width(12)
 
-	return view
+	// Render each bin into its own little box string
+	var boxes []string
+	for i, bin := range s.shelf.Bins {
+		count := len(bin.Records)
+		label := fmt.Sprintf("%s %d/%d", bin.ID, count, bin.Size)
+
+		style := base
+		if count > 0 {
+			style = style.Copy().BorderBackground(lipgloss.Color("62"))
+		}
+		if i == s.selectedBin {
+			label = "★ " + label
+			style = style.Copy().BorderForeground(lipgloss.Color("5"))
+		}
+
+		boxes = append(boxes, style.Render(label))
+	}
+
+	// Decide how many columns per row
+	cols := 4
+	var rows []string
+
+	// Chunk into rows of `cols`
+	for i := 0; i < len(boxes); i += cols {
+		end := i + cols
+		if end > len(boxes) {
+			end = len(boxes)
+		}
+		// join boxes[i:end] horizontally, aligning tops
+		row := lipgloss.JoinHorizontal(lipgloss.Top, boxes[i:end]...)
+		rows = append(rows, row)
+	}
+
+	// stack all rows vertically, left-aligned
+	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	// if you’re embedding into a panel/layout section:
+	s.layout.WithSection(layouts.BottomWindow, grid)
+
+	return grid
 }
