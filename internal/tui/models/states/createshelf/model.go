@@ -8,14 +8,12 @@ import (
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
-
-	mms "github.com/dkaman/recordbaux/internal/tui/models/states/mainmenu"
 )
 
 type CreateShelfState struct {
 	createShelfForm *form
 
-	layout  *layouts.TallLayout
+	layout *layouts.TallLayout
 }
 
 func New(l *layouts.TallLayout) CreateShelfState {
@@ -32,7 +30,6 @@ func (s CreateShelfState) Init() tea.Cmd {
 }
 
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	var cmds []tea.Cmd
 
 	fModel, formUpdateCmds := s.createShelfForm.Update(msg)
@@ -47,19 +44,30 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		y := s.createShelfForm.DimY()
 		size := s.createShelfForm.BinSize()
 
-		var totalBins int
+		var shape physical.Shape
+
 		if s.createShelfForm.Shape() == Rect {
-			totalBins = x * y
+			shape = &physical.Rectangular{
+				X:    x,
+				Y:    y,
+				Size: size,
+			}
 		} else {
-			totalBins = s.createShelfForm.NumBins()
+			shape = &physical.Irregular{
+				N:    s.createShelfForm.NumBins(),
+				Size: size,
+			}
 		}
 
-		newShelf := physical.NewShelf(s.createShelfForm.Name(), totalBins, size)
+		newShelf, _ := physical.New(s.createShelfForm.Name(),
+			physical.WithShelfSortFunc(physical.AlphaByArtist),
+			physical.WithShape(shape),
+		)
 
 		s.createShelfForm = newShelfCreateForm()
 
 		cmds = append(cmds,
-			mms.WithShelf(newShelf),
+			statemachine.WithNewShelf(newShelf),
 			statemachine.WithNextState(statemachine.MainMenu),
 		)
 	}

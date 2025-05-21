@@ -26,3 +26,7 @@ func New(opts ...ConfigOption) (*Config, error) {
 		config: c,
 	}, nil
 }
+
+func (c *Config) String(key string) (string, error) {
+	return c.config.String(key), nil
+}

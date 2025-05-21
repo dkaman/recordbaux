@@ -1,96 +1,151 @@
 package physical
 
 import (
-	"fmt"
-	"sort"
+	"errors"
 )
 
-type SortField int
-
-const (
-	ByCatalogNumber SortField = iota
-	ByTitle
+var (
+	// sentinel errors
+	ShelfCapacityExceededErr = errors.New("attempt was made to insert into a full shelf")
 )
+
+// option type to keep shelf construction as minimal as possible
+type shelfOpt func(*Shelf) error
 
 type Shelf struct {
+	// shape interface to calculate capacity, we can use this for casting
+	// later to draw with bubble tea
+	Shape    Shape
+
+	// function that will be applied during the sorting process to sort
+	// records
+	sortFunc sortFunc
+
+	// shelf name for distinction
 	Name       string
-	Bins       []Bin
-	BinSize    int
-	SortBy     SortField
-	BinLetters []string // e.g. ["A", "B", "C"]
+
+	// representation of the organized collection
+	Bins []*Bin
 }
 
-func NewShelf(name string, numBins, binSize int) *Shelf {
-	letters := make([]string, numBins)
-	for i := 0; i < numBins; i++ {
-		letters[i] = string('A' + i)
+// New is the constructor for the shelf struct. it uses the functional option
+// pattern to keep its argument list short, just a name is required to get
+// started, but users can specify several options using the option functions
+// provided in this package.
+func New(name string, opts ...shelfOpt) (*Shelf, error) {
+	s := &Shelf{
+		Name: name,
 	}
-	bins := make([]Bin, numBins)
-	for i, letter := range letters {
-		bins[i] = Bin{ID: letter}
-	}
-	return &Shelf{
-		Name:       name,
-		Bins:       bins,
-		BinSize:    binSize,
-		SortBy:     ByCatalogNumber,
-		BinLetters: letters,
-	}
-}
 
-func (s *Shelf) Insert(r Record) {
-	all := s.flatten()
-	all = append(all, r)
-
-	// Sort
-	sort.Slice(all, func(i, j int) bool {
-		switch s.SortBy {
-		case ByTitle:
-			return all[i].Title < all[j].Title
-		default:
-			return all[i].CatalogNumber < all[j].CatalogNumber
-		}
-	})
-
-	// Redistribute
-	idx := 0
-	for i := range s.Bins {
-		s.Bins[i].Records = nil
-		for j := 0; j < s.BinSize && idx < len(all); j++ {
-			s.Bins[i].Records = append(s.Bins[i].Records, all[idx])
-			idx++
+	for _, o := range opts {
+		err := o(s)
+		if err != nil {
+			return nil, err
 		}
 	}
-}
 
-func (s *Shelf) flatten() []Record {
-	var all []Record
-	for _, bin := range s.Bins {
-		all = append(all, bin.Records...)
+	f := s.sortFunc
+	if f == nil {
+		f = AlphaByArtist
 	}
-	return all
-}
 
-func (s *Shelf) GetCoordinates(catalog string) (binID string, index int, found bool) {
-	for _, bin := range s.Bins {
-		for idx, r := range bin.Records {
-			if r.CatalogNumber == catalog {
-				return bin.ID, idx, true
+	if s.Shape != nil {
+		n := s.Shape.NumBins()
+		sz := s.Shape.BinSize()
+		ids := generateBinIDs(n)
+
+
+		s.Bins = make([]*Bin, n)
+
+		for i, id := range ids {
+			b, err := newBin(id, sz, WithSortFunc(f))
+			if err != nil {
+				return nil, err
 			}
+
+			s.Bins[i] = b
 		}
+	} else {
+		s.Bins = make([]*Bin, 1)
+
+		// lol big bin, this should be changed somehow
+		b, err := newBin("A", 10000, WithSortFunc(f))
+		if err != nil {
+			return nil, err
+		}
+
+		s.Bins[0] = b
 	}
-	return "", -1, false
+
+	return s, nil
 }
 
-func (s *Shelf) DebugPrint() {
+// shelf API
+
+// Insert adds a record to the collection. it should do this by starting at the
+// first bin, attempting to insert into that bin, and then cascade the
+// reamainder down the bins until there is no remainder left. if there is still
+// remainder by the time the last bin is reached, a ShelfCapacityExceededErr is
+// returned
+
+func (s *Shelf) Insert(r *Record) (*Record, error) {
+	next := r
+
 	for _, bin := range s.Bins {
-		fmt.Printf("Bin %s:\n", bin.ID)
-		for _, r := range bin.Records {
-			fmt.Printf("  - [%s] %s\n", r.CatalogNumber, r.Title)
+		bumped := bin.Insert(next)
+		if bumped == nil {
+			next = nil
+			break
 		}
+		next = bumped
 	}
+
+	if next != nil {
+		return next, ShelfCapacityExceededErr
+	}
+
+	return nil, nil
 }
 
+// interface implementations
+
+// needed to implement the list.Model bubble tea componenet interface
 func (s *Shelf) FilterValue() string {
 	return s.Name
+}
+
+// constructor options
+
+func WithShape(s Shape) shelfOpt {
+	return func(shelf *Shelf) error {
+		shelf.Shape = s
+		return nil
+	}
+}
+
+func WithShelfSortFunc(f sortFunc) shelfOpt {
+	return func(s *Shelf) error {
+		s.sortFunc = f
+		return nil
+	}
+}
+
+// generateBinIDs returns labels "A", "B", ..., "Z", "AA", etc.
+func generateBinIDs(n int) []string {
+	ids := make([]string, n)
+	for i := 0; i < n; i++ {
+		ids[i] = indexToLabel(i)
+	}
+	return ids
+}
+
+// indexToLabel converts 0 -> "A", 25 -> "Z", 26 -> "AA", etc.
+func indexToLabel(i int) string {
+	label := ""
+	for i >= 0 {
+		rem := i % 26
+		label = string('A'+rem) + label
+		i = i/26 - 1
+	}
+	return label
 }

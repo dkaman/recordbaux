@@ -12,8 +12,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
-
-	lss "github.com/dkaman/recordbaux/internal/tui/models/states/loadedshelf"
 )
 
 type MainMenuState struct {
@@ -74,14 +72,24 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := s.shelves.SelectedItem().(shelf.Model)
 			if ok {
 				cmds = append(cmds,
-					lss.WithShelf(i.PhysicalShelf()),
+					statemachine.WithLoadShelf(i.PhysicalShelf()),
 					statemachine.WithNextState(statemachine.LoadedShelf),
 				)
 			}
 		case key.Matches(msg, s.keys.NewShelf):
-			cmds = append(cmds, statemachine.WithNextState(statemachine.CreateShelf))
+			cmds = append(cmds,
+				statemachine.WithNextState(statemachine.CreateShelf),
+			)
+		case key.Matches(msg, s.keys.LoadCollection):
+			i, ok := s.shelves.SelectedItem().(shelf.Model)
+			if ok {
+				cmds = append(cmds,
+					statemachine.WithLoadShelf(i.PhysicalShelf()),
+					statemachine.WithNextState(statemachine.LoadCollection),
+				)
+			}
 		}
-	case NewShelfMsg:
+	case statemachine.NewShelfMsg:
 		if msg.Shelf != nil {
 			m := shelf.New(msg.Shelf, style.ActiveTextStyle)
 			insCmds := s.shelves.InsertItem(0, m)

@@ -5,19 +5,20 @@ import (
 )
 
 type keyMap struct {
-	NextShelf   key.Binding
-	PrevShelf   key.Binding
-	SelectShelf key.Binding
-	NewShelf    key.Binding
+	NextShelf      key.Binding
+	PrevShelf      key.Binding
+	SelectShelf    key.Binding
+	NewShelf       key.Binding
+	LoadCollection key.Binding
 }
 
 func defaultKeybinds() keyMap {
 	return keyMap{
-		NextShelf:   key.NewBinding(
+		NextShelf: key.NewBinding(
 			key.WithKeys("j", "down"),
 			key.WithHelp("j/down", "next shelf"),
 		),
-		PrevShelf:   key.NewBinding(
+		PrevShelf: key.NewBinding(
 			key.WithKeys("k", "up"),
 			key.WithHelp("k/up", "previous shelf"),
 		),
@@ -25,9 +26,13 @@ func defaultKeybinds() keyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "load shelf"),
 		),
-		NewShelf:    key.NewBinding(
+		NewShelf: key.NewBinding(
 			key.WithKeys("o"),
 			key.WithHelp("o", "new shelf"),
+		),
+		LoadCollection: key.NewBinding(
+			key.WithKeys("l"),
+			key.WithHelp("l", "load collection from discogs"),
 		),
 	}
 }

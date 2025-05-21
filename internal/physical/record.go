@@ -1,7 +1,10 @@
 package physical
 
+import (
+
+	discogs "github.com/dkaman/discogs-golang"
+)
+
 type Record struct {
-	CatalogNumber string
-	Title         string
-	// Future: Artist, Label, ReleaseDate, etc.
+	Release discogs.Release
 }

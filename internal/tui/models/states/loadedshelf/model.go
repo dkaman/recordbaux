@@ -11,31 +11,21 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
-type LoadShelfMsg struct {
-	Shelf *physical.Shelf
-}
-
-func WithShelf(shelf *physical.Shelf) tea.Cmd {
-	return func() tea.Msg {
-		return LoadShelfMsg{
-			Shelf: shelf,
-		}
-	}
-}
-
 type binKey = key.Binding
 
 type keyMap struct {
 	Next binKey
 	Prev binKey
 	Back binKey
+	Load binKey
 }
 
 func defaultKeys() keyMap {
 	return keyMap{
-		Next: key.NewBinding(key.WithKeys("right", "l")),
-		Prev: key.NewBinding(key.WithKeys("left", "h")),
+		Next: key.NewBinding(key.WithKeys("n")),
+		Prev: key.NewBinding(key.WithKeys("N")),
 		Back: key.NewBinding(key.WithKeys("q")),
+		Load: key.NewBinding(key.WithKeys("l")),
 	}
 }
 
@@ -50,8 +40,8 @@ type LoadedShelfState struct {
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
 func New(l *layouts.TallLayout) LoadedShelfState {
 	return LoadedShelfState{
-		keys:      defaultKeys(),
-		layout:    l,
+		keys:   defaultKeys(),
+		layout: l,
 	}
 }
 
@@ -63,7 +53,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case LoadShelfMsg:
+	case statemachine.LoadShelfMsg:
 		s.shelf = msg.Shelf
 		s.selectedBin = 0
 	case tea.KeyMsg:
@@ -77,8 +67,15 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.selectedBin = (s.selectedBin - 1 + len(s.shelf.Bins)) % len(s.shelf.Bins)
 			}
 		case key.Matches(msg, s.keys.Back):
-			cmds = append(cmds, statemachine.WithNextState(statemachine.MainMenu))
+			cmds = append(cmds,
+				statemachine.WithNextState(statemachine.MainMenu),
+			)
 			s.shelf = nil
+		case key.Matches(msg, s.keys.Load):
+			cmds = append(cmds,
+				statemachine.WithLoadShelf(s.shelf),
+				statemachine.WithNextState(statemachine.LoadCollection),
+			)
 		case msg.String() == "enter":
 			// TODO: handle bin selection
 		}
@@ -104,7 +101,6 @@ func (s LoadedShelfState) View() string {
 
 		view = "\n" + strings.Join(parts, " ") + "\n"
 	}
-
 
 	s.layout.WithSection(layouts.BottomWindow, view)
 

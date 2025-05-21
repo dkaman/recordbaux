@@ -45,12 +45,20 @@ func (m Model) View() string {
 	} else {
 		name := m.physicalShelf.Name
 		nBins := len(m.physicalShelf.Bins)
-		sz := m.physicalShelf.BinSize
+		sz := m.physicalShelf.Shape.BinSize()
 		capacity := nBins * sz
 
+		var shape string
+		switch m.physicalShelf.Shape.(type) {
+		case *physical.Rectangular:
+			shape = "rectangular"
+		case *physical.Irregular:
+			shape = "irregular"
+		}
+
 		out = fmt.Sprintf(
-			"shelf name: %s\nnum bins: %d\nbin size: %d\n\nshelf %s has a capacity of %d records!",
-			name, nBins, sz, name, capacity,
+			"shelf name: %s\nshape: %s\nnum bins: %d\nbin size: %d\n\nshelf %s has a capacity of %d records!",
+			name, shape, nBins, sz, name, capacity,
 		)
 	}
 

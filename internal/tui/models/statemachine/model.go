@@ -9,16 +9,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
-type StateType int
-
-const (
-	// states
-	MainMenu StateType = iota
-	CreateShelf
-	LoadedShelf
-	Quit
-)
-
 var (
 	StateNotFoundErr = errors.New("state not found in state map")
 )
@@ -58,8 +48,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case stateTransitionMsg:
-		nextStateType := msg.nextState
+	case StateTransitionMsg:
+		nextStateType := msg.NextState
 
 		nextState, ok := m.allStates[nextStateType]
 		if !ok {
@@ -99,15 +89,6 @@ func (m Model) State(t StateType) State {
 func (m Model) CurrentState() State {
 	return m.currentState
 }
-func (m Model) CurrentStateType() string {
-	switch m.currentStateType {
-	case MainMenu:
-		return "main menu"
-	case CreateShelf:
-		return "create shelf"
-	case LoadedShelf:
-		return "loaded shelf"
-	}
-
-	return "undefined"
+func (m Model) CurrentStateType() StateType {
+	return m.currentStateType
 }

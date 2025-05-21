@@ -18,6 +18,7 @@ func main() {
 		log.Fatalf("error in model configuration: %v", err)
 	}
 
+
 	p := tea.NewProgram(tui.New(cfg))
 
 	if _, err := p.Run(); err != nil {
