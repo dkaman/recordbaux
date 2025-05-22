@@ -1,7 +1,9 @@
-package tui
+package root
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -10,11 +12,15 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	discogs "github.com/dkaman/discogs-golang"
+	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	css "github.com/dkaman/recordbaux/internal/tui/models/states/createshelf"
 	lcs "github.com/dkaman/recordbaux/internal/tui/models/states/loadcollection"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/states/loadedbin"
 	lss "github.com/dkaman/recordbaux/internal/tui/models/states/loadedshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/models/states/mainmenu"
+	sss "github.com/dkaman/recordbaux/internal/tui/models/states/selectshelf"
+
+	"golang.org/x/term"
 )
 
 type Model struct {
@@ -25,23 +31,31 @@ type Model struct {
 	stateMachine statemachine.Model
 
 	// styling/layout
-	layout *layouts.TallLayout
+	layout    *layouts.TwoBarViewportLayout
+	topBar    string
+	viewPort  string
+	statusBar string
+	overlay   string
 }
 
 func New(c *config.Config) Model {
-	tallLayout := layouts.NewTallLayout()
+	initialState := statemachine.MainMenu
 
-	tallLayout.WithSection(layouts.StatusLine, "state: main menu")
+	m := Model{
+		topBar:    "recordbaux - organize your vinyl record collection",
+		viewPort:  "welcome to recordbaux",
+		statusBar: fmt.Sprintf("current state: %s", initialState),
+	}
+
+	m.layout = layouts.NewTwoBarViewportLayout()
 
 	discogsAPIKey, _ := c.String("shelf.discogs.key")
-
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)
 	if err != nil {
 		log.Printf("error in discogs client creation %w", err)
 	}
-
 	discogsUsername, _ := c.String("shelf.discogs.username")
 
 	sm, _ := statemachine.New(
@@ -50,22 +64,18 @@ func New(c *config.Config) Model {
 
 		// pass the layout to all the states so they can add if they want
 		map[statemachine.StateType]statemachine.State{
-			statemachine.MainMenu:       mms.New(tallLayout),
-			statemachine.CreateShelf:    css.New(tallLayout),
-			statemachine.LoadedShelf:    lss.New(tallLayout),
-			statemachine.LoadCollection: lcs.New(tallLayout, discogsClient, discogsUsername),
-			statemachine.LoadedBin:        lbs.New(tallLayout),
+			statemachine.MainMenu:       mms.New(),
+			statemachine.CreateShelf:    css.New(),
+			statemachine.LoadedShelf:    lss.New(),
+			statemachine.LoadCollection: lcs.New(discogsClient, discogsUsername),
+			statemachine.LoadedBin:      lbs.New(),
+			statemachine.SelectShelf:    sss.New(),
 		},
-
-		// state machine's ref to the layout too
-		tallLayout,
 	)
 
-	return Model{
-		cfg:          c,
-		stateMachine: sm,
-		layout:       tallLayout,
-	}
+	m.stateMachine = sm
+
+	return m
 }
 
 func (m Model) Init() tea.Cmd {
@@ -75,12 +85,32 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if key, ok := msg.(tea.KeyMsg); ok {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		key := msg
 		switch key.String() {
 		case "ctrl+c", "esc":
 			return m, tea.Quit
 		}
+	case teaCmds.LayoutUpdateMsg:
+		sec := msg.Section
+		cont := msg.Content
+
+		switch sec {
+		case layouts.TopBar:
+			m.topBar = cont
+		case layouts.Viewport:
+			m.viewPort = cont
+		case layouts.StatusBar:
+			m.statusBar = cont
+		case layouts.Overlay:
+			m.overlay = cont
+		}
+
+		// if we're just updating the layout, dont pass the message on
+		return m, nil
 	}
+
 
 	stateMachineModel, stateMachineCmds := m.stateMachine.Update(msg)
 	if sm, ok := stateMachineModel.(statemachine.Model); ok {
@@ -93,6 +123,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	_ = m.stateMachine.View()
-	return m.layout.Render()
+	totalW, totalH, _ :=  term.GetSize(int(os.Stdout.Fd()))
+
+	m.layout.SetSize(totalW, totalH)
+
+	return m.layout.Render(m.topBar, m.viewPort, m.statusBar, m.overlay)
 }

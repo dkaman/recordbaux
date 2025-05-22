@@ -9,6 +9,7 @@ const (
 	LoadedShelf
 	LoadCollection
 	LoadedBin
+	SelectShelf
 	Quit
 )
 
@@ -19,6 +20,7 @@ func (s StateType) String() string {
 		"LoadedShelf",
 		"LoadCollection",
 		"LoadedBin",
+		"SelectShelf",
 		"Quit",
 	}[s]
 }

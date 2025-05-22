@@ -6,22 +6,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/physical"
+	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
 type CreateShelfState struct {
 	createShelfForm *form
-
-	layout *layouts.TallLayout
 }
 
-func New(l *layouts.TallLayout) CreateShelfState {
+func New() CreateShelfState {
 	f := newShelfCreateForm()
 
 	return CreateShelfState{
 		createShelfForm: f,
-		layout:          l,
 	}
 }
 
@@ -66,17 +66,22 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.createShelfForm = newShelfCreateForm()
 
+		ns := shelf.New(newShelf, style.ActiveTextStyle)
+
 		cmds = append(cmds,
-			statemachine.WithNewShelf(newShelf),
 			statemachine.WithNextState(statemachine.MainMenu),
 		)
+	} else {
+		cmds = append(cmds,
+			teaCmds.WithLayoutUpdate(layouts.Overlay, s.createShelfForm.View()),
+		)
 	}
+
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s CreateShelfState) View() string {
 	view := s.createShelfForm.View()
-	s.layout.WithSection(layouts.Overlay, view)
 	return view
 }

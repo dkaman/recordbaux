@@ -11,6 +11,8 @@ import (
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
+
+	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 type binKey = key.Binding
@@ -35,20 +37,17 @@ type LoadedShelfState struct {
 	shelf       *physical.Shelf
 	selectedBin int
 	keys        keyMap
-
-	layout *layouts.TallLayout
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(l *layouts.TallLayout) LoadedShelfState {
+func New() LoadedShelfState {
 	return LoadedShelfState{
 		keys:   defaultKeys(),
-		layout: l,
 	}
 }
 
 func (s LoadedShelfState) Init() tea.Cmd {
-	return nil
+	return teaCmds.WithLayoutUpdate(layouts.Viewport, s.View())
 }
 
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -58,33 +57,44 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statemachine.BroadcastLoadShelfMsg:
 		s.shelf = msg.Shelf
 		s.selectedBin = 0
+
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Next):
 			if s.shelf != nil {
 				s.selectedBin = (s.selectedBin + 1) % len(s.shelf.Bins)
 			}
+
 		case key.Matches(msg, s.keys.Prev):
 			if s.shelf != nil {
 				s.selectedBin = (s.selectedBin - 1 + len(s.shelf.Bins)) % len(s.shelf.Bins)
 			}
+
 		case key.Matches(msg, s.keys.Back):
 			cmds = append(cmds,
 				statemachine.WithNextState(statemachine.MainMenu),
 			)
 			s.shelf = nil
+
 		case key.Matches(msg, s.keys.Load):
 			cmds = append(cmds,
-				statemachine.WithLoadShelf(s.shelf),
+				statemachine.WithLoadShelfBroadcast(s.shelf),
 				statemachine.WithNextState(statemachine.LoadCollection),
 			)
+
 		case msg.String() == "enter":
 			cmds = append(cmds,
-				statemachine.WithLoadBin(s.shelf.Bins[s.selectedBin]),
 				statemachine.WithNextState(statemachine.LoadedBin),
+				statemachine.WithLoadBinBroadcast(s.shelf.Bins[s.selectedBin]),
 			)
+
+			return s, tea.Sequence(cmds...)
 		}
 	}
+
+	cmds = append(cmds,
+			teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
+	)
 
 	return s, tea.Batch(cmds...)
 }
@@ -110,11 +120,11 @@ func (s LoadedShelfState) View() string {
 
 		style := base
 		if count > 0 {
-			style = style.Copy().BorderBackground(lipgloss.Color("62"))
+			style = style.BorderBackground(lipgloss.Color("62"))
 		}
 		if i == s.selectedBin {
 			label = "★ " + label
-			style = style.Copy().BorderForeground(lipgloss.Color("5"))
+			style = style.BorderForeground(lipgloss.Color("5"))
 		}
 
 		boxes = append(boxes, style.Render(label))
@@ -137,9 +147,6 @@ func (s LoadedShelfState) View() string {
 
 	// stack all rows vertically, left-aligned
 	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
-
-	// if you’re embedding into a panel/layout section:
-	s.layout.WithSection(layouts.BottomWindow, grid)
 
 	return grid
 }

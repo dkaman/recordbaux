@@ -1,11 +1,12 @@
 package statemachine
 
 import (
-	"errors"
 	"fmt"
+	"errors"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
@@ -21,11 +22,9 @@ type Model struct {
 	currentState     State
 	currentStateType StateType
 	allStates        map[StateType]State
-
-	layout *layouts.TallLayout
 }
 
-func New(initialState StateType, states map[StateType]State, l *layouts.TallLayout) (Model, error) {
+func New(initialState StateType, states map[StateType]State) (Model, error) {
 	s, ok := states[initialState]
 	if !ok {
 		return Model{}, StateNotFoundErr
@@ -36,7 +35,6 @@ func New(initialState StateType, states map[StateType]State, l *layouts.TallLayo
 		currentState:     s,
 		currentStateType: initialState,
 		allStates:        states,
-		layout: l,
 	}, nil
 }
 
@@ -58,21 +56,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.currentState = nextState
 		m.currentStateType = nextStateType
-		m.layout.WithSection(layouts.Overlay, "")
 
-		cmds = append(cmds, m.currentState.Init())
+		cmds = append(cmds,
+			m.currentState.Init(),
+			teaCmds.WithLayoutUpdate(layouts.StatusBar, fmt.Sprintf("state: %s", m.currentStateType)),
+			teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
+		)
 
 		return m, tea.Batch(cmds...)
-	case BroadcastLoadShelfMsg:
-		var broadcastCmds []tea.Cmd
-
-		for t, state := range m.allStates {
-			sModel, sCmds := state.Update(msg)
-			if s, ok := sModel.(State); ok {
-				m.allStates[t] = s
-			}
-			broadcastCmds = append(broadcastCmds, sCmds)
-		}
 	}
 
 	stateModel, stateCmds := m.currentState.Update(msg)
@@ -87,8 +78,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	statusLine := fmt.Sprintf("state: %s", m.CurrentStateType())
-	m.layout.WithSection(layouts.StatusLine, statusLine)
 	return m.currentState.View()
 }
 

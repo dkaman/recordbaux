@@ -23,8 +23,8 @@ func defaultKeybinds() keyMap {
 			key.WithHelp("k/up", "previous shelf"),
 		),
 		SelectShelf: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "load shelf"),
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "switch shelf"),
 		),
 		NewShelf: key.NewBinding(
 			key.WithKeys("o"),

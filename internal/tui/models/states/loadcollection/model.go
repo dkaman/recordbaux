@@ -10,26 +10,25 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	discogs "github.com/dkaman/discogs-golang"
+	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
 	collection       shelf.Model
-	layout           *layouts.TallLayout
 	discogsClient    *discogs.Client
 	discogsUsername  string
 	selectFolderForm *form
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(l *layouts.TallLayout, client *discogs.Client, username string) LoadCollectionState {
+func New(client *discogs.Client, username string) LoadCollectionState {
 	c := shelf.New(nil, style.ActiveTextStyle)
 
 	f := newFolderSelectForm(client, username)
 
 	return LoadCollectionState{
 		collection:       c,
-		layout:           l,
 		discogsClient:    client,
 		discogsUsername:  username,
 		selectFolderForm: f,
@@ -70,15 +69,21 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fol := s.selectFolderForm.Folder()
 			s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
 			cmds = append(cmds,
+				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
 				RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, fol),
 			)
 		}
+
+		cmds = append(cmds,
+			teaCmds.WithLayoutUpdate(layouts.Overlay, s.selectFolderForm.View()),
+		)
 	}
 
 	cModel, cCmds := s.collection.Update(msg)
 	if c, ok := cModel.(shelf.Model); ok {
 		s.collection = c
 	}
+
 	cmds = append(cmds, cCmds)
 
 	return s, tea.Batch(cmds...)
@@ -87,6 +92,5 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the shelf view into the TopWindow section.
 func (s LoadCollectionState) View() string {
 	view := s.selectFolderForm.View()
-	s.layout.WithSection(layouts.Overlay, view)
 	return view
 }
