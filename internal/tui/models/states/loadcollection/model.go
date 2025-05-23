@@ -139,11 +139,12 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds,
 			RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, fol),
 		)
-	}
+	} else {
+		cmds = append(cmds,
+			teaCmds.WithLayoutUpdate(layouts.Overlay, s.selectFolderForm.View()),
+		)
 
-	cmds = append(cmds,
-		teaCmds.WithLayoutUpdate(layouts.Overlay, s.selectFolderForm.View()),
-	)
+	}
 
 	cModel, cCmds := s.collection.Update(msg)
 	if c, ok := cModel.(shelf.Model); ok {
