@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/app"
 	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
@@ -13,68 +14,87 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
+type resetFormMsg struct {}
+
 type CreateShelfState struct {
+	app             *app.App
 	createShelfForm *form
+	nextState       statemachine.StateType
 }
 
-func New() CreateShelfState {
+func New(a *app.App) CreateShelfState {
 	f := newShelfCreateForm()
 
 	return CreateShelfState{
+		app:             a,
+		nextState:       statemachine.Undefined,
 		createShelfForm: f,
 	}
 }
 
 func (s CreateShelfState) Init() tea.Cmd {
-	return s.createShelfForm.Init()
+	return func() tea.Msg {
+		return resetFormMsg{}
+	}
 }
 
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	fModel, formUpdateCmds := s.createShelfForm.Update(msg)
-	if f, ok := fModel.(*form); ok {
-		s.createShelfForm = f
-	}
-	cmds = append(cmds, formUpdateCmds)
-
-	// once done
-	if s.createShelfForm.State == huh.StateCompleted {
-		x := s.createShelfForm.DimX()
-		y := s.createShelfForm.DimY()
-		size := s.createShelfForm.BinSize()
-
-		var shape physical.Shape
-
-		if s.createShelfForm.Shape() == Rect {
-			shape = &physical.Rectangular{
-				X:    x,
-				Y:    y,
-				Size: size,
-			}
-		} else {
-			shape = &physical.Irregular{
-				N:    s.createShelfForm.NumBins(),
-				Size: size,
-			}
-		}
-
-		newShelf, _ := physical.New(s.createShelfForm.Name(),
-			physical.WithShelfSortFunc(physical.AlphaByArtist),
-			physical.WithShape(shape),
-		)
-
+	switch msg := msg.(type) {
+	case resetFormMsg:
 		s.createShelfForm = newShelfCreateForm()
-
-		ns := shelf.New(newShelf, style.ActiveTextStyle)
-
 		cmds = append(cmds,
-			statemachine.WithNextState(statemachine.MainMenu),
+			s.createShelfForm.Init(),
 		)
-	} else {
-		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, s.createShelfForm.View()),
-		)
+
+	default:
+		fModel, formUpdateCmds := s.createShelfForm.Update(msg)
+		if f, ok := fModel.(*form); ok {
+			s.createShelfForm = f
+		}
+		cmds = append(cmds, formUpdateCmds)
+
+		// once done
+		if s.createShelfForm.State == huh.StateCompleted {
+			x := s.createShelfForm.DimX()
+			y := s.createShelfForm.DimY()
+			size := s.createShelfForm.BinSize()
+
+			var shape physical.Shape
+
+			if s.createShelfForm.Shape() == Rect {
+				shape = &physical.Rectangular{
+					X:    x,
+					Y:    y,
+					Size: size,
+				}
+			} else {
+				shape = &physical.Irregular{
+					N:    s.createShelfForm.NumBins(),
+					Size: size,
+				}
+			}
+
+			newShelf, _ := physical.New(s.createShelfForm.Name(),
+				physical.WithShelfSortFunc(physical.AlphaByArtist),
+				physical.WithShape(shape),
+			)
+
+			ns := shelf.New(newShelf, style.ActiveTextStyle)
+			s.app.Shelves = append(s.app.Shelves, ns)
+
+			s.createShelfForm = newShelfCreateForm()
+			s.nextState = statemachine.MainMenu
+
+			cmds = append(cmds,
+				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
+			)
+		} else {
+			cmds = append(cmds,
+				teaCmds.WithLayoutUpdate(layouts.Overlay, s.createShelfForm.View()),
+			)
+		}
 	}
 
 
@@ -84,4 +104,16 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s CreateShelfState) View() string {
 	view := s.createShelfForm.View()
 	return view
+}
+
+func (s CreateShelfState) Next() (statemachine.StateType, bool) {
+	if s.nextState != statemachine.Undefined {
+		return s.nextState, true
+	}
+
+	return statemachine.Undefined, false
+}
+
+func (s CreateShelfState) Transition() {
+	s.nextState = statemachine.Undefined
 }

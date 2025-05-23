@@ -11,6 +11,7 @@ const (
 	LoadedBin
 	SelectShelf
 	Quit
+	Undefined
 )
 
 func (s StateType) String() string {
@@ -22,5 +23,6 @@ func (s StateType) String() string {
 		"LoadedBin",
 		"SelectShelf",
 		"Quit",
+		"Undefined",
 	}[s]
 }

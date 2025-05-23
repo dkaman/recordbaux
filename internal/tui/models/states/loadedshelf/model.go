@@ -8,8 +8,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
@@ -33,74 +36,82 @@ func defaultKeys() keyMap {
 	}
 }
 
+type refreshLoadedShelfMsg struct {}
+
 type LoadedShelfState struct {
-	shelf       *physical.Shelf
+	app         *app.App
+	nextState   statemachine.StateType
+	shelf       shelf.Model
 	selectedBin int
 	keys        keyMap
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New() LoadedShelfState {
+func New(a *app.App) LoadedShelfState {
 	return LoadedShelfState{
-		keys:   defaultKeys(),
+		app:       a,
+		nextState: statemachine.Undefined,
+		keys:      defaultKeys(),
 	}
 }
 
 func (s LoadedShelfState) Init() tea.Cmd {
-	return teaCmds.WithLayoutUpdate(layouts.Viewport, s.View())
+	return func() tea.Msg {
+		return refreshLoadedShelfMsg{}
+	}
 }
 
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case statemachine.BroadcastLoadShelfMsg:
-		s.shelf = msg.Shelf
+	case refreshLoadedShelfMsg:
+		s.shelf = s.app.CurrentShelf
 		s.selectedBin = 0
+		cmds = append(cmds,
+			teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
+		)
+
+		return s, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
+		sh := s.shelf.PhysicalShelf()
+
 		switch {
 		case key.Matches(msg, s.keys.Next):
-			if s.shelf != nil {
-				s.selectedBin = (s.selectedBin + 1) % len(s.shelf.Bins)
+			if sh != nil {
+				s.selectedBin = (s.selectedBin + 1) % len(sh.Bins)
 			}
 
 		case key.Matches(msg, s.keys.Prev):
-			if s.shelf != nil {
-				s.selectedBin = (s.selectedBin - 1 + len(s.shelf.Bins)) % len(s.shelf.Bins)
+			if sh != nil {
+				s.selectedBin = (s.selectedBin - 1 + len(sh.Bins)) % len(sh.Bins)
 			}
 
 		case key.Matches(msg, s.keys.Back):
-			cmds = append(cmds,
-				statemachine.WithNextState(statemachine.MainMenu),
-			)
-			s.shelf = nil
+			s.nextState = statemachine.MainMenu
 
 		case key.Matches(msg, s.keys.Load):
-			cmds = append(cmds,
-				statemachine.WithLoadShelfBroadcast(s.shelf),
-				statemachine.WithNextState(statemachine.LoadCollection),
-			)
+			s.nextState = statemachine.LoadCollection
 
 		case msg.String() == "enter":
-			cmds = append(cmds,
-				statemachine.WithNextState(statemachine.LoadedBin),
-				statemachine.WithLoadBinBroadcast(s.shelf.Bins[s.selectedBin]),
-			)
-
-			return s, tea.Sequence(cmds...)
+			b := bin.New(sh.Bins[s.selectedBin], style.ActiveTextStyle)
+			s.app.CurrentBin = b
+			s.nextState = statemachine.LoadedBin
 		}
 	}
 
 	cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
+		teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
 	)
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedShelfState) View() string {
-	if s.shelf == nil {
+	sh := s.shelf.PhysicalShelf()
+
+	if sh == nil {
 		return "no shelf loaded"
 	}
 
@@ -114,7 +125,7 @@ func (s LoadedShelfState) View() string {
 
 	// Render each bin into its own little box string
 	var boxes []string
-	for i, bin := range s.shelf.Bins {
+	for i, bin := range sh.Bins {
 		count := len(bin.Records)
 		label := fmt.Sprintf("%s %d/%d", bin.ID, count, bin.Size)
 
@@ -149,4 +160,16 @@ func (s LoadedShelfState) View() string {
 	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
 	return grid
+}
+
+func (s LoadedShelfState) Next() (statemachine.StateType, bool) {
+	if s.nextState != statemachine.Undefined {
+		return s.nextState, true
+	}
+
+	return statemachine.Undefined, false
+}
+
+func (s LoadedShelfState) Transition() {
+	s.nextState = statemachine.Undefined
 }

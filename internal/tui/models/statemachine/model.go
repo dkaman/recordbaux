@@ -1,8 +1,8 @@
 package statemachine
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -16,6 +16,8 @@ var (
 
 type State interface {
 	tea.Model
+	Next() (StateType, bool)
+	Transition()
 }
 
 type Model struct {
@@ -45,34 +47,28 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case StateTransitionMsg:
-		nextStateType := msg.NextState
+	stateModel, stateCmds := m.currentState.Update(msg)
+	cmds = append(cmds, stateCmds)
 
-		nextState, ok := m.allStates[nextStateType]
-		if !ok {
-			return m, tea.Quit
+	if s, okay := stateModel.(State); okay {
+		if next, wanted := s.Next(); wanted {
+			m.allStates[m.currentStateType] = m.currentState
+
+			s.Transition()
+
+			m.currentState = m.allStates[next]
+			m.currentStateType = next
+
+			cmds = append(cmds,
+				m.currentState.Init(),
+				teaCmds.WithLayoutUpdate(layouts.StatusBar, fmt.Sprintf("state: %s", m.currentStateType)),
+			)
+
+			return m, tea.Batch(cmds...)
 		}
 
-		m.currentState = nextState
-		m.currentStateType = nextStateType
-
-		cmds = append(cmds,
-			m.currentState.Init(),
-			teaCmds.WithLayoutUpdate(layouts.StatusBar, fmt.Sprintf("state: %s", m.currentStateType)),
-			teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-		)
-
-		return m, tea.Batch(cmds...)
-	}
-
-	stateModel, stateCmds := m.currentState.Update(msg)
-	if s, ok := stateModel.(State); ok {
-		m.allStates[m.currentStateType] = s
 		m.currentState = s
 	}
-
-	cmds = append(cmds, stateCmds)
 
 	return m, tea.Batch(cmds...)
 }

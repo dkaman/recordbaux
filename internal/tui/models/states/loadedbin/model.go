@@ -6,22 +6,27 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
+type refreshLoadedBinMsg struct{}
+
 type LoadedBinState struct {
-	bin  *physical.Bin
-	keys keyMap
+	app       *app.App
+	nextState statemachine.StateType
+	bin       bin.Model
+	keys      keyMap
 
 	records table.Model
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New() LoadedBinState {
+func New(a *app.App) LoadedBinState {
 	columns := []table.Column{
 		{Title: "catalog no.", Width: 10},
 		{Title: "release name", Width: 30},
@@ -35,21 +40,25 @@ func New() LoadedBinState {
 	)
 
 	return LoadedBinState{
-		keys:    defaultKeybinds(),
-		records: t,
+		app:       a,
+		nextState: statemachine.Undefined,
+		keys:      defaultKeybinds(),
+		records:   t,
 	}
 }
 
 func (s LoadedBinState) Init() tea.Cmd {
-	return nil
+	return func() tea.Msg {
+		return refreshLoadedBinMsg{}
+	}
 }
 
 func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case statemachine.BroadcastLoadBinMsg:
-		s.bin = msg.Bin
+	case refreshLoadedBinMsg:
+		s.bin = s.app.CurrentBin
 
 		columns := []table.Column{
 			{Title: "catalog no.", Width: 15},
@@ -59,7 +68,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		var rows []table.Row
 
-		for _, r := range s.bin.Records {
+		for _, r := range s.bin.PhysicalBin().Records {
 			catno := r.Release.BasicInfo.Labels[0].CatNo
 			name := r.Release.BasicInfo.Title
 			artist := r.Release.BasicInfo.Artists[0].Name
@@ -75,24 +84,26 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, s.View()),
+			teaCmds.WithLayoutUpdate(layouts.Overlay, s.records.View()),
 		)
 
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
 			cmds = append(cmds,
-				statemachine.WithNextState(statemachine.LoadedShelf),
+				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
 			)
+			s.nextState = statemachine.LoadedShelf
+			return s, tea.Batch(cmds...)
 		}
-
-		return s, tea.Batch(cmds...)
 	}
-
 
 	tableModel, tableUpdateCmds := s.records.Update(msg)
 	s.records = tableModel
-	cmds = append(cmds, tableUpdateCmds)
+	cmds = append(cmds,
+		tableUpdateCmds,
+		teaCmds.WithLayoutUpdate(layouts.Overlay, s.records.View()),
+	)
 
 	return s, tea.Batch(cmds...)
 }
@@ -100,4 +111,16 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s LoadedBinState) View() string {
 	view := s.records.View()
 	return view
+}
+
+func (s LoadedBinState) Next() (statemachine.StateType, bool) {
+	if s.nextState != statemachine.Undefined {
+		return s.nextState, true
+	}
+
+	return statemachine.Undefined, false
+}
+
+func (s LoadedBinState) Transition() {
+	s.nextState = statemachine.Undefined
 }

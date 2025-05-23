@@ -10,6 +10,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
+	"github.com/dkaman/recordbaux/internal/tui/app"
 
 	discogs "github.com/dkaman/discogs-golang"
 	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
@@ -24,8 +25,9 @@ import (
 )
 
 type Model struct {
-	// global application config
+	// global application config/state
 	cfg *config.Config
+	app *app.App
 
 	// tea models
 	stateMachine statemachine.Model
@@ -45,6 +47,7 @@ func New(c *config.Config) Model {
 		topBar:    "recordbaux - organize your vinyl record collection",
 		viewPort:  "welcome to recordbaux",
 		statusBar: fmt.Sprintf("current state: %s", initialState),
+		app: app.NewApp(),
 	}
 
 	m.layout = layouts.NewTwoBarViewportLayout()
@@ -64,12 +67,12 @@ func New(c *config.Config) Model {
 
 		// pass the layout to all the states so they can add if they want
 		map[statemachine.StateType]statemachine.State{
-			statemachine.MainMenu:       mms.New(),
-			statemachine.CreateShelf:    css.New(),
-			statemachine.LoadedShelf:    lss.New(),
-			statemachine.LoadCollection: lcs.New(discogsClient, discogsUsername),
-			statemachine.LoadedBin:      lbs.New(),
-			statemachine.SelectShelf:    sss.New(),
+			statemachine.MainMenu:       mms.New(m.app),
+			statemachine.CreateShelf:    css.New(m.app),
+			statemachine.LoadedShelf:    lss.New(m.app),
+			statemachine.LoadCollection: lcs.New(m.app, discogsClient, discogsUsername),
+			statemachine.LoadedBin:      lbs.New(m.app),
+			statemachine.SelectShelf:    sss.New(m.app),
 		},
 	)
 
@@ -111,7 +114,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-
 	stateMachineModel, stateMachineCmds := m.stateMachine.Update(msg)
 	if sm, ok := stateMachineModel.(statemachine.Model); ok {
 		m.stateMachine = sm
@@ -123,7 +125,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	totalW, totalH, _ :=  term.GetSize(int(os.Stdout.Fd()))
+	totalW, totalH, _ := term.GetSize(int(os.Stdout.Fd()))
 
 	m.layout.SetSize(totalW, totalH)
 

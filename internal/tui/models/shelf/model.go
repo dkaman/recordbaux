@@ -65,8 +65,18 @@ func (m Model) View() string {
 	return m.sty.Render(out)
 }
 
+func (m Model) Title() string {
+	return m.physicalShelf.Name
+}
+
 func (m Model) FilterValue() string {
 	return m.physicalShelf.Name
+}
+
+func (m Model) Description() string {
+	bins := len(m.physicalShelf.Bins)
+	cap := bins * m.physicalShelf.Shape.BinSize()
+	return fmt.Sprintf("%d bins, capacity %d", bins, cap)
 }
 
 func (m Model) PhysicalShelf() *physical.Shelf {

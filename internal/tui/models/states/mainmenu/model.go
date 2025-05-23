@@ -5,16 +5,21 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 )
 
 type MainMenuState struct {
-	keys keyMap
+	app       *app.App
+	keys      keyMap
+	nextState statemachine.StateType
 }
 
-func New() MainMenuState {
+func New(a *app.App) MainMenuState {
 	return MainMenuState{
-		keys: defaultKeybinds(),
+		app:       a,
+		nextState: statemachine.Undefined,
+		keys:      defaultKeybinds(),
 	}
 }
 
@@ -29,13 +34,9 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.SelectShelf):
-			cmds = append(cmds,
-				statemachine.WithNextState(statemachine.SelectShelf),
-			)
+			s.nextState = statemachine.SelectShelf
 		case key.Matches(msg, s.keys.NewShelf):
-			cmds = append(cmds,
-				statemachine.WithNextState(statemachine.CreateShelf),
-			)
+			s.nextState = statemachine.CreateShelf
 		}
 	}
 
@@ -44,4 +45,16 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (s MainMenuState) View() string {
 	return ""
+}
+
+func (s MainMenuState) Next() (statemachine.StateType, bool) {
+	if s.nextState != statemachine.Undefined {
+		return s.nextState, true
+	}
+
+	return statemachine.Undefined, false
+}
+
+func (s MainMenuState) Transition() {
+	s.nextState = statemachine.Undefined
 }
