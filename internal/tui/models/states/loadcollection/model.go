@@ -18,11 +18,7 @@ import (
 
 type refreshShelfMsg struct{}
 
-type processNextMsg struct{}
-
-func processNextCmd() tea.Cmd {
-	return func() tea.Msg { return processNextMsg{} }
-}
+type loadNextMsg struct{}
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
@@ -60,8 +56,12 @@ func (s LoadCollectionState) Init() tea.Cmd {
 	return tea.Batch(
 		s.collection.Init(),
 		s.selectFolderForm.Init(),
+		s.progressBar.Init(),
 		func() tea.Msg {
 			return refreshShelfMsg{}
+		},
+		func() tea.Msg {
+			return loadNextMsg{}
 		},
 	)
 }
@@ -83,49 +83,48 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.progressBar = progress.New(progress.WithDefaultGradient())
 
 		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, s.progressBar.ViewAs(0)),
-			processNextCmd(),
+			s.progressBar.Init(),
+			s.progressBar.SetPercent(0),
+			func() tea.Msg { return loadNextMsg{} },
 		)
 
 		return s, tea.Batch(cmds...)
 
-	case processNextMsg:
-		if s.currentIndex < s.totalReleases {
-			phy := s.collection.PhysicalShelf()
-			phy.Insert(s.releases[s.currentIndex])
-			s.currentIndex++
-
-			pct := float64(s.currentIndex) / float64(s.totalReleases)
-			cmds = append(cmds,
-				s.progressBar.SetPercent(pct),
-				teaCmds.WithLayoutUpdate(layouts.Overlay, s.progressBar.ViewAs(pct)),
-				processNextCmd(),
-			)
-
-			return s, tea.Batch(cmds...)
-		}
-
-		s.nextState = statemachine.LoadedShelf
-		s.releases = nil
-		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-		)
-
-		return s, tea.Batch(cmds...)
-	}
-
-	if s.releases != nil {
+	case progress.FrameMsg:
 		barModel, barUpdateCmds := s.progressBar.Update(msg)
 		if bar, ok := barModel.(progress.Model); ok {
 			s.progressBar = bar
 		}
-
-		cmds = append(cmds,
-			barUpdateCmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, s.progressBar.View()),
-		)
-
+		cmds = append(cmds, barUpdateCmds)
 		return s, tea.Batch(cmds...)
+
+	case loadNextMsg:
+		if s.releases != nil {
+			if s.currentIndex < s.totalReleases {
+				phy := s.collection.PhysicalShelf()
+				phy.Insert(s.releases[s.currentIndex])
+				s.currentIndex++
+
+				pct := float64(s.currentIndex) / float64(s.totalReleases)
+
+				cmds = append(cmds,
+					s.progressBar.SetPercent(pct),
+					teaCmds.WithLayoutUpdate(layouts.Overlay, s.progressBar.ViewAs(pct)),
+					tea.Cmd(func() tea.Msg { return loadNextMsg{}}),
+				)
+
+				return s, tea.Batch(cmds...)
+			} else {
+				cmds = append(cmds,
+					teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
+				)
+
+				s.releases = nil
+				s.nextState = statemachine.LoadedShelf
+
+				return s, tea.Batch(cmds...)
+			}
+		}
 	}
 
 	fModel, formUpdateCmds := s.selectFolderForm.Update(msg)
@@ -145,6 +144,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds,
 		teaCmds.WithLayoutUpdate(layouts.Overlay, s.selectFolderForm.View()),
 	)
+
 	cModel, cCmds := s.collection.Update(msg)
 	if c, ok := cModel.(shelf.Model); ok {
 		s.collection = c
