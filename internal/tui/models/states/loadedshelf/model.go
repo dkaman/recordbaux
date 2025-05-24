@@ -3,6 +3,7 @@ package loadedshelf
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 
@@ -14,44 +15,30 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
+	"github.com/dkaman/recordbaux/internal/physical"
 
 	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
-type binKey = key.Binding
-
-type keyMap struct {
-	Next binKey
-	Prev binKey
-	Back binKey
-	Load binKey
-}
-
-func defaultKeys() keyMap {
-	return keyMap{
-		Next: key.NewBinding(key.WithKeys("n")),
-		Prev: key.NewBinding(key.WithKeys("N")),
-		Back: key.NewBinding(key.WithKeys("q")),
-		Load: key.NewBinding(key.WithKeys("l")),
-	}
-}
-
-type refreshLoadedShelfMsg struct {}
+type refreshLoadedShelfMsg struct{}
 
 type LoadedShelfState struct {
-	app         *app.App
-	nextState   statemachine.StateType
+	app       *app.App
+	keys      keyMap
+	help      help.Model
+	nextState statemachine.StateType
+
 	shelf       shelf.Model
 	selectedBin int
-	keys        keyMap
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
 func New(a *app.App) LoadedShelfState {
 	return LoadedShelfState{
 		app:       a,
+		keys:      defaultKeybinds(),
+		help:      help.New(),
 		nextState: statemachine.Undefined,
-		keys:      defaultKeys(),
 	}
 }
 
@@ -68,6 +55,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshLoadedShelfMsg:
 		s.shelf = s.app.CurrentShelf
 		s.selectedBin = 0
+
 		cmds = append(cmds,
 			teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
 		)
@@ -115,51 +103,68 @@ func (s LoadedShelfState) View() string {
 		return "no shelf loaded"
 	}
 
-	// Lipgloss box style
+	// Define square box size
+	boxSize := 8
+
+	// Lipgloss square box style
 	base := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
-		Padding(0, 1).
-		Margin(0, 1).
 		Align(lipgloss.Center).
-		Width(12)
+		AlignVertical(lipgloss.Center).
+		Width(boxSize*3).
+		Height(boxSize)
 
-	// Render each bin into its own little box string
+	// Render each bin into its own square box string
 	var boxes []string
-	for i, bin := range sh.Bins {
-		count := len(bin.Records)
-		label := fmt.Sprintf("%s %d/%d", bin.ID, count, bin.Size)
+	for i, b := range sh.Bins {
+		count := len(b.Records)
 
-		style := base
+		// ID on first line, capacity on second
+		label := fmt.Sprintf("%s\n%d/%d", b.ID, count, b.Size)
+
+		styleBox := base
+
 		if count > 0 {
-			style = style.BorderBackground(lipgloss.Color("62"))
-		}
-		if i == s.selectedBin {
-			label = "★ " + label
-			style = style.BorderForeground(lipgloss.Color("5"))
+			styleBox = styleBox.BorderBackground(lipgloss.Color("62"))
 		}
 
-		boxes = append(boxes, style.Render(label))
+		if i == s.selectedBin {
+			styleBox = styleBox.BorderForeground(lipgloss.Color("5"))
+		}
+
+		boxes = append(boxes, styleBox.Render(label))
 	}
 
-	// Decide how many columns per row
-	cols := 4
-	var rows []string
+	// Decide number of columns based on shape
+	var cols int
+	if rect, ok := sh.Shape.(*physical.Rectangular); ok {
+		cols = rect.X
+	} else {
+		cols = len(boxes)
+	}
 
-	// Chunk into rows of `cols`
+	// Chunk into rows
+	var rows []string
 	for i := 0; i < len(boxes); i += cols {
 		end := i + cols
+
 		if end > len(boxes) {
 			end = len(boxes)
 		}
-		// join boxes[i:end] horizontally, aligning tops
+
 		row := lipgloss.JoinHorizontal(lipgloss.Top, boxes[i:end]...)
+
 		rows = append(rows, row)
 	}
 
-	// stack all rows vertically, left-aligned
+	// Stack rows vertically
 	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
 	return grid
+}
+
+func (s LoadedShelfState) Help() string {
+	return s.help.View(s.keys)
 }
 
 func (s LoadedShelfState) Next() (statemachine.StateType, bool) {

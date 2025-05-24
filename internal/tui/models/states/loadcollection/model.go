@@ -28,8 +28,8 @@ type LoadCollectionState struct {
 	discogsClient    *discogs.Client
 	discogsUsername  string
 	selectFolderForm *form
+	progressBar      progress.Model
 
-	progressBar   progress.Model
 	releases      []*physical.Record
 	currentIndex  int
 	totalReleases int
@@ -110,7 +110,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds,
 					s.progressBar.SetPercent(pct),
 					teaCmds.WithLayoutUpdate(layouts.Overlay, s.progressBar.ViewAs(pct)),
-					tea.Cmd(func() tea.Msg { return loadNextMsg{}}),
+					tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
 				)
 
 				return s, tea.Batch(cmds...)
@@ -160,6 +160,10 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s LoadCollectionState) View() string {
 	view := s.selectFolderForm.View()
 	return view
+}
+
+func (s LoadCollectionState) Help() string {
+	return ""
 }
 
 func (s LoadCollectionState) Next() (statemachine.StateType, bool) {

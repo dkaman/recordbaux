@@ -20,6 +20,7 @@ type SelectShelfState struct {
 	app       *app.App
 	keys      keyMap
 	nextState statemachine.StateType
+
 	shelfList list.Model
 }
 
@@ -60,10 +61,13 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case refreshShelvesMsg:
 		items := make([]list.Item, len(s.app.Shelves))
+
 		for i, sh := range s.app.Shelves {
 			items[i] = sh
 		}
+
 		s.shelfList.SetItems(items)
+
 		return s, teaCmds.WithLayoutUpdate(layouts.Overlay, s.shelfList.View())
 
 	case tea.KeyMsg:
@@ -71,17 +75,23 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, s.keys.Select):
 			if sel, ok := s.shelfList.SelectedItem().(shelf.Model); ok {
 				s.app.CurrentShelf = sel
+
 				cmds = append(cmds,
 					teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
 				)
+
 				s.nextState = statemachine.LoadedShelf
 			}
+
 			return s, tea.Batch(cmds...)
+
 		case key.Matches(msg, s.keys.Back):
 			cmds = append(cmds,
 				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
 			)
+
 			s.nextState = statemachine.MainMenu
+
 			return s, tea.Batch(cmds...)
 		}
 	}
@@ -103,10 +113,15 @@ func (s SelectShelfState) View() string {
 	return view
 }
 
+func (s SelectShelfState) Help() string {
+	return "please select a shelf from the list..."
+}
+
 func (s SelectShelfState) Next() (statemachine.StateType, bool) {
 	if s.nextState != statemachine.Undefined {
 		return s.nextState, true
 	}
+
 	return statemachine.Undefined, false
 }
 

@@ -1,6 +1,7 @@
 package loadedbin
 
 import (
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 
@@ -18,6 +19,7 @@ type refreshLoadedBinMsg struct{}
 
 type LoadedBinState struct {
 	app       *app.App
+	help      help.Model
 	nextState statemachine.StateType
 	bin       bin.Model
 	keys      keyMap
@@ -41,6 +43,7 @@ func New(a *app.App) LoadedBinState {
 
 	return LoadedBinState{
 		app:       a,
+		help:      help.New(),
 		nextState: statemachine.Undefined,
 		keys:      defaultKeybinds(),
 		records:   t,
@@ -111,6 +114,10 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s LoadedBinState) View() string {
 	view := s.records.View()
 	return view
+}
+
+func (s LoadedBinState) Help() string {
+	return s.help.View(s.keys)
 }
 
 func (s LoadedBinState) Next() (statemachine.StateType, bool) {

@@ -18,6 +18,7 @@ type State interface {
 	tea.Model
 	Next() (StateType, bool)
 	Transition()
+	Help() string
 }
 
 type Model struct {
@@ -75,6 +76,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	return m.currentState.View()
+}
+
+func (m Model) Help() string {
+	return m.currentState.Help()
 }
 
 func (m Model) State(t StateType) State {

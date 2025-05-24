@@ -1,6 +1,7 @@
 package mainmenu
 
 import (
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,14 +13,17 @@ import (
 type MainMenuState struct {
 	app       *app.App
 	keys      keyMap
+	help      help.Model
+
 	nextState statemachine.StateType
 }
 
 func New(a *app.App) MainMenuState {
 	return MainMenuState{
 		app:       a,
-		nextState: statemachine.Undefined,
 		keys:      defaultKeybinds(),
+		help:      help.New(),
+		nextState: statemachine.Undefined,
 	}
 }
 
@@ -57,4 +61,8 @@ func (s MainMenuState) Next() (statemachine.StateType, bool) {
 
 func (s MainMenuState) Transition() {
 	s.nextState = statemachine.Undefined
+}
+
+func (s MainMenuState) Help() string {
+	return s.help.View(s.keys)
 }

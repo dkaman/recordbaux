@@ -5,12 +5,16 @@ import (
 	"log"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"golang.org/x/term"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
-	"github.com/dkaman/recordbaux/internal/tui/app"
 
 	discogs "github.com/dkaman/discogs-golang"
 	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
@@ -20,45 +24,55 @@ import (
 	lss "github.com/dkaman/recordbaux/internal/tui/models/states/loadedshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/models/states/mainmenu"
 	sss "github.com/dkaman/recordbaux/internal/tui/models/states/selectshelf"
-
-	"golang.org/x/term"
 )
 
 type Model struct {
 	// global application config/state
-	cfg *config.Config
-	app *app.App
+	cfg  *config.Config
+	app  *app.App
+	keys keyMap
+	help help.Model
 
 	// tea models
 	stateMachine statemachine.Model
 
 	// styling/layout
-	layout    *layouts.TwoBarViewportLayout
-	topBar    string
-	viewPort  string
-	statusBar string
-	overlay   string
+	helpVisible bool
+	layout      *layouts.TwoBarViewportLayout
+	topBar      string
+	viewPort    string
+	statusBar   string
+	helpBar     string
+	overlay     string
 }
 
 func New(c *config.Config) Model {
 	initialState := statemachine.MainMenu
 
 	m := Model{
-		topBar:    "recordbaux - organize your vinyl record collection",
-		viewPort:  "welcome to recordbaux",
-		statusBar: fmt.Sprintf("current state: %s", initialState),
-		app: app.NewApp(),
+		cfg:  c,
+		app:  app.NewApp(),
+		keys: defaultKeybinds(),
+		help: help.New(),
+
+		topBar:      "recordbaux - organize your vinyl record collection",
+		viewPort:    "welcome to recordbaux",
+		statusBar:   fmt.Sprintf("current state: %s", initialState),
+		helpVisible: false,
+		helpBar:     "",
 	}
 
 	m.layout = layouts.NewTwoBarViewportLayout()
 
 	discogsAPIKey, _ := c.String("shelf.discogs.key")
+
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)
 	if err != nil {
 		log.Printf("error in discogs client creation %w", err)
 	}
+
 	discogsUsername, _ := c.String("shelf.discogs.username")
 
 	sm, _ := statemachine.New(
@@ -88,13 +102,17 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	m.helpBar = fmt.Sprintf("global %sstate: %s", m.help.View(m.keys), m.stateMachine.Help())
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		key := msg
-		switch key.String() {
-		case "ctrl+c", "esc":
+		switch {
+		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
+		case key.Matches(msg, m.keys.ToggleHelp):
+			m.helpVisible = !m.helpVisible
 		}
+
 	case teaCmds.LayoutUpdateMsg:
 		sec := msg.Section
 		cont := msg.Content
@@ -129,5 +147,14 @@ func (m Model) View() string {
 
 	m.layout.SetSize(totalW, totalH)
 
-	return m.layout.Render(m.topBar, m.viewPort, m.statusBar, m.overlay)
+	h := ""
+	if m.helpVisible {
+		h = m.helpBar
+	}
+
+	return m.layout.Render(m.topBar, m.viewPort, m.statusBar, m.overlay, h)
+}
+
+func (m Model) Help() string {
+	return ""
 }

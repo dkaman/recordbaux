@@ -106,6 +106,10 @@ func (s CreateShelfState) View() string {
 	return view
 }
 
+func (s CreateShelfState) Help() string {
+	return "enter shelf details..."
+}
+
 func (s CreateShelfState) Next() (statemachine.StateType, bool) {
 	if s.nextState != statemachine.Undefined {
 		return s.nextState, true
