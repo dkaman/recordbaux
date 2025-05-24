@@ -1,4 +1,4 @@
-package root
+package tui
 
 import (
 	"fmt"

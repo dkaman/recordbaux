@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/dkaman/recordbaux/internal/config"
-	"github.com/dkaman/recordbaux/internal/tui/models/root"
+	"github.com/dkaman/recordbaux/internal/tui"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 	}
 
 
-	p := tea.NewProgram(root.New(cfg))
+	p := tea.NewProgram(tui.New(cfg))
 
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
