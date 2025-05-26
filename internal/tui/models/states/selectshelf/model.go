@@ -3,16 +3,13 @@ package selectshelf
 import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
-
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
@@ -27,9 +24,9 @@ type SelectShelfState struct {
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
 func New(a *app.App) SelectShelfState {
 	// create an empty list; width/height can be adjusted
-	lst := list.New([]list.Item{}, list.NewDefaultDelegate(), 10, 30)
+	lst := list.New([]list.Item{}, list.NewDefaultDelegate(), 1000, 20)
 	lst.Title = "select a Shelf"
-	lst.Styles.Title = lst.Styles.Title.BorderStyle(lipgloss.NormalBorder())
+	lst.Styles = style.DefaultListStyles()
 
 	items := make([]list.Item, len(a.Shelves))
 	for i, sh := range a.Shelves {
@@ -68,7 +65,7 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.shelfList.SetItems(items)
 
-		return s, teaCmds.WithLayoutUpdate(layouts.Overlay, s.shelfList.View())
+		return s, nil
 
 	case tea.KeyMsg:
 		switch {
@@ -76,20 +73,12 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if sel, ok := s.shelfList.SelectedItem().(shelf.Model); ok {
 				s.app.CurrentShelf = sel
 
-				cmds = append(cmds,
-					teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-				)
-
 				s.nextState = statemachine.LoadedShelf
 			}
 
 			return s, tea.Batch(cmds...)
 
 		case key.Matches(msg, s.keys.Back):
-			cmds = append(cmds,
-				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-			)
-
 			s.nextState = statemachine.MainMenu
 
 			return s, tea.Batch(cmds...)
@@ -99,7 +88,6 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	listModel, listCmds := s.shelfList.Update(msg)
 	cmds = append(cmds,
 		listCmds,
-		teaCmds.WithLayoutUpdate(layouts.Overlay, s.shelfList.View()),
 	)
 
 	s.shelfList = listModel

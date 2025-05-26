@@ -10,10 +10,8 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 
 	discogs "github.com/dkaman/discogs-golang"
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 type refreshShelfMsg struct{}
@@ -73,7 +71,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case refreshShelfMsg:
 		s.collection = s.app.CurrentShelf
-		return s, teaCmds.WithLayoutUpdate(layouts.Overlay, s.selectFolderForm.View())
+		return s, nil
 
 	case NewDiscogsCollectionMsg:
 		s.releases = msg.Releases
@@ -109,16 +107,11 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				cmds = append(cmds,
 					s.progressBar.SetPercent(pct),
-					teaCmds.WithLayoutUpdate(layouts.Overlay, s.progressBar.ViewAs(pct)),
 					tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
 				)
 
 				return s, tea.Batch(cmds...)
 			} else {
-				cmds = append(cmds,
-					teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-				)
-
 				s.releases = nil
 				s.nextState = statemachine.LoadedShelf
 
@@ -140,10 +133,6 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, fol),
 		)
 	} else {
-		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, s.selectFolderForm.View()),
-		)
-
 	}
 
 	cModel, cCmds := s.collection.Update(msg)

@@ -3,21 +3,19 @@ package tui
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"golang.org/x/term"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	discogs "github.com/dkaman/discogs-golang"
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	css "github.com/dkaman/recordbaux/internal/tui/models/states/createshelf"
 	lcs "github.com/dkaman/recordbaux/internal/tui/models/states/loadcollection"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/states/loadedbin"
@@ -38,7 +36,7 @@ type Model struct {
 
 	// styling/layout
 	helpVisible bool
-	layout      *layouts.TwoBarViewportLayout
+	layout      *layout.Node
 	topBar      string
 	viewPort    string
 	statusBar   string
@@ -46,26 +44,23 @@ type Model struct {
 	overlay     string
 }
 
-func New(c *config.Config) Model {
-	initialState := statemachine.MainMenu
+func New(c *config.Config, l *layout.Node) Model {
+	var err error
+
+	h := help.New()
+	h.Styles = style.DefaultHelpStyles()
 
 	m := Model{
 		cfg:  c,
 		app:  app.NewApp(),
 		keys: defaultKeybinds(),
-		help: help.New(),
-
-		topBar:      "recordbaux - organize your vinyl record collection",
-		viewPort:    "welcome to recordbaux",
-		statusBar:   fmt.Sprintf("current state: %s", initialState),
-		helpVisible: false,
-		helpBar:     "",
+		help: h,
 	}
 
-	m.layout = layouts.NewTwoBarViewportLayout()
+	initialState := statemachine.MainMenu
 
+	discogsUsername, _ := c.String("shelf.discogs.username")
 	discogsAPIKey, _ := c.String("shelf.discogs.key")
-
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)
@@ -73,13 +68,8 @@ func New(c *config.Config) Model {
 		log.Printf("error in discogs client creation %w", err)
 	}
 
-	discogsUsername, _ := c.String("shelf.discogs.username")
-
 	sm, _ := statemachine.New(
-		// our initial state is main menu
-		statemachine.MainMenu,
-
-		// pass the layout to all the states so they can add if they want
+		initialState,
 		map[statemachine.StateType]statemachine.State{
 			statemachine.MainMenu:       mms.New(m.app),
 			statemachine.CreateShelf:    css.New(m.app),
@@ -91,6 +81,7 @@ func New(c *config.Config) Model {
 	)
 
 	m.stateMachine = sm
+	m.layout, _ = newTUILayout(l)
 
 	return m
 }
@@ -102,59 +93,28 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	m.helpBar = fmt.Sprintf("global %sstate: %s", m.help.View(m.keys), m.stateMachine.Help())
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
+
 		case key.Matches(msg, m.keys.ToggleHelp):
 			m.helpVisible = !m.helpVisible
 		}
-
-	case teaCmds.LayoutUpdateMsg:
-		sec := msg.Section
-		cont := msg.Content
-
-		switch sec {
-		case layouts.TopBar:
-			m.topBar = cont
-		case layouts.Viewport:
-			m.viewPort = cont
-		case layouts.StatusBar:
-			m.statusBar = cont
-		case layouts.Overlay:
-			m.overlay = cont
-		}
-
-		// if we're just updating the layout, dont pass the message on
-		return m, nil
 	}
+
+	m.helpBar = fmt.Sprintf("global: %s state: %s", m.help.View(m.keys), m.stateMachine.Help())
 
 	stateMachineModel, stateMachineCmds := m.stateMachine.Update(msg)
 	if sm, ok := stateMachineModel.(statemachine.Model); ok {
 		m.stateMachine = sm
 	}
-
 	cmds = append(cmds, stateMachineCmds)
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {
-	totalW, totalH, _ := term.GetSize(int(os.Stdout.Fd()))
-
-	m.layout.SetSize(totalW, totalH)
-
-	h := ""
-	if m.helpVisible {
-		h = m.helpBar
-	}
-
-	return m.layout.Render(m.topBar, m.viewPort, m.statusBar, m.overlay, h)
-}
-
-func (m Model) Help() string {
-	return ""
+	return m.layout.Render()
 }

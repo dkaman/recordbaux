@@ -10,9 +10,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
-
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 type refreshLoadedBinMsg struct{}
@@ -29,24 +27,11 @@ type LoadedBinState struct {
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
 func New(a *app.App) LoadedBinState {
-	columns := []table.Column{
-		{Title: "catalog no.", Width: 10},
-		{Title: "release name", Width: 30},
-		{Title: "artist", Width: 20},
-	}
-
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-
 	return LoadedBinState{
 		app:       a,
 		help:      help.New(),
 		nextState: statemachine.Undefined,
 		keys:      defaultKeybinds(),
-		records:   t,
 	}
 }
 
@@ -84,18 +69,12 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			table.WithRows(rows),
 			table.WithFocused(true),
 			table.WithHeight(10),
-		)
-
-		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Overlay, s.records.View()),
+			table.WithStyles(style.DefaultTableStyles()),
 		)
 
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			cmds = append(cmds,
-				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-			)
 			s.nextState = statemachine.LoadedShelf
 			return s, tea.Batch(cmds...)
 		}
@@ -105,7 +84,6 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	s.records = tableModel
 	cmds = append(cmds,
 		tableUpdateCmds,
-		teaCmds.WithLayoutUpdate(layouts.Overlay, s.records.View()),
 	)
 
 	return s, tea.Batch(cmds...)

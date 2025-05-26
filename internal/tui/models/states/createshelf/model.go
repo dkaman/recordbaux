@@ -7,14 +7,12 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/app"
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
-type resetFormMsg struct {}
+type resetFormMsg struct{}
 
 type CreateShelfState struct {
 	app             *app.App
@@ -86,17 +84,9 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			s.createShelfForm = newShelfCreateForm()
 			s.nextState = statemachine.MainMenu
-
-			cmds = append(cmds,
-				teaCmds.WithLayoutUpdate(layouts.Overlay, ""),
-			)
 		} else {
-			cmds = append(cmds,
-				teaCmds.WithLayoutUpdate(layouts.Overlay, s.createShelfForm.View()),
-			)
 		}
 	}
-
 
 	return s, tea.Batch(cmds...)
 }

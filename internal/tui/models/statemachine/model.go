@@ -2,12 +2,8 @@ package statemachine
 
 import (
 	"errors"
-	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 )
 
 var (
@@ -62,7 +58,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			cmds = append(cmds,
 				m.currentState.Init(),
-				teaCmds.WithLayoutUpdate(layouts.StatusBar, fmt.Sprintf("state: %s", m.currentStateType)),
 			)
 
 			return m, tea.Batch(cmds...)

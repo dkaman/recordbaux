@@ -105,7 +105,7 @@ func newShelfCreateForm() *form {
 		).WithHideFunc(func() bool {
 			return f.shape != "irregular"
 		}),
-	).WithTheme(style.FormTheme())
+	).WithTheme(style.DefaultFormStyles())
 
 	return f
 }

@@ -14,10 +14,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layouts"
 	"github.com/dkaman/recordbaux/internal/physical"
-
-	teaCmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 type refreshLoadedShelfMsg struct{}
@@ -56,10 +53,6 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.shelf = s.app.CurrentShelf
 		s.selectedBin = 0
 
-		cmds = append(cmds,
-			teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
-		)
-
 		return s, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
@@ -88,10 +81,6 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.nextState = statemachine.LoadedBin
 		}
 	}
-
-	cmds = append(cmds,
-		teaCmds.WithLayoutUpdate(layouts.Viewport, s.View()),
-	)
 
 	return s, tea.Batch(cmds...)
 }

@@ -5,8 +5,11 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
+
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 func main() {
@@ -18,8 +21,16 @@ func main() {
 		log.Fatalf("error in model configuration: %v", err)
 	}
 
+	totalW, totalH, _ := term.GetSize(int(os.Stdout.Fd()))
 
-	p := tea.NewProgram(tui.New(cfg))
+	l, err := layout.New(totalW, totalH)
+	if err != nil {
+		log.Fatalf("error measuring screen size %s", err)
+	}
+
+	t := tui.New(cfg, l)
+
+	p := tea.NewProgram(t)
 
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
