@@ -2,8 +2,10 @@ package loadcollection
 
 import (
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/app"
@@ -17,22 +19,30 @@ import (
 
 type refreshShelfMsg struct{}
 
+type doneFetchingMsg struct{}
+
 type loadNextMsg struct{}
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
-	app              *app.App
-	nextState        statemachine.StateType
-	collection       shelf.Model
-	discogsClient    *discogs.Client
-	discogsUsername  string
-	selectFolderForm *form
-	progressBar      progress.Model
-	layout           *layout.Node
+	app             *app.App
+	nextState       statemachine.StateType
+	collection      shelf.Model
+	discogsClient   *discogs.Client
+	discogsUsername string
 
+	selectFolderForm *form
+
+	spinner   spinner.Model
+	fetching  bool
+	inserting bool
+
+	progressBar   progress.Model
 	releases      []*physical.Record
 	currentIndex  int
 	totalReleases int
+
+	layout *layout.Node
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
@@ -41,6 +51,10 @@ func New(a *app.App, l *layout.Node, client *discogs.Client, username string) Lo
 
 	f := newFolderSelectForm(client, username)
 
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return LoadCollectionState{
 		app:              a,
 		nextState:        statemachine.Undefined,
@@ -48,6 +62,9 @@ func New(a *app.App, l *layout.Node, client *discogs.Client, username string) Lo
 		discogsClient:    client,
 		discogsUsername:  username,
 		selectFolderForm: f,
+		spinner:          sp,
+		fetching:         false,
+		inserting:        false,
 		layout:           l,
 	}
 }
@@ -57,12 +74,8 @@ func (s LoadCollectionState) Init() tea.Cmd {
 	return tea.Batch(
 		s.collection.Init(),
 		s.selectFolderForm.Init(),
-		s.progressBar.Init(),
 		func() tea.Msg {
 			return refreshShelfMsg{}
-		},
-		func() tea.Msg {
-			return loadNextMsg{}
 		},
 	)
 }
@@ -74,78 +87,119 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case refreshShelfMsg:
 		s.collection = s.app.CurrentShelf
+
+		if s.selectFolderForm.State == huh.StateCompleted {
+			s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
+		}
+
 		return s, nil
 
 	case NewDiscogsCollectionMsg:
+
 		s.releases = msg.Releases
 		s.totalReleases = len(msg.Releases)
 		s.currentIndex = 0
 
-		s.progressBar = progress.New(progress.WithDefaultGradient())
-		s.layout, _ = newLoadedCollectionProgressLayout(s.layout, s.progressBar)
+		s.fetching = false
+		s.inserting = true
 
 		cmds = append(cmds,
-			s.progressBar.Init(),
-			s.progressBar.SetPercent(0),
 			func() tea.Msg { return loadNextMsg{} },
 		)
 
-		return s, tea.Batch(cmds...)
+		s.layout, _ = newLoadedCollectionProgressLayout(
+			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+		)
 
-	case progress.FrameMsg:
-		barModel, barUpdateCmds := s.progressBar.Update(msg)
-		if bar, ok := barModel.(progress.Model); ok {
-			s.progressBar = bar
-		}
-		cmds = append(cmds, barUpdateCmds)
 		return s, tea.Batch(cmds...)
 
 	case loadNextMsg:
-		if s.releases != nil {
-			if s.currentIndex < s.totalReleases {
-				phy := s.collection.PhysicalShelf()
-				phy.Insert(s.releases[s.currentIndex])
-				s.currentIndex++
+		if s.releases != nil && s.currentIndex < s.totalReleases {
+			phy := s.collection.PhysicalShelf()
+			phy.Insert(s.releases[s.currentIndex])
+			s.currentIndex++
 
-				pct := float64(s.currentIndex) / float64(s.totalReleases)
+			pct := float64(s.currentIndex) / float64(s.totalReleases)
 
+			cmds = append(cmds,
+				s.progressBar.SetPercent(pct),
+				tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
+			)
+
+			s.layout, _ = newLoadedCollectionProgressLayout(
+				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
+			)
+
+			return s, tea.Batch(cmds...)
+		}
+
+		s.inserting = false
+
+		s.layout, _ = newLoadedCollectionProgressLayout(
+			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 1.0,
+		)
+
+		cmds = append(cmds, func() tea.Msg {
+			return doneFetchingMsg{}
+		})
+
+		return s, tea.Batch(cmds...)
+
+	case spinner.TickMsg:
+		if s.fetching {
+			var spinnerCmds tea.Cmd
+			s.spinner, spinnerCmds = s.spinner.Update(msg)
+			cmds = append(cmds, spinnerCmds)
+
+			s.layout, _ = newLoadedCollectionProgressLayout(
+				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+			)
+
+			return s, tea.Batch(cmds...)
+		}
+
+	case doneFetchingMsg:
+		s.releases = nil
+		s.nextState = statemachine.LoadedShelf
+
+	default:
+		// If we're not yet fetching, pass input to the folder‐select form
+		if !s.fetching {
+			fModel, formCmds := s.selectFolderForm.Update(msg)
+			if f, ok := fModel.(*form); ok {
+				s.selectFolderForm = f
+			}
+			cmds = append(cmds, formCmds)
+
+			if s.selectFolderForm.State == huh.StateCompleted {
+				folder := s.selectFolderForm.Folder()
+
+				// Enter “fetching” mode:
+				s.fetching = true
+
+				s.progressBar = progress.New(progress.WithDefaultGradient())
+
+				// Kick off the Discogs fetch
 				cmds = append(cmds,
-					s.progressBar.SetPercent(pct),
-					tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
+					s.progressBar.Init(),
+					s.progressBar.SetPercent(0),
+					s.spinner.Tick,
+					RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder),
+				)
+
+				s.layout, _ = newLoadedCollectionProgressLayout(
+					s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
 				)
 
 				return s, tea.Batch(cmds...)
-			} else {
-				s.releases = nil
-				s.nextState = statemachine.LoadedShelf
-
-				return s, tea.Batch(cmds...)
 			}
+
+			s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
+
+			// No further key handling while form is present
+			return s, tea.Batch(cmds...)
 		}
 	}
-
-	fModel, formUpdateCmds := s.selectFolderForm.Update(msg)
-	if f, ok := fModel.(*form); ok {
-		s.selectFolderForm = f
-	}
-	cmds = append(cmds, formUpdateCmds)
-
-	s.layout, _ = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
-
-	if s.selectFolderForm.State == huh.StateCompleted {
-		fol := s.selectFolderForm.Folder()
-		s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
-		cmds = append(cmds,
-			RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, fol),
-		)
-	}
-
-	cModel, cCmds := s.collection.Update(msg)
-	if c, ok := cModel.(shelf.Model); ok {
-		s.collection = c
-	}
-
-	cmds = append(cmds, cCmds)
 
 	return s, tea.Batch(cmds...)
 }
