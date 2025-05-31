@@ -69,6 +69,7 @@ func newLoadedCollectionProgressLayout(base *layout.Node, p progress.Model, s sp
 
 	base.AddSection(layoutViewport, r)
 	base.SetJoinFunc(joinFunc)
+
 	return base, nil
 }
 

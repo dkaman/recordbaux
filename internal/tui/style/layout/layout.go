@@ -75,9 +75,6 @@ func defaultJoinFunc(m map[Section]Renderer) string {
 }
 
 func (n *Node) Render() string {
-	f, _ :=  os.OpenFile("layout.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	fmt.Fprintf(f, "%v\n", n.PrettyPrint())
-
 	if n.join == nil {
 		n.join = defaultJoinFunc
 	}

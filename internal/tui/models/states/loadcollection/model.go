@@ -95,7 +95,6 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 
 	case NewDiscogsCollectionMsg:
-
 		s.releases = msg.Releases
 		s.totalReleases = len(msg.Releases)
 		s.currentIndex = 0
