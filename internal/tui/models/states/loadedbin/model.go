@@ -11,6 +11,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 type refreshLoadedBinMsg struct{}
@@ -21,17 +22,19 @@ type LoadedBinState struct {
 	nextState statemachine.StateType
 	bin       bin.Model
 	keys      keyMap
+	layout    *layout.Node
 
 	records table.Model
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(a *app.App) LoadedBinState {
+func New(a *app.App, l *layout.Node) LoadedBinState {
 	return LoadedBinState{
 		app:       a,
 		help:      help.New(),
 		nextState: statemachine.Undefined,
 		keys:      defaultKeybinds(),
+		layout:    l,
 	}
 }
 
@@ -86,12 +89,13 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tableUpdateCmds,
 	)
 
+	s.layout, _  = newLoadedBinLayout(s.layout, s.records)
+
 	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedBinState) View() string {
-	view := s.records.View()
-	return view
+	return s.layout.Render()
 }
 
 func (s LoadedBinState) Help() string {

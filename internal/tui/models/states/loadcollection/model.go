@@ -10,6 +10,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	discogs "github.com/dkaman/discogs-golang"
 )
@@ -27,6 +28,7 @@ type LoadCollectionState struct {
 	discogsUsername  string
 	selectFolderForm *form
 	progressBar      progress.Model
+	layout           *layout.Node
 
 	releases      []*physical.Record
 	currentIndex  int
@@ -34,7 +36,7 @@ type LoadCollectionState struct {
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(a *app.App, client *discogs.Client, username string) LoadCollectionState {
+func New(a *app.App, l *layout.Node, client *discogs.Client, username string) LoadCollectionState {
 	c := shelf.New(nil, style.ActiveTextStyle)
 
 	f := newFolderSelectForm(client, username)
@@ -46,6 +48,7 @@ func New(a *app.App, client *discogs.Client, username string) LoadCollectionStat
 		discogsClient:    client,
 		discogsUsername:  username,
 		selectFolderForm: f,
+		layout:           l,
 	}
 }
 
@@ -79,6 +82,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.currentIndex = 0
 
 		s.progressBar = progress.New(progress.WithDefaultGradient())
+		s.layout, _ = newLoadedCollectionProgressLayout(s.layout, s.progressBar)
 
 		cmds = append(cmds,
 			s.progressBar.Init(),
@@ -126,13 +130,14 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	cmds = append(cmds, formUpdateCmds)
 
+	s.layout, _ = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
+
 	if s.selectFolderForm.State == huh.StateCompleted {
 		fol := s.selectFolderForm.Folder()
 		s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
 		cmds = append(cmds,
 			RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, fol),
 		)
-	} else {
 	}
 
 	cModel, cCmds := s.collection.Update(msg)
@@ -147,8 +152,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the shelf view into the TopWindow section.
 func (s LoadCollectionState) View() string {
-	view := s.selectFolderForm.View()
-	return view
+	return s.layout.Render()
 }
 
 func (s LoadCollectionState) Help() string {

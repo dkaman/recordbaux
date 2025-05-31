@@ -8,21 +8,26 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 type MainMenuState struct {
-	app       *app.App
-	keys      keyMap
-	help      help.Model
+	app    *app.App
+	keys   keyMap
+	help   help.Model
+	layout *layout.Node
 
 	nextState statemachine.StateType
 }
 
-func New(a *app.App) MainMenuState {
+func New(a *app.App, l *layout.Node) MainMenuState {
+	lay, _ := newMainMenuLayout(l)
+
 	return MainMenuState{
 		app:       a,
 		keys:      defaultKeybinds(),
 		help:      help.New(),
+		layout:    lay,
 		nextState: statemachine.Undefined,
 	}
 }
@@ -39,6 +44,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, s.keys.SelectShelf):
 			s.nextState = statemachine.SelectShelf
+
 		case key.Matches(msg, s.keys.NewShelf):
 			s.nextState = statemachine.CreateShelf
 		}
@@ -48,7 +54,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s MainMenuState) View() string {
-	return ""
+	return s.layout.Render()
 }
 
 func (s MainMenuState) Next() (statemachine.StateType, bool) {

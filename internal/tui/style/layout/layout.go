@@ -2,6 +2,9 @@ package layout
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -72,8 +75,17 @@ func defaultJoinFunc(m map[Section]Renderer) string {
 }
 
 func (n *Node) Render() string {
+	f, _ :=  os.OpenFile("layout.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	fmt.Fprintf(f, "%v\n", n.PrettyPrint())
+
 	if n.join == nil {
 		n.join = defaultJoinFunc
+	}
+
+	for _, r := range n.sections {
+		if _, isNode := r.(*Node); !isNode {
+			r.Resize(n.Width, n.Height)
+		}
 	}
 
 	joined := n.join(n.sections)
@@ -87,7 +99,6 @@ func (n *Node) Resize(w, h int) {
 }
 
 func (n *Node) AddSection(s Section, r Renderer) {
-	r.Resize(n.Width, n.Height)
 	n.sections[s] = r
 }
 
@@ -131,6 +142,25 @@ func (r *TeaModelRenderer) Resize(w, h int) {
 	r.Style = r.Style.
 		Width(w).
 		Height(h)
+}
+
+// PrettyPrint builds and returns the tree structure as a string.
+func (n *Node) PrettyPrint() string {
+	var sb strings.Builder
+	n.buildPrettyString(&sb, 0)
+	return sb.String()
+}
+
+// buildPrettyString recursively writes Node and its children into the builder.
+func (n *Node) buildPrettyString(sb *strings.Builder, level int) {
+	indent := strings.Repeat("\t", level)
+	sb.WriteString(fmt.Sprintf("%sNode (Width=%d, Height=%d)\n", indent, n.Width, n.Height))
+	for sec, r := range n.sections {
+		sb.WriteString(fmt.Sprintf("%s\tSection %v: %T\n", indent, sec, r))
+		if child, ok := r.(*Node); ok {
+			child.buildPrettyString(sb, level+1)
+		}
+	}
 }
 
 // // textModel is a trivial tea.Model for static overlay text.

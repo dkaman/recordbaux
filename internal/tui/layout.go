@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
@@ -12,9 +14,10 @@ const (
 	layoutHelpBar
 	layoutStatusBar
 	layoutOverlay
-	layoutTestTopBarText
-	layoutTestStatusBarText
-	layoutTestViewportText
+
+	layoutTopBarBody
+	layoutViewportBody
+	layoutStatusBarBody
 )
 
 var (
@@ -38,7 +41,7 @@ func newTUILayout(base *layout.Node) (*layout.Node, error) {
 		return nil, err
 	}
 
-	topBar.AddSection(layoutTestTopBarText, &layout.TextRenderer{
+	topBar.AddSection(layoutTopBarBody, &layout.TextRenderer{
 		Body:  "recordbaux - organize your record collection",
 		Style: barStyle,
 	})
@@ -48,20 +51,24 @@ func newTUILayout(base *layout.Node) (*layout.Node, error) {
 		return nil, err
 	}
 
-	statusBar.AddSection(layoutTestStatusBarText, &layout.TextRenderer{
+	statusBar.AddSection(layoutStatusBarBody, &layout.TextRenderer{
 		Body:  "status bar test",
 		Style: barStyle,
 	})
 
-	vpWidth := b.Width - 2
-	vpHeight := b.Height - 2
+	usableHeight := b.Height - 2
 
-	viewport, err := layout.New(vpWidth, vpHeight-2)
+	frameWidth, frameHeight := viewportStyle.GetFrameSize()
+
+	vpWidth := b.Width - frameWidth
+	vpHeight := usableHeight - frameHeight
+
+	viewport, err := layout.New(vpWidth, vpHeight)
 	if err != nil {
 		return nil, err
 	}
 
-	viewport.AddSection(layoutTestViewportText, &layout.TextRenderer{
+	viewport.AddSection(layoutViewportBody, &layout.TextRenderer{
 		Body:  "welcome to recordbaux",
 		Style: viewportStyle,
 	})
@@ -93,4 +100,21 @@ func joinFunc(sec map[layout.Section]layout.Renderer) string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+func setStatusBarText(n *layout.Node, body string) error {
+	statusBarRenderer, err := n.GetSection(layoutStatusBar)
+	if err != nil {
+		return err
+	}
+
+	if n, ok := statusBarRenderer.(*layout.Node); ok {
+		n.AddSection(layoutStatusBarBody, &layout.TextRenderer{
+			Body: body,
+			Style: barStyle,
+		})
+		return nil
+	} else {
+		return fmt.Errorf("status bar section is not a *layout.Node")
+	}
 }

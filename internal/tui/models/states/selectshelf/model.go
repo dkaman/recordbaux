@@ -10,6 +10,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
@@ -17,12 +18,13 @@ type SelectShelfState struct {
 	app       *app.App
 	keys      keyMap
 	nextState statemachine.StateType
+	layout    *layout.Node
 
 	shelfList list.Model
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(a *app.App) SelectShelfState {
+func New(a *app.App, l *layout.Node) SelectShelfState {
 	// create an empty list; width/height can be adjusted
 	lst := list.New([]list.Item{}, list.NewDefaultDelegate(), 1000, 20)
 	lst.Title = "select a Shelf"
@@ -40,6 +42,7 @@ func New(a *app.App) SelectShelfState {
 		keys:      defaultKeybinds(),
 		nextState: statemachine.Undefined,
 		shelfList: lst,
+		layout:    l,
 	}
 }
 
@@ -64,9 +67,6 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		s.shelfList.SetItems(items)
-
-		return s, nil
-
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Select):
@@ -86,19 +86,17 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	listModel, listCmds := s.shelfList.Update(msg)
-	cmds = append(cmds,
-		listCmds,
-	)
-
+	cmds = append(cmds, listCmds)
 	s.shelfList = listModel
+
+	s.layout, _ = newSelectShelfLayout(s.layout, s.shelfList)
 
 	return s, tea.Batch(cmds...)
 }
 
 // View renders the shelf view into the TopWindow section.
 func (s SelectShelfState) View() string {
-	var view string
-	return view
+	return s.layout.Render()
 }
 
 func (s SelectShelfState) Help() string {

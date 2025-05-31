@@ -22,6 +22,8 @@ func main() {
 	}
 
 	totalW, totalH, _ := term.GetSize(int(os.Stdout.Fd()))
+	// totalW := 100
+	// totalH := 20
 
 	l, err := layout.New(totalW, totalH)
 	if err != nil {
