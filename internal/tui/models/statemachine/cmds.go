@@ -2,13 +2,15 @@ package statemachine
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 )
 
 type StateTransitionMsg struct {
-	NextState StateType
+	NextState states.StateType
 }
 
-func WithNextState(t StateType) tea.Cmd {
+func WithNextState(t states.StateType) tea.Cmd {
 	return func() tea.Msg {
 		return StateTransitionMsg{
 			NextState: t,

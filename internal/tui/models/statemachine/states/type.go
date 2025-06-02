@@ -1,4 +1,4 @@
-package statemachine
+package states
 
 type StateType int
 

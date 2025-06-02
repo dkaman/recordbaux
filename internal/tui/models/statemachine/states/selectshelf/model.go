@@ -8,23 +8,23 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 )
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type SelectShelfState struct {
 	app       *app.App
 	keys      keyMap
-	nextState statemachine.StateType
-	layout    *layout.Node
+	nextState states.StateType
+	layout    *div.Div
 
 	shelfList list.Model
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(a *app.App, l *layout.Node) SelectShelfState {
+func New(a *app.App, l *div.Div) SelectShelfState {
 	// create an empty list; width/height can be adjusted
 	lst := list.New([]list.Item{}, list.NewDefaultDelegate(), 1000, 20)
 	lst.Title = "select a Shelf"
@@ -40,7 +40,7 @@ func New(a *app.App, l *layout.Node) SelectShelfState {
 	return SelectShelfState{
 		app:       a,
 		keys:      defaultKeybinds(),
-		nextState: statemachine.Undefined,
+		nextState: states.Undefined,
 		shelfList: lst,
 		layout:    l,
 	}
@@ -73,13 +73,13 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if sel, ok := s.shelfList.SelectedItem().(shelf.Model); ok {
 				s.app.CurrentShelf = sel
 
-				s.nextState = statemachine.LoadedShelf
+				s.nextState = states.LoadedShelf
 			}
 
 			return s, tea.Batch(cmds...)
 
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = statemachine.MainMenu
+			s.nextState = states.MainMenu
 
 			return s, tea.Batch(cmds...)
 		}
@@ -89,7 +89,8 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, listCmds)
 	s.shelfList = listModel
 
-	s.layout, _ = newSelectShelfLayout(s.layout, s.shelfList)
+	// TODO replace with div version
+	// s.layout, _ = newSelectShelfLayout(s.layout, s.shelfList)
 
 	return s, tea.Batch(cmds...)
 }
@@ -103,14 +104,14 @@ func (s SelectShelfState) Help() string {
 	return "please select a shelf from the list..."
 }
 
-func (s SelectShelfState) Next() (statemachine.StateType, bool) {
-	if s.nextState != statemachine.Undefined {
+func (s SelectShelfState) Next() (states.StateType, bool) {
+	if s.nextState != states.Undefined {
 		return s.nextState, true
 	}
 
-	return statemachine.Undefined, false
+	return states.Undefined, false
 }
 
 func (s SelectShelfState) Transition() {
-	s.nextState = statemachine.Undefined
+	s.nextState = states.Undefined
 }

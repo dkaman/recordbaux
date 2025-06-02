@@ -8,8 +8,8 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
 )
 
 type refreshLoadedShelfMsg struct{}
@@ -18,20 +18,20 @@ type LoadedShelfState struct {
 	app       *app.App
 	keys      keyMap
 	help      help.Model
-	nextState statemachine.StateType
-	layout    *layout.Node
+	nextState states.StateType
+	layout    *div.Div
 
 	shelf       shelf.Model
 	selectedBin int
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(a *app.App, l *layout.Node) LoadedShelfState {
+func New(a *app.App, l *div.Div) LoadedShelfState {
 	return LoadedShelfState{
 		app:       a,
 		keys:      defaultKeybinds(),
 		help:      help.New(),
-		nextState: statemachine.Undefined,
+		nextState: states.Undefined,
 		layout:    l,
 	}
 }
@@ -49,7 +49,8 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshLoadedShelfMsg:
 		s.shelf = s.app.CurrentShelf.SelectBin(0)
 
-		s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
+		// TODO replace with div version
+		// s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
 
 		return s, tea.Batch(cmds...)
 
@@ -67,14 +68,14 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.shelf = s.shelf.SelectPrevBin()
 
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = statemachine.MainMenu
+			s.nextState = states.MainMenu
 
 		case key.Matches(msg, s.keys.Load):
-			s.nextState = statemachine.LoadCollection
+			s.nextState = states.LoadCollection
 
 		case msg.String() == "enter":
 			s.app.CurrentBin = s.shelf.GetSelectedBin()
-			s.nextState = statemachine.LoadedBin
+			s.nextState = states.LoadedBin
 		}
 	}
 
@@ -84,7 +85,8 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	cmds = append(cmds, shelfCmds)
 
-	s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
+	// TODO replace with div version
+	// s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
 
 	return s, tea.Batch(cmds...)
 }
@@ -103,14 +105,14 @@ func (s LoadedShelfState) Help() string {
 	return s.help.View(s.keys)
 }
 
-func (s LoadedShelfState) Next() (statemachine.StateType, bool) {
-	if s.nextState != statemachine.Undefined {
+func (s LoadedShelfState) Next() (states.StateType, bool) {
+	if s.nextState != states.Undefined {
 		return s.nextState, true
 	}
 
-	return statemachine.Undefined, false
+	return states.Undefined, false
 }
 
 func (s LoadedShelfState) Transition() {
-	s.nextState = statemachine.Undefined
+	s.nextState = states.Undefined
 }

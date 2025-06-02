@@ -8,9 +8,9 @@ import (
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
 )
 
 type resetFormMsg struct{}
@@ -18,16 +18,16 @@ type resetFormMsg struct{}
 type CreateShelfState struct {
 	app             *app.App
 	createShelfForm *form
-	nextState       statemachine.StateType
-	layout          *layout.Node
+	nextState       states.StateType
+	layout          *div.Div
 }
 
-func New(a *app.App, l *layout.Node) CreateShelfState {
+func New(a *app.App, l *div.Div) CreateShelfState {
 	f := newShelfCreateForm()
 
 	return CreateShelfState{
 		app:             a,
-		nextState:       statemachine.Undefined,
+		nextState:       states.Undefined,
 		createShelfForm: f,
 		layout:          l,
 	}
@@ -59,12 +59,13 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, formUpdateCmds)
 
-		r := &layout.TeaModelRenderer{
-			Model: s.createShelfForm,
-			Style: formStyle,
-		}
+		// TODO replace with div version
+		// r := &layout.TeaModelRenderer{
+		// 	Model: s.createShelfForm,
+		// 	Style: formStyle,
+		// }
 
-		s.layout.AddSection(layoutViewport, r)
+		// s.layout.AddSection(layoutViewport, r)
 
 		// once done
 		if s.createShelfForm.State == huh.StateCompleted {
@@ -96,7 +97,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.app.Shelves = append(s.app.Shelves, ns)
 
 			s.createShelfForm = newShelfCreateForm()
-			s.nextState = statemachine.MainMenu
+			s.nextState = states.MainMenu
 		} else {
 		}
 	}
@@ -112,14 +113,14 @@ func (s CreateShelfState) Help() string {
 	return "enter shelf details..."
 }
 
-func (s CreateShelfState) Next() (statemachine.StateType, bool) {
-	if s.nextState != statemachine.Undefined {
+func (s CreateShelfState) Next() (states.StateType, bool) {
+	if s.nextState != states.Undefined {
 		return s.nextState, true
 	}
 
-	return statemachine.Undefined, false
+	return states.Undefined, false
 }
 
 func (s CreateShelfState) Transition() {
-	s.nextState = statemachine.Undefined
+	s.nextState = states.Undefined
 }

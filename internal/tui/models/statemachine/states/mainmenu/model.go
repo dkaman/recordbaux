@@ -7,20 +7,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/tui/app"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
 )
 
 type MainMenuState struct {
 	app    *app.App
 	keys   keyMap
 	help   help.Model
-	layout *layout.Node
+	layout *div.Div
 
-	nextState statemachine.StateType
+	nextState states.StateType
 }
 
-func New(a *app.App, l *layout.Node) MainMenuState {
+func New(a *app.App, l *div.Div) MainMenuState {
 	lay, _ := newMainMenuLayout(l)
 
 	return MainMenuState{
@@ -28,7 +28,7 @@ func New(a *app.App, l *layout.Node) MainMenuState {
 		keys:      defaultKeybinds(),
 		help:      help.New(),
 		layout:    lay,
-		nextState: statemachine.Undefined,
+		nextState: states.Undefined,
 	}
 }
 
@@ -43,10 +43,10 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.SelectShelf):
-			s.nextState = statemachine.SelectShelf
+			s.nextState = states.SelectShelf
 
 		case key.Matches(msg, s.keys.NewShelf):
-			s.nextState = statemachine.CreateShelf
+			s.nextState = states.CreateShelf
 		}
 	}
 
@@ -57,16 +57,16 @@ func (s MainMenuState) View() string {
 	return s.layout.Render()
 }
 
-func (s MainMenuState) Next() (statemachine.StateType, bool) {
-	if s.nextState != statemachine.Undefined {
+func (s MainMenuState) Next() (states.StateType, bool) {
+	if s.nextState != states.Undefined {
 		return s.nextState, true
 	}
 
-	return statemachine.Undefined, false
+	return states.Undefined, false
 }
 
 func (s MainMenuState) Transition() {
-	s.nextState = statemachine.Undefined
+	s.nextState = states.Undefined
 }
 
 func (s MainMenuState) Help() string {

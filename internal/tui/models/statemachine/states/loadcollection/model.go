@@ -10,9 +10,9 @@ import (
 	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
 
 	discogs "github.com/dkaman/discogs-golang"
 )
@@ -26,7 +26,7 @@ type loadNextMsg struct{}
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
 	app             *app.App
-	nextState       statemachine.StateType
+	nextState       states.StateType
 	collection      shelf.Model
 	discogsClient   *discogs.Client
 	discogsUsername string
@@ -42,11 +42,11 @@ type LoadCollectionState struct {
 	currentIndex  int
 	totalReleases int
 
-	layout *layout.Node
+	layout *div.Div
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(a *app.App, l *layout.Node, client *discogs.Client, username string) LoadCollectionState {
+func New(a *app.App, l *div.Div, client *discogs.Client, username string) LoadCollectionState {
 	c := shelf.New(nil, style.ActiveTextStyle)
 
 	f := newFolderSelectForm(client, username)
@@ -57,7 +57,7 @@ func New(a *app.App, l *layout.Node, client *discogs.Client, username string) Lo
 
 	return LoadCollectionState{
 		app:              a,
-		nextState:        statemachine.Undefined,
+		nextState:        states.Undefined,
 		collection:       c,
 		discogsClient:    client,
 		discogsUsername:  username,
@@ -106,9 +106,10 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			func() tea.Msg { return loadNextMsg{} },
 		)
 
-		s.layout, _ = newLoadedCollectionProgressLayout(
-			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
-		)
+		// TODO change to div version
+		// s.layout, _ = newLoadedCollectionProgressLayout(
+		// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+		// )
 
 		return s, tea.Batch(cmds...)
 
@@ -125,18 +126,20 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
 			)
 
-			s.layout, _ = newLoadedCollectionProgressLayout(
-				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
-			)
+			// TODO change to div version
+			// s.layout, _ = newLoadedCollectionProgressLayout(
+			// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
+			// )
 
 			return s, tea.Batch(cmds...)
 		}
 
 		s.inserting = false
 
-		s.layout, _ = newLoadedCollectionProgressLayout(
-			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 1.0,
-		)
+		// TODO change to div version
+		// s.layout, _ = newLoadedCollectionProgressLayout(
+		// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 1.0,
+		// )
 
 		cmds = append(cmds, func() tea.Msg {
 			return doneFetchingMsg{}
@@ -150,16 +153,17 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.spinner, spinnerCmds = s.spinner.Update(msg)
 			cmds = append(cmds, spinnerCmds)
 
-			s.layout, _ = newLoadedCollectionProgressLayout(
-				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
-			)
+			// TODO change to div version
+			// s.layout, _ = newLoadedCollectionProgressLayout(
+			// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+			// )
 
 			return s, tea.Batch(cmds...)
 		}
 
 	case doneFetchingMsg:
 		s.releases = nil
-		s.nextState = statemachine.LoadedShelf
+		s.nextState = states.LoadedShelf
 
 	default:
 		// If we're not yet fetching, pass input to the folder‐select form
@@ -186,9 +190,10 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder),
 				)
 
-				s.layout, _ = newLoadedCollectionProgressLayout(
-					s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
-				)
+				// TODO change to div version
+				// s.layout, _ = newLoadedCollectionProgressLayout(
+				// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+				// )
 
 				return s, tea.Batch(cmds...)
 			}
@@ -212,14 +217,14 @@ func (s LoadCollectionState) Help() string {
 	return ""
 }
 
-func (s LoadCollectionState) Next() (statemachine.StateType, bool) {
-	if s.nextState != statemachine.Undefined {
+func (s LoadCollectionState) Next() (states.StateType, bool) {
+	if s.nextState != states.Undefined {
 		return s.nextState, true
 	}
 
-	return statemachine.Undefined, false
+	return states.Undefined, false
 }
 
 func (s LoadCollectionState) Transition() {
-	s.nextState = statemachine.Undefined
+	s.nextState = states.Undefined
 }

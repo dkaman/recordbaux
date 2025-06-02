@@ -9,9 +9,9 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
 )
 
 type refreshLoadedBinMsg struct{}
@@ -19,20 +19,20 @@ type refreshLoadedBinMsg struct{}
 type LoadedBinState struct {
 	app       *app.App
 	help      help.Model
-	nextState statemachine.StateType
+	nextState states.StateType
 	bin       bin.Model
 	keys      keyMap
-	layout    *layout.Node
+	layout    *div.Div
 
 	records table.Model
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(a *app.App, l *layout.Node) LoadedBinState {
+func New(a *app.App, l *div.Div) LoadedBinState {
 	return LoadedBinState{
 		app:       a,
 		help:      help.New(),
-		nextState: statemachine.Undefined,
+		nextState: states.Undefined,
 		keys:      defaultKeybinds(),
 		layout:    l,
 	}
@@ -78,7 +78,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = statemachine.LoadedShelf
+			s.nextState = states.LoadedShelf
 			return s, tea.Batch(cmds...)
 		}
 	}
@@ -89,7 +89,8 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tableUpdateCmds,
 	)
 
-	s.layout, _  = newLoadedBinLayout(s.layout, s.records)
+	// TODO replace with div version
+	// s.layout, _  = newLoadedBinLayout(s.layout, s.records)
 
 	return s, tea.Batch(cmds...)
 }
@@ -102,14 +103,14 @@ func (s LoadedBinState) Help() string {
 	return s.help.View(s.keys)
 }
 
-func (s LoadedBinState) Next() (statemachine.StateType, bool) {
-	if s.nextState != statemachine.Undefined {
+func (s LoadedBinState) Next() (states.StateType, bool) {
+	if s.nextState != states.Undefined {
 		return s.nextState, true
 	}
 
-	return statemachine.Undefined, false
+	return states.Undefined, false
 }
 
 func (s LoadedBinState) Transition() {
-	s.nextState = statemachine.Undefined
+	s.nextState = states.Undefined
 }
