@@ -33,6 +33,7 @@ type divOption func(*Div) error
 type TopRightBottomLeft struct{ Top, Right, Bottom, Left int }
 
 type Div struct {
+	name     string
 	children []Node
 
 	style lipgloss.Style
@@ -51,12 +52,14 @@ type Div struct {
 
 func New(d JoinDirection, s lipgloss.Style, opts ...divOption) (*Div, error) {
 	div := &Div{
+		name:      "",
 		children:  nil,
 		style:     s,
 		direction: d,
 		margin:    TopRightBottomLeft{0, 0, 0, 0},
 		padding:   TopRightBottomLeft{0, 0, 0, 0},
 		border:    false,
+		hidden:    false,
 		width:     0,
 		height:    0,
 		fixedW:    false,
@@ -82,6 +85,13 @@ func (d *Div) ApplyOption(opts ...divOption) error {
 	}
 
 	return nil
+}
+
+func WithName(name string) divOption {
+	return func(d *Div) error {
+		d.name = name
+		return nil
+	}
 }
 
 func WithFixedHeight(h int) divOption {
@@ -124,6 +134,13 @@ func WithPadding(top, right, bottom, left int) divOption {
 func WithBorder(border bool) divOption {
 	return func(d *Div) error {
 		d.border = border
+		return nil
+	}
+}
+
+func WithHidden(h bool) divOption {
+	return func(d *Div) error {
+		d.hidden = h
 		return nil
 	}
 }
@@ -221,8 +238,9 @@ func (d *Div) Resize(w, h int) {
 	if d.direction == Row {
 		totalFixed := 0
 		flexCount := 0
+
 		for _, child := range d.children {
-			if divChild, ok := child.(*Div); ok  {
+			if divChild, ok := child.(*Div); ok {
 				if divChild.hidden {
 					continue
 				}
@@ -242,6 +260,7 @@ func (d *Div) Resize(w, h int) {
 
 		baseW := 0
 		remW := 0
+
 		if flexCount > 0 {
 			baseW = remainingW / flexCount
 			remW = remainingW % flexCount
@@ -253,24 +272,29 @@ func (d *Div) Resize(w, h int) {
 			if divChild, ok := child.(*Div); ok && divChild.hidden {
 				continue
 			}
+
 			if divChild, ok := child.(*Div); ok && divChild.fixedW {
 				child.Resize(divChild.width, innerH)
 			} else {
 				wi := baseW
+
 				if usedRem < remW {
 					wi++
 					usedRem++
 				}
+
 				child.Resize(wi, innerH)
 			}
 		}
 	} else {
 		totalFixed := 0
 		flexCount := 0
+
 		for _, child := range d.children {
 			if divChild, ok := child.(*Div); ok && divChild.hidden {
 				continue
 			}
+
 			if divChild, ok := child.(*Div); ok && divChild.fixedH {
 				totalFixed += divChild.height
 			} else {
@@ -285,6 +309,7 @@ func (d *Div) Resize(w, h int) {
 
 		baseH := 0
 		remH := 0
+
 		if flexCount > 0 {
 			baseH = remainingH / flexCount
 			remH = remainingH % flexCount
@@ -295,18 +320,29 @@ func (d *Div) Resize(w, h int) {
 			if divChild, ok := child.(*Div); ok && divChild.hidden {
 				continue
 			}
+
 			if divChild, ok := child.(*Div); ok && divChild.fixedH {
 				child.Resize(innerW, divChild.height)
 			} else {
 				hi := baseH
+
 				if usedRem < remH {
 					hi++
 					usedRem++
 				}
+
 				child.Resize(innerW, hi)
 			}
 		}
 	}
+}
+
+func (d *Div) Width() int {
+	return d.width
+}
+
+func (d *Div) Height() int {
+	return d.height
 }
 
 func (d *Div) Children() []Node {
@@ -317,6 +353,10 @@ func (d *Div) AddChild(child Node) {
 	d.children = append(d.children, child)
 }
 
+func (d *Div) ClearChildren() {
+	d.children = make([]Node, 0)
+}
+
 func (d *Div) Hide() {
 	d.hidden = true
 }
@@ -324,3 +364,30 @@ func (d *Div) Hide() {
 func (d *Div) Show() {
 	d.hidden = false
 }
+
+func (d *Div) Find(name string) *Div {
+	if d.name == name {
+		return d
+	}
+
+	for _, child := range d.children {
+		if sub, ok := child.(*Div); ok {
+			if found := sub.Find(name); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
+}
+
+type TextNode struct {
+	Body string
+}
+
+func (t *TextNode) Render() string {
+	return t.Body
+}
+
+func (t *TextNode) Resize(w, h int)      {}
+func (t *TextNode) Children() []Node { return nil }
+func (t *TextNode) AddChild(node Node) {}

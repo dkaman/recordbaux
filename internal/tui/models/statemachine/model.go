@@ -44,7 +44,6 @@ func New(a *app.App, c *config.Config, d *div.Div) (Model, error) {
 
 	discogsAPIKey, _ := c.String("shelf.discogs.key")
 	discogsUsername, _ := c.String("shelf.discogs.username")
-
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)

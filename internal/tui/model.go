@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 
@@ -33,19 +35,23 @@ func New(c *config.Config) Model {
 	h.Styles = style.DefaultHelpStyles()
 
 	l, _ := newTUILayout()
+	vp := l.Find("viewport")
+
+	a := app.NewApp()
+	sm, _ := statemachine.New(a, c, vp)
 
 	m := Model{
-		cfg:         c,
-		app:         app.NewApp(),
-		keys:        defaultKeybinds(),
-		help:        h,
-		helpVisible: false,
-		layout:      l,
+		cfg:          c,
+		app:          a,
+		keys:         defaultKeybinds(),
+		help:         h,
+		helpVisible:  false,
+		layout:       l,
+		stateMachine: sm,
 	}
 
-	sm, _ := statemachine.New(m.app, c, m.layout)
-
-	m.stateMachine = sm
+	_ = addTopBarText(l, "recordbaux - organize your record collection")
+	_ = addStatusBarText(m.layout, fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()))
 
 	return m
 }
@@ -65,6 +71,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.ToggleHelp):
 			m.helpVisible = !m.helpVisible
+
+			helpBar := m.layout.Find("helpbar")
+			if m.helpVisible {
+				helpBar.Show()
+			} else {
+				helpBar.Hide()
+			}
+
+			w, h := m.layout.Width(), m.layout.Height()
+			m.layout.Resize(w, h)
 		}
 
 	case tea.WindowSizeMsg:
@@ -73,11 +89,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// update state machine
 	stateMachineModel, stateMachineCmds := m.stateMachine.Update(msg)
 	if sm, ok := stateMachineModel.(statemachine.Model); ok {
 		m.stateMachine = sm
 	}
 	cmds = append(cmds, stateMachineCmds)
+
+	// update bars
+	statusBarText := fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
+	_ = addStatusBarText(m.layout, statusBarText)
+
+	helpText := fmt.Sprintf("global: %s statemachine: %s", m.help.View(m.keys), m.stateMachine.Help())
+	_ = addHelpBarText(m.layout, helpText)
 
 	return m, tea.Batch(cmds...)
 }

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -20,15 +22,14 @@ var (
 	viewportStyle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		AlignHorizontal(lipgloss.Center).
-		AlignVertical(lipgloss.Center).
-		Margin(0)
+		AlignVertical(lipgloss.Center)
 )
 
 
 func newTUILayout() (*div.Div, error) {
 	topBar, err := div.New(div.Row, barStyle,
+		div.WithName("topbar"),
 		div.WithBorder(false),
-		div.WithPadding(0, 0, 0, 0),
 		div.WithFixedHeight(1),
 	)
 	if err != nil {
@@ -36,17 +37,18 @@ func newTUILayout() (*div.Div, error) {
 	}
 
 	helpBar, err := div.New(div.Row, helpBarStyle,
+		div.WithName("helpbar"),
 		div.WithBorder(false),
-		div.WithPadding(0, 0, 0, 0),
 		div.WithFixedHeight(1),
+		div.WithHidden(true),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	statusBar, err := div.New(div.Row, barStyle,
+		div.WithName("statusbar"),
 		div.WithBorder(false),
-		div.WithPadding(0, 0, 0, 0),
 		div.WithFixedHeight(1),
 	)
 	if err != nil {
@@ -54,8 +56,8 @@ func newTUILayout() (*div.Div, error) {
 	}
 
 	viewport, err := div.New(div.Row, viewportStyle,
+		div.WithName("viewport"),
 		div.WithBorder(true),
-		div.WithPadding(0, 0, 0, 0),
 	)
 	if err != nil {
 		return nil, err
@@ -69,8 +71,43 @@ func newTUILayout() (*div.Div, error) {
 	root.AddChild(topBar)
 	root.AddChild(viewport)
 	root.AddChild(helpBar)
+
 	root.AddChild(statusBar)
 
 	return root, nil
+}
 
+func addTopBarText(d *div.Div, body string) error {
+	if tb := d.Find("topbar"); tb != nil {
+		tb.ClearChildren()
+
+		tb.AddChild(&div.TextNode{
+			Body: body,
+		})
+		return nil
+	}
+	return fmt.Errorf("top bar not found in layout")
+}
+
+func addStatusBarText(d *div.Div, body string) error {
+	if sb := d.Find("statusbar"); sb != nil {
+		sb.ClearChildren()
+
+		sb.AddChild(&div.TextNode{
+			Body: body,
+		})
+		return nil
+	}
+	return fmt.Errorf("status bar not found in layout")
+}
+
+func addHelpBarText(d *div.Div, body string) error {
+	if hb := d.Find("helpbar"); hb != nil {
+		hb.ClearChildren()
+		hb.AddChild(&div.TextNode{
+			Body: body,
+		})
+		return nil
+	}
+	return fmt.Errorf("status bar not found in layout")
 }
