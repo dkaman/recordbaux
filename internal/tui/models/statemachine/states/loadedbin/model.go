@@ -89,8 +89,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tableUpdateCmds,
 	)
 
-	// TODO replace with div version
-	// s.layout, _  = newLoadedBinLayout(s.layout, s.records)
+	s.layout, _  = newLoadedBinLayout(s.layout, s.records)
 
 	return s, tea.Batch(cmds...)
 }

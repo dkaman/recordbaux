@@ -59,13 +59,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, formUpdateCmds)
 
-		// TODO replace with div version
-		// r := &layout.TeaModelRenderer{
-		// 	Model: s.createShelfForm,
-		// 	Style: formStyle,
-		// }
-
-		// s.layout.AddSection(layoutViewport, r)
+		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
 
 		// once done
 		if s.createShelfForm.State == huh.StateCompleted {

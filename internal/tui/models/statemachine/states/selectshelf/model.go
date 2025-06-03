@@ -89,8 +89,7 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, listCmds)
 	s.shelfList = listModel
 
-	// TODO replace with div version
-	// s.layout, _ = newSelectShelfLayout(s.layout, s.shelfList)
+	s.layout, _ = newSelectShelfLayout(s.layout, s.shelfList)
 
 	return s, tea.Batch(cmds...)
 }

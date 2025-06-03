@@ -80,7 +80,6 @@ func newTUILayout() (*div.Div, error) {
 func addTopBarText(d *div.Div, body string) error {
 	if tb := d.Find("topbar"); tb != nil {
 		tb.ClearChildren()
-
 		tb.AddChild(&div.TextNode{
 			Body: body,
 		})
@@ -92,7 +91,6 @@ func addTopBarText(d *div.Div, body string) error {
 func addStatusBarText(d *div.Div, body string) error {
 	if sb := d.Find("statusbar"); sb != nil {
 		sb.ClearChildren()
-
 		sb.AddChild(&div.TextNode{
 			Body: body,
 		})

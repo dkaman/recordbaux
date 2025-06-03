@@ -13,5 +13,9 @@ var (
 )
 
 func newSelectShelfLayout(base *div.Div, m list.Model) (*div.Div, error) {
+	base.ClearChildren()
+	base.AddChild(&div.TextNode{
+		Body: m.View(),
+	})
 	return base, nil
 }

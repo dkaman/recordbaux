@@ -49,8 +49,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshLoadedShelfMsg:
 		s.shelf = s.app.CurrentShelf.SelectBin(0)
 
-		// TODO replace with div version
-		// s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
+		s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
 
 		return s, tea.Batch(cmds...)
 
@@ -85,8 +84,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	cmds = append(cmds, shelfCmds)
 
-	// TODO replace with div version
-	// s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
+	s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
 
 	return s, tea.Batch(cmds...)
 }

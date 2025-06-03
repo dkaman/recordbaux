@@ -99,17 +99,16 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.totalReleases = len(msg.Releases)
 		s.currentIndex = 0
 
-		s.fetching = false
+		s.fetching = true
 		s.inserting = true
 
 		cmds = append(cmds,
 			func() tea.Msg { return loadNextMsg{} },
 		)
 
-		// TODO change to div version
-		// s.layout, _ = newLoadedCollectionProgressLayout(
-		// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
-		// )
+		s.layout, _ = newLoadedCollectionProgressLayout(
+			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0.0,
+		)
 
 		return s, tea.Batch(cmds...)
 
@@ -126,20 +125,19 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
 			)
 
-			// TODO change to div version
-			// s.layout, _ = newLoadedCollectionProgressLayout(
-			// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
-			// )
+			s.layout, _ = newLoadedCollectionProgressLayout(
+				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
+			)
 
 			return s, tea.Batch(cmds...)
 		}
 
 		s.inserting = false
+		s.fetching = false
 
-		// TODO change to div version
-		// s.layout, _ = newLoadedCollectionProgressLayout(
-		// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 1.0,
-		// )
+		s.layout, _ = newLoadedCollectionProgressLayout(
+			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 1.0,
+		)
 
 		cmds = append(cmds, func() tea.Msg {
 			return doneFetchingMsg{}
@@ -153,10 +151,9 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.spinner, spinnerCmds = s.spinner.Update(msg)
 			cmds = append(cmds, spinnerCmds)
 
-			// TODO change to div version
-			// s.layout, _ = newLoadedCollectionProgressLayout(
-			// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
-			// )
+			s.layout, _ = newLoadedCollectionProgressLayout(
+				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+			)
 
 			return s, tea.Batch(cmds...)
 		}
@@ -190,10 +187,9 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder),
 				)
 
-				// TODO change to div version
-				// s.layout, _ = newLoadedCollectionProgressLayout(
-				// 	s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
-				// )
+				s.layout, _ = newLoadedCollectionProgressLayout(
+					s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
+				)
 
 				return s, tea.Batch(cmds...)
 			}

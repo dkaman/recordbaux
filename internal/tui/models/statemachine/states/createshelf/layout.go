@@ -17,5 +17,11 @@ var (
 )
 
 func newCreateShelfLayout(base *div.Div, f *form) (*div.Div, error) {
+	base.ClearChildren()
+
+	base.AddChild(&div.TextNode{
+		Body: f.View(),
+	})
+
 	return base, nil
 }

@@ -14,5 +14,9 @@ var (
 )
 
 func newLoadedBinLayout(base *div.Div, m table.Model) (*div.Div, error) {
+	base.ClearChildren()
+	base.AddChild(&div.TextNode{
+		Body: baseTableStyle.Render(m.View()),
+	})
 	return base, nil
 }

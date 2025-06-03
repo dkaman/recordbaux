@@ -1,7 +1,11 @@
 package loadcollection
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 
 	"github.com/dkaman/recordbaux/internal/tui/style/div"
 )
@@ -22,39 +26,52 @@ var (
 )
 
 func newLoadedCollectionFormLayout(base *div.Div, f *form) *div.Div {
+	base.ClearChildren()
+	base.AddChild(&div.TextNode{
+		Body: formStyle.Render(f.View()),
+	})
 	return base
 }
 
-// func newLoadedCollectionProgressLayout(base *layout.Node, p progress.Model, s spinner.Model, fetching, doneFetching bool, pct float64) (*layout.Node, error) {
-// 	var lines []string
+func newLoadedCollectionProgressLayout(
+	base *div.Div,
+	pb progress.Model,
+	sp spinner.Model,
+	fetching bool,
+	inserting bool,
+	pct float64,
+) (*div.Div, error) {
+	base.ClearChildren()
 
-// 	if fetching && !doneFetching {
-// 		spinnerLine := lipgloss.NewStyle().
-// 			AlignHorizontal(lipgloss.Center).
-// 			Render(fmt.Sprintf("%s fetching collection from discogs...", s.View()))
-// 		lines = append(lines, spinnerLine)
-// 	} else {
-// 		check := lipgloss.NewStyle().
-// 			Foreground(lipgloss.Color("10")).
-// 			Bold(true).
-// 			Render("✔ fetching collection complete")
-// 		lines = append(lines, check)
-// 	}
+	var lines []string
 
-// 	// Always render progress bar below
-// 	barLine := lipgloss.NewStyle().
-// 		AlignHorizontal(lipgloss.Center).
-// 		Render(p.ViewAs(pct))
+	// 1) spinner vs. checkmark
+	if fetching && !inserting {
+		// spinner spinning, “fetching…”
+		spinnerLine := lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).
+			Render(fmt.Sprintf("%s fetching collection from Discogs…", sp.View()))
+		lines = append(lines, spinnerLine)
+	} else {
+		// checkmark when fetching→inserting transition is done
+		check := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("10")).
+			Bold(true).
+			Render("✔ fetching collection complete")
+		lines = append(lines, check)
+	}
 
-// 	lines = append(lines, barLine)
+	// 2) always show the progress bar underneath
+	barLine := lipgloss.NewStyle().
+		AlignHorizontal(lipgloss.Center).
+		Render(pb.ViewAs(pct))
+	lines = append(lines, barLine)
 
-// 	r := &layout.TextRenderer{
-// 		Body: lipgloss.JoinVertical(lipgloss.Center, lines...),
-// 		Style: viewportStyle,
-// 	}
+	// join the two lines vertically, then wrap in a single TextNode
+	joined := lipgloss.JoinVertical(lipgloss.Center, lines...)
+	base.AddChild(&div.TextNode{
+		Body: progressStyle.Render(joined),
+	})
 
-// 	base.AddSection(layoutViewport, r)
-// 	base.SetJoinFunc(joinFunc)
-
-// 	return base, nil
-// }
+	return base, nil
+}
