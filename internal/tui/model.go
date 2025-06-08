@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -13,6 +15,8 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/div"
+
+	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
 type Model struct {
@@ -20,7 +24,8 @@ type Model struct {
 	cfg  *config.Config
 	app  *app.App
 	keys keyMap
-	help help.Model
+
+	logger *slog.Logger
 
 	// tea models
 	stateMachine statemachine.Model
@@ -30,7 +35,7 @@ type Model struct {
 	layout      *div.Div
 }
 
-func New(c *config.Config) Model {
+func New(c *config.Config, log *slog.Logger) Model {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
@@ -38,16 +43,23 @@ func New(c *config.Config) Model {
 	vp := l.Find("viewport")
 
 	a := app.NewApp()
-	sm, _ := statemachine.New(a, c, vp)
+
+	if log == nil {
+		// TODO handle errors
+		f, _ := os.OpenFile("./logs/recordbaux.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644);
+		log = slog.New(slog.NewTextHandler(f, nil))
+	}
+
+	sm, _ := statemachine.New(a, c, vp, log)
 
 	m := Model{
 		cfg:          c,
 		app:          a,
 		keys:         defaultKeybinds(),
-		help:         h,
 		helpVisible:  false,
 		layout:       l,
 		stateMachine: sm,
+		logger: log,
 	}
 
 	_ = addTopBarText(l, "recordbaux - organize your record collection")
@@ -63,7 +75,21 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	m.logger.Info("event received",
+		slog.Any("event", fmt.Sprintf("%#v", msg)),
+	)
+
+	// update bars
+	statusBarText := fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
+	_ = addStatusBarText(m.layout, statusBarText)
+
+	_ = addHelpBarText(m.layout, m.Help())
+
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		w, h := msg.Width, msg.Height
+		m.layout.Resize(w, h)
+
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keys.Quit):
@@ -81,12 +107,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			w, h := m.layout.Width(), m.layout.Height()
 			m.layout.Resize(w, h)
-		}
 
-	case tea.WindowSizeMsg:
-		w, h := msg.Width, msg.Height
-		m.layout.Resize(w, h)
-		return m, nil
+			return m, nil
+		}
 	}
 
 	// update state machine
@@ -96,16 +119,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	cmds = append(cmds, stateMachineCmds)
 
-	// update bars
-	statusBarText := fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
-	_ = addStatusBarText(m.layout, statusBarText)
-
-	helpText := fmt.Sprintf("global: %s statemachine: %s", m.help.View(m.keys), m.stateMachine.Help())
-	_ = addHelpBarText(m.layout, helpText)
-
 	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {
 	return m.layout.Render()
+}
+
+func (m Model) Help() string {
+	return "global: " +
+		keyFmt.FmtKeymap(m.keys.ShortHelp()) + " " +
+		m.stateMachine.Help()
 }

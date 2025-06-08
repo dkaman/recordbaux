@@ -12,13 +12,14 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/div"
+
+	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
 type refreshLoadedBinMsg struct{}
 
 type LoadedBinState struct {
 	app       *app.App
-	help      help.Model
 	nextState states.StateType
 	bin       bin.Model
 	keys      keyMap
@@ -29,9 +30,11 @@ type LoadedBinState struct {
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
 func New(a *app.App, l *div.Div) LoadedBinState {
+	h := help.New()
+	h.Styles = style.DefaultHelpStyles()
+
 	return LoadedBinState{
 		app:       a,
-		help:      help.New(),
 		nextState: states.Undefined,
 		keys:      defaultKeybinds(),
 		layout:    l,
@@ -99,7 +102,7 @@ func (s LoadedBinState) View() string {
 }
 
 func (s LoadedBinState) Help() string {
-	return s.help.View(s.keys)
+	return keyFmt.FmtKeymap(s.keys.ShortHelp())
 }
 
 func (s LoadedBinState) Next() (states.StateType, bool) {

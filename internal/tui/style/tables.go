@@ -6,6 +6,10 @@ import (
 )
 
 var (
+	BaseTableStyle = lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center)
+
 	tableHeaderStyle = lipgloss.NewStyle().
 				Padding(0, 1).
 				Bold(true).

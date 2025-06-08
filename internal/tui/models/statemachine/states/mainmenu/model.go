@@ -1,7 +1,6 @@
 package mainmenu
 
 import (
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,12 +8,13 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style/div"
+
+	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
 type MainMenuState struct {
 	app    *app.App
 	keys   keyMap
-	help   help.Model
 	layout *div.Div
 
 	nextState states.StateType
@@ -26,7 +26,6 @@ func New(a *app.App, l *div.Div) MainMenuState {
 	return MainMenuState{
 		app:       a,
 		keys:      defaultKeybinds(),
-		help:      help.New(),
 		layout:    lay,
 		nextState: states.Undefined,
 	}
@@ -70,5 +69,5 @@ func (s MainMenuState) Transition() {
 }
 
 func (s MainMenuState) Help() string {
-	return s.help.View(s.keys)
+	return keyFmt.FmtKeymap(s.keys.ShortHelp())
 }

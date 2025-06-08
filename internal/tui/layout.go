@@ -10,24 +10,14 @@ import (
 )
 
 var (
-	barStyle = lipgloss.NewStyle().
-		Background(style.DarkBlue).
-		Foreground(style.DarkBlack).
-		Bold(true)
-
-	helpBarStyle = lipgloss.NewStyle().
-		Background(style.LightGreen).
-		Foreground(style.LightBlack)
-
 	viewportStyle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
 		AlignHorizontal(lipgloss.Center).
 		AlignVertical(lipgloss.Center)
 )
 
 
 func newTUILayout() (*div.Div, error) {
-	topBar, err := div.New(div.Row, barStyle,
+	topBar, err := div.New(div.Row, style.BarStyle,
 		div.WithName("topbar"),
 		div.WithBorder(false),
 		div.WithFixedHeight(1),
@@ -36,7 +26,7 @@ func newTUILayout() (*div.Div, error) {
 		return nil, err
 	}
 
-	helpBar, err := div.New(div.Row, helpBarStyle,
+	helpBar, err := div.New(div.Row, style.HelpBarStyle,
 		div.WithName("helpbar"),
 		div.WithBorder(false),
 		div.WithFixedHeight(1),
@@ -46,7 +36,7 @@ func newTUILayout() (*div.Div, error) {
 		return nil, err
 	}
 
-	statusBar, err := div.New(div.Row, barStyle,
+	statusBar, err := div.New(div.Row, style.BarStyle,
 		div.WithName("statusbar"),
 		div.WithBorder(false),
 		div.WithFixedHeight(1),

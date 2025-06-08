@@ -1,6 +1,8 @@
 package createshelf
 
 import (
+	"log/slog"
+
 	"github.com/charmbracelet/huh"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,7 +11,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/div"
 )
 
@@ -20,16 +21,20 @@ type CreateShelfState struct {
 	createShelfForm *form
 	nextState       states.StateType
 	layout          *div.Div
+	logger          *slog.Logger
 }
 
-func New(a *app.App, l *div.Div) CreateShelfState {
+func New(a *app.App, l *div.Div, log *slog.Logger) CreateShelfState {
 	f := newShelfCreateForm()
+
+	logger := log.WithGroup("createshelfstate")
 
 	return CreateShelfState{
 		app:             a,
 		nextState:       states.Undefined,
 		createShelfForm: f,
 		layout:          l,
+		logger:          logger,
 	}
 }
 
@@ -45,12 +50,14 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case resetFormMsg:
 		s.createShelfForm = newShelfCreateForm()
-
 		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
 
 		cmds = append(cmds,
 			s.createShelfForm.Init(),
 		)
+
+	case tea.WindowSizeMsg:
+		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
 
 	default:
 		fModel, formUpdateCmds := s.createShelfForm.Update(msg)
@@ -59,7 +66,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, formUpdateCmds)
 
-		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
+		addViewportText(s.layout, s.createShelfForm)
 
 		// once done
 		if s.createShelfForm.State == huh.StateCompleted {
@@ -87,12 +94,11 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				physical.WithShape(shape),
 			)
 
-			ns := shelf.New(newShelf, style.ActiveTextStyle)
+			ns := shelf.New(newShelf, s.logger)
 			s.app.Shelves = append(s.app.Shelves, ns)
 
 			s.createShelfForm = newShelfCreateForm()
 			s.nextState = states.MainMenu
-		} else {
 		}
 	}
 
@@ -100,7 +106,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s CreateShelfState) View() string {
-	return s.layout.Render()
+	return ""
 }
 
 func (s CreateShelfState) Help() string {

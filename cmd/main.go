@@ -19,7 +19,7 @@ func main() {
 		log.Fatalf("error in model configuration: %v", err)
 	}
 
-	t := tui.New(cfg)
+	t := tui.New(cfg, nil)
 	p := tea.NewProgram(t)
 
 	if _, err := p.Run(); err != nil {

@@ -25,9 +25,12 @@ type SelectShelfState struct {
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
 func New(a *app.App, l *div.Div) SelectShelfState {
-	// create an empty list; width/height can be adjusted
-	lst := list.New([]list.Item{}, list.NewDefaultDelegate(), 1000, 20)
-	lst.Title = "select a Shelf"
+	delegate := list.NewDefaultDelegate()
+
+	delegate.Styles = style.DefaultItemStyles()
+
+	lst := list.New([]list.Item{}, delegate, 100, 20)
+	lst.Title = "select a shelf"
 	lst.Styles = style.DefaultListStyles()
 
 	items := make([]list.Item, len(a.Shelves))
@@ -96,7 +99,7 @@ func (s SelectShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the shelf view into the TopWindow section.
 func (s SelectShelfState) View() string {
-	return s.layout.Render()
+	return ""
 }
 
 func (s SelectShelfState) Help() string {

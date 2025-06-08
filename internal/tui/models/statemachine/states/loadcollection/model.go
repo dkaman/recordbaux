@@ -1,6 +1,8 @@
 package loadcollection
 
 import (
+	"log/slog"
+
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbletea"
@@ -11,7 +13,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/div"
 
 	discogs "github.com/dkaman/discogs-golang"
@@ -43,11 +44,15 @@ type LoadCollectionState struct {
 	totalReleases int
 
 	layout *div.Div
+
+	logger *slog.Logger
 }
 
 // New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(a *app.App, l *div.Div, client *discogs.Client, username string) LoadCollectionState {
-	c := shelf.New(nil, style.ActiveTextStyle)
+func New(a *app.App, l *div.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
+	logger := log.WithGroup("loadcollectionstate")
+
+	c := shelf.New(nil, logger)
 
 	f := newFolderSelectForm(client, username)
 
@@ -66,6 +71,7 @@ func New(a *app.App, l *div.Div, client *discogs.Client, username string) LoadCo
 		fetching:         false,
 		inserting:        false,
 		layout:           l,
+		logger: logger,
 	}
 }
 
@@ -93,6 +99,8 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return s, nil
+	case tea.WindowSizeMsg:
+		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
 
 	case NewDiscogsCollectionMsg:
 		s.releases = msg.Releases
@@ -210,7 +218,7 @@ func (s LoadCollectionState) View() string {
 }
 
 func (s LoadCollectionState) Help() string {
-	return ""
+	return "select a discogs folder to load into this shelf..."
 }
 
 func (s LoadCollectionState) Next() (states.StateType, bool) {

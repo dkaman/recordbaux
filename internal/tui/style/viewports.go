@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	ProgressStyle = lipgloss.NewStyle().
+	viewportStyle = lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			AlignVertical(lipgloss.Center)
 )

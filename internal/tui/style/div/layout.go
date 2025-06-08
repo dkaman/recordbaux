@@ -145,9 +145,12 @@ func WithHidden(h bool) divOption {
 	}
 }
 
-func (d *Div) Render() string {
-	baseStyle := d.style
+// TODO will help with factoring
+func (d *Div) contentDimensions() (int, int) {
+	return 0, 0
+}
 
+func (d *Div) Render() string {
 	var renderedChildren []string
 	for _, child := range d.children {
 		if divChild, ok := child.(*Div); ok && divChild.hidden {
@@ -182,7 +185,7 @@ func (d *Div) Render() string {
 		contentH = 0
 	}
 
-	style := baseStyle
+	style := d.style
 
 	if d.border {
 		style = style.

@@ -22,6 +22,8 @@ const (
 	LightCyan    = lipgloss.ANSIColor(14)
 	LightWhite   = lipgloss.ANSIColor(15)
 
+	LightGrey    = lipgloss.Color("#AAAAAA")
+
 	Bullet   = "•"
 	Ellipsis = "…"
 )

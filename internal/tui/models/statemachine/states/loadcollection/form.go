@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 type shape int
@@ -53,7 +54,7 @@ func newFolderSelectForm(c *discogs.Client, u string) *form {
 				Options(folderOptions...).
 				Value(&f.folder),
 		),
-	)
+	).WithTheme(style.DefaultFormStyles())
 
 	return f
 }

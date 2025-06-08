@@ -2,13 +2,13 @@ package statemachine
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui/app"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/style/div"
 
 	discogs "github.com/dkaman/discogs-golang"
 	css "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createshelf"
@@ -23,11 +23,15 @@ var (
 	StateNotFoundErr = errors.New("state not found in state map")
 )
 
+type helper interface{
+	Help() string
+}
+
 type State interface {
 	tea.Model
+	helper
 	Next() (states.StateType, bool)
 	Transition()
-	Help() string
 }
 
 type Model struct {
@@ -35,11 +39,14 @@ type Model struct {
 	currentStateType states.StateType
 	allStates        map[states.StateType]State
 	layout           *div.Div
+
+	logger *slog.Logger
 }
 
-func New(a *app.App, c *config.Config, d *div.Div) (Model, error) {
+func New(a *app.App, c *config.Config, d *div.Div, log *slog.Logger) (Model, error) {
 	m := Model{
 		layout: newStateMachineLayout(d),
+		logger: log,
 	}
 
 	discogsAPIKey, _ := c.String("shelf.discogs.key")
@@ -48,14 +55,14 @@ func New(a *app.App, c *config.Config, d *div.Div) (Model, error) {
 		discogs.WithToken(discogsAPIKey),
 	)
 	if err != nil {
-		log.Printf("error in discogs client creation %w", err)
+		m.logger.Info("error in discogs client", slog.Any("errorMsg", err))
 	}
 
 	m.allStates = map[states.StateType]State{
 		states.MainMenu:       mms.New(a, d),
-		states.CreateShelf:    css.New(a, d),
-		states.LoadedShelf:    lss.New(a, d),
-		states.LoadCollection: lcs.New(a, d, discogsClient, discogsUsername),
+		states.CreateShelf:    css.New(a, d, log),
+		states.LoadedShelf:    lss.New(a, d, log),
+		states.LoadCollection: lcs.New(a, d, log, discogsClient, discogsUsername),
 		states.LoadedBin:      lbs.New(a, d),
 		states.SelectShelf:    sss.New(a, d),
 	}
@@ -75,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	stateModel, stateCmds := m.currentState.Update(msg)
 	cmds = append(cmds, stateCmds)
 
-	if s, okay := stateModel.(State); okay {
+	if s, ok := stateModel.(State); ok {
 		if next, wanted := s.Next(); wanted {
 			m.allStates[m.currentStateType] = m.currentState
 
@@ -83,6 +90,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			m.currentState = m.allStates[next]
 			m.currentStateType = next
+
+			vp :=  m.layout.Find("viewport")
+			vp.ClearChildren()
 
 			cmds = append(cmds,
 				m.currentState.Init(),
@@ -98,11 +108,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	return m.currentState.View()
+	return ""
 }
 
 func (m Model) Help() string {
-	return m.currentState.Help()
+	return "statemachine: " + m.currentState.Help()
 }
 
 func (m Model) State(t states.StateType) State {

@@ -6,29 +6,46 @@ import (
 )
 
 var (
-	listTitleBarStyle = lipgloss.NewStyle().
-				Padding(0, 0, 1, 3).
-				Background(LightBlue).
-				Foreground(DarkBlack)
+	listTitleBarStyle = lipgloss.NewStyle()
 
-	listTitleStyle = lipgloss.NewStyle().
+	listTitleStyle = TextStyle.
+			Foreground(LightBlue).
 			Bold(true)
 
-	listSpinnerStyle                     = lipgloss.NewStyle().Foreground(LightGreen)
+	listSpinnerStyle                     = lipgloss.NewStyle().Foreground(LightBlue)
 	listFilterPromptStyle                = lipgloss.NewStyle().Foreground(LightGreen)
 	listFilterCursorStyle                = lipgloss.NewStyle().Foreground(LightGreen)
 	listDefaultFilterCharacterMatchStyle = lipgloss.NewStyle().Foreground(LightGreen)
-	listStatusBarStyle                   = lipgloss.NewStyle().Foreground(LightGreen)
-	listStatusEmptyStyle                 = lipgloss.NewStyle().Foreground(LightGreen)
-	listStatusBarActiveFilterStyle       = lipgloss.NewStyle().Foreground(LightGreen)
-	listStatusBarFilterCountStyle        = lipgloss.NewStyle().Foreground(LightGreen)
-	listNoItemsStyle                     = lipgloss.NewStyle().Foreground(LightGreen)
-	listPaginationStyleStyle             = lipgloss.NewStyle().Foreground(LightGreen)
-	listHelpStyleStyle                   = lipgloss.NewStyle().Foreground(LightGreen)
-	listActivePaginationDotStyle         = lipgloss.NewStyle().Foreground(LightGreen)
-	listInactivePaginationDotStyle       = lipgloss.NewStyle().Foreground(LightGreen)
-	listArabicPaginationStyle            = lipgloss.NewStyle().Foreground(LightGreen)
-	listDividerDotStyle                  = lipgloss.NewStyle().Foreground(LightGreen)
+
+	listStatusBarStyle = lipgloss.NewStyle().
+				Foreground(DarkBlue).
+				Margin(0, 0, 1, 0)
+
+	listStatusEmptyStyle           = lipgloss.NewStyle().Foreground(LightGreen)
+	listStatusBarActiveFilterStyle = lipgloss.NewStyle().Foreground(LightGreen)
+	listStatusBarFilterCountStyle  = lipgloss.NewStyle().Foreground(LightGreen)
+	listNoItemsStyle               = lipgloss.NewStyle().Foreground(LightGreen)
+	listPaginationStyleStyle       = lipgloss.NewStyle().Foreground(LightGreen)
+	listHelpStyleStyle             = lipgloss.NewStyle().Foreground(LightGreen)
+	listActivePaginationDotStyle   = lipgloss.NewStyle().Foreground(LightGreen)
+	listInactivePaginationDotStyle = lipgloss.NewStyle().Foreground(LightGreen)
+	listArabicPaginationStyle      = lipgloss.NewStyle().Foreground(LightGreen)
+	listDividerDotStyle            = lipgloss.NewStyle().Foreground(LightGreen)
+
+	listDelegateNormalTitleStyle = TextStyle
+	listDelegateNormalDescStyle  = TextStyle
+
+	listDelegateSelectedlTitleStyle = lipgloss.NewStyle().
+					Foreground(LightGreen).
+					Bold(true)
+
+	listDelegateSelectedDescStyle = lipgloss.NewStyle().
+					Foreground(LightGreen)
+
+	listDelegateDimmedTitleStyle = lipgloss.NewStyle().Foreground(LightBlack)
+	listDelegateDimmedDescStyle  = lipgloss.NewStyle().Foreground(LightBlack)
+
+	listDelegateFilterMatchStyle = lipgloss.NewStyle().Foreground(LightGreen)
 )
 
 func DefaultListStyles() list.Styles {
@@ -56,6 +73,23 @@ func DefaultListStyles() list.Styles {
 	s.InactivePaginationDot = listInactivePaginationDotStyle
 	s.ArabicPagination = listArabicPaginationStyle
 	s.DividerDot = listDividerDotStyle
+
+	return s
+}
+
+func DefaultItemStyles() list.DefaultItemStyles {
+	s := list.NewDefaultItemStyles()
+
+	s.NormalTitle = listDelegateNormalTitleStyle
+	s.NormalDesc = listDelegateNormalDescStyle
+
+	s.SelectedTitle = listDelegateSelectedlTitleStyle
+	s.SelectedDesc = listDelegateSelectedDescStyle
+
+	s.DimmedTitle = listDelegateDimmedTitleStyle
+	s.DimmedDesc = listDelegateDimmedDescStyle
+
+	s.FilterMatch = listDelegateFilterMatchStyle
 
 	return s
 }
