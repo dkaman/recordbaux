@@ -1,4 +1,4 @@
-package div
+package layout
 
 import (
 	"fmt"
@@ -141,6 +141,13 @@ func WithBorder(border bool) divOption {
 func WithHidden(h bool) divOption {
 	return func(d *Div) error {
 		d.hidden = h
+		return nil
+	}
+}
+
+func WithStyle(s lipgloss.Style) divOption {
+	return func(d *Div) error {
+		d.style = s
 		return nil
 	}
 }

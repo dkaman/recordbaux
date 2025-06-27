@@ -10,18 +10,18 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
-type refreshLoadedShelfMsg struct{}
+type refreshMsg struct{}
 
 type LoadedShelfState struct {
 	app       *app.App
 	keys      keyMap
 	nextState states.StateType
-	layout    *div.Div
+	layout    *layout.Div
 
 	shelf       shelf.Model
 	selectedBin int
@@ -30,7 +30,7 @@ type LoadedShelfState struct {
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(a *app.App, l *div.Div, log *slog.Logger) LoadedShelfState {
+func New(a *app.App, l *layout.Div, log *slog.Logger) LoadedShelfState {
 	logGroup := log.WithGroup(states.LoadedShelf.String())
 	return LoadedShelfState{
 		app:       a,
@@ -42,8 +42,13 @@ func New(a *app.App, l *div.Div, log *slog.Logger) LoadedShelfState {
 }
 
 func (s LoadedShelfState) Init() tea.Cmd {
+	s.logger.Info("loadedshelf state init called")
+	return s.refresh()
+}
+
+func (s LoadedShelfState) refresh() tea.Cmd {
 	return func() tea.Msg {
-		return refreshLoadedShelfMsg{}
+		return refreshMsg{}
 	}
 }
 
@@ -51,27 +56,22 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case refreshLoadedShelfMsg:
-		s.logger.Info("refresh dimensions",
-			slog.Int("width", s.layout.Width()),
-			slog.Int("height", s.layout.Height()),
-		)
-
+	case refreshMsg:
 		contentWidth := s.layout.Width() - 2
 		contentHeight := s.layout.Height() - 2
 
-		s.shelf = s.app.CurrentShelf.
+		sh := s.app.CurrentShelf
+
+		s.shelf = shelf.New(sh, s.logger).
 			SelectBin(0).
 			SetSize(contentWidth, contentHeight)
 
+		s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
+
+		return s, tea.Batch(cmds...)
+
 	case tea.WindowSizeMsg:
-		s.logger.Info("dimensions requested",
-			slog.Int("width", msg.Width),
-			slog.Int("height", msg.Height),
-		)
-
 		s.layout.Resize(msg.Width, msg.Height)
-
 		msg.Width = msg.Width - 2
 		msg.Height = msg.Height - 2
 
@@ -92,10 +92,16 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.nextState = states.MainMenu
 
 		case key.Matches(msg, s.keys.Load):
+			s.logger.Info("loading colleciton",
+				slog.Any("shelf", s.shelf.PhysicalShelf()),
+			)
 			s.nextState = states.LoadCollection
 
 		case msg.String() == "enter":
-			s.app.CurrentBin = s.shelf.GetSelectedBin()
+			s.logger.Info("bin selected",
+				slog.Any("bin", s.shelf.GetSelectedBin().PhysicalBin()),
+			)
+			s.app.CurrentBin = s.shelf.GetSelectedBin().PhysicalBin()
 			s.nextState = states.LoadedBin
 		}
 	}
@@ -127,6 +133,7 @@ func (s LoadedShelfState) Next() (states.StateType, bool) {
 	return states.Undefined, false
 }
 
-func (s LoadedShelfState) Transition() {
+func (s LoadedShelfState) Transition() states.State {
 	s.nextState = states.Undefined
+	return s
 }

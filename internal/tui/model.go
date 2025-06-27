@@ -11,20 +11,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 
-	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
+	kfmt "github.com/dkaman/recordbaux/internal/tui/key"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 type Model struct {
 	// global application config/state
-	cfg  *config.Config
-	app  *app.App
-	keys keyMap
-
+	cfg    *config.Config
+	app    *app.App
+	keys   keyMap
 	logger *slog.Logger
 
 	// tea models
@@ -32,21 +34,21 @@ type Model struct {
 
 	// styling/layout
 	helpVisible bool
-	layout      *div.Div
+	layout      *layout.Div
 }
 
-func New(c *config.Config, log *slog.Logger) Model {
+func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) Model {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
+
+	a := app.NewApp(d)
 
 	l, _ := newTUILayout()
 	vp := l.Find("viewport")
 
-	a := app.NewApp()
-
 	if log == nil {
 		// TODO handle errors
-		f, _ := os.OpenFile("./logs/recordbaux.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644);
+		f, _ := os.OpenFile("./logs/recordbaux.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		log = slog.New(slog.NewTextHandler(f, nil))
 	}
 
@@ -59,7 +61,7 @@ func New(c *config.Config, log *slog.Logger) Model {
 		helpVisible:  false,
 		layout:       l,
 		stateMachine: sm,
-		logger: log,
+		logger:       log.WithGroup("root"),
 	}
 
 	_ = addTopBarText(l, "recordbaux - organize your record collection")
@@ -69,6 +71,7 @@ func New(c *config.Config, log *slog.Logger) Model {
 }
 
 func (m Model) Init() tea.Cmd {
+	m.logger.Info("root tui model init called")
 	return m.stateMachine.Init()
 }
 
@@ -82,7 +85,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// update bars
 	statusBarText := fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
 	_ = addStatusBarText(m.layout, statusBarText)
-
 	_ = addHelpBarText(m.layout, m.Help())
 
 	switch msg := msg.(type) {
@@ -110,6 +112,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, nil
 		}
+
+	// we're going to handle all db messages in root
+	case tcmds.ShelfSavedMsg:
+		if msg.Err != nil {
+			m.logger.Error("error saving shelf",
+				slog.String("error", msg.Err.Error()),
+			)
+		}
+		return m, tea.Batch(cmds...)
+
+	case tcmds.ShelfLoadedMsg:
+		if err := msg.Err; err != nil {
+			m.logger.Error("error loading shelf",
+				slog.String("error", err.Error()),
+			)
+			return m, tea.Batch(cmds...)
+		}
+
+		m.logger.Info("setting current shelf",
+			slog.Any("shelf", msg.Shelf),
+		)
+
+		m.app.CurrentShelf = msg.Shelf
+
+		return m, tea.Batch(cmds...)
+
+	case tcmds.ShelvesLoadedMsg:
+		if err := msg.Err; err != nil {
+			m.logger.Error("error loading all shelves",
+				slog.String("error", err.Error()),
+			)
+			return m, tea.Batch(cmds...)
+		}
+
+		m.app.AllShelves = msg.Shelves
+
+		return m, tea.Batch(cmds...)
+
+	case tcmds.ShelfDeletedMsg:
+		if err := msg.Err; err != nil {
+			m.logger.Error("error deleting shelf",
+				slog.String("error", err.Error()),
+			)
+		}
+
+		return m, tea.Batch(cmds...)
 	}
 
 	// update state machine
@@ -128,6 +176,6 @@ func (m Model) View() string {
 
 func (m Model) Help() string {
 	return "global: " +
-		keyFmt.FmtKeymap(m.keys.ShortHelp()) + " " +
+		kfmt.FmtKeymap(m.keys.ShortHelp()) + " " +
 		m.stateMachine.Help()
 }

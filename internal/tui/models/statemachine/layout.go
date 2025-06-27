@@ -2,10 +2,10 @@ package statemachine
 
 import (
 
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 
-func newStateMachineLayout(base *div.Div) *div.Div {
+func newStateMachineLayout(base *layout.Div) *layout.Div {
 	return base
 }

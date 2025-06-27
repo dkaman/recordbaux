@@ -2,15 +2,14 @@ package shelf
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 )
 
 type LoadShelfMsg struct {
-	phy *physical.Shelf
+	phy *shelf.Entity
 }
 
-func WithPhysicalShelf(p *physical.Shelf) tea.Cmd {
+func WithPhysicalShelf(p *shelf.Entity) tea.Cmd {
 	return func() tea.Msg {
 		return LoadShelfMsg{
 			phy: p,

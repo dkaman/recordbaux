@@ -8,7 +8,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	discogs "github.com/dkaman/discogs-golang"
 	css "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createshelf"
@@ -16,37 +16,26 @@ import (
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
 	lss "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/mainmenu"
-	sss "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/selectshelf"
 )
 
 var (
 	StateNotFoundErr = errors.New("state not found in state map")
 )
 
-type helper interface{
-	Help() string
-}
-
-type State interface {
-	tea.Model
-	helper
-	Next() (states.StateType, bool)
-	Transition()
-}
-
 type Model struct {
-	currentState     State
+	currentState     states.State
 	currentStateType states.StateType
-	allStates        map[states.StateType]State
-	layout           *div.Div
+	allStates        map[states.StateType]states.State
+	layout           *layout.Div
 
 	logger *slog.Logger
 }
 
-func New(a *app.App, c *config.Config, d *div.Div, log *slog.Logger) (Model, error) {
+func New(a *app.App, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
+	logGroup := log.WithGroup("statemachine")
 	m := Model{
 		layout: newStateMachineLayout(d),
-		logger: log,
+		logger: logGroup,
 	}
 
 	discogsAPIKey, _ := c.String("shelf.discogs.key")
@@ -58,13 +47,12 @@ func New(a *app.App, c *config.Config, d *div.Div, log *slog.Logger) (Model, err
 		m.logger.Info("error in discogs client", slog.Any("errorMsg", err))
 	}
 
-	m.allStates = map[states.StateType]State{
-		states.MainMenu:       mms.New(a, d),
+	m.allStates = map[states.StateType]states.State{
+		states.MainMenu:       mms.New(a, d, log),
 		states.CreateShelf:    css.New(a, d, log),
 		states.LoadedShelf:    lss.New(a, d, log),
 		states.LoadCollection: lcs.New(a, d, log, discogsClient, discogsUsername),
-		states.LoadedBin:      lbs.New(a, d),
-		states.SelectShelf:    sss.New(a, d),
+		states.LoadedBin:      lbs.New(a, d, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]
@@ -73,6 +61,7 @@ func New(a *app.App, c *config.Config, d *div.Div, log *slog.Logger) (Model, err
 }
 
 func (m Model) Init() tea.Cmd {
+	m.logger.Info("statemachine init function called")
 	return m.currentState.Init()
 }
 
@@ -82,16 +71,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	stateModel, stateCmds := m.currentState.Update(msg)
 	cmds = append(cmds, stateCmds)
 
-	if s, ok := stateModel.(State); ok {
+	if s, ok := stateModel.(states.State); ok {
 		if next, wanted := s.Next(); wanted {
-			m.allStates[m.currentStateType] = m.currentState
+			m.logger.Info("state transition requested",
+				slog.String("from", m.currentStateType.String()),
+				slog.String("to", next.String()),
+			)
 
-			s.Transition()
+			s = s.Transition()
 
+			m.allStates[m.currentStateType] = s
 			m.currentState = m.allStates[next]
 			m.currentStateType = next
 
-			vp :=  m.layout.Find("viewport")
+			vp := m.layout.Find("viewport")
 			vp.ClearChildren()
 
 			cmds = append(cmds,
@@ -115,11 +108,11 @@ func (m Model) Help() string {
 	return "statemachine: " + m.currentState.Help()
 }
 
-func (m Model) State(t states.StateType) State {
+func (m Model) State(t states.StateType) states.State {
 	return m.allStates[t]
 }
 
-func (m Model) CurrentState() State {
+func (m Model) CurrentState() states.State {
 	return m.currentState
 }
 func (m Model) CurrentStateType() states.StateType {

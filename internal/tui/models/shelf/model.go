@@ -7,10 +7,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/div" // Import the div package
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 // Define constants for bin styling
@@ -31,18 +32,25 @@ const (
 )
 
 type Model struct {
-	selectedBin    int
-	physicalShelf  *physical.Shelf
-	width          int // Current allocated width for the entire shelf block
-	height         int // Current allocated height for the entire shelf block
-	logger         *slog.Logger
-	binDivStyle    lipgloss.Style           // Base style for individual bins' content
-	binDivMargin   div.TopRightBottomLeft   // Margin around each bin div
-	binDivPadding  div.TopRightBottomLeft   // Padding inside each bin div (between border and content)
-	binDivBorder   bool                     // Whether each bin div has a border
+	id            db.ID
+	selectedBin   int
+	physicalShelf *shelf.Entity
+
+	bins []bin.Model
+
+	// screen dimensions not shelf dimensions
+	width  int // Current allocated width for the entire shelf block
+	height int // Current allocated height for the entire shelf block
+
+	binDivStyle   lipgloss.Style            // Base style for individual bins' content
+	binDivMargin  layout.TopRightBottomLeft // Margin around each bin div
+	binDivPadding layout.TopRightBottomLeft // Padding inside each bin div (between border and content)
+	binDivBorder  bool                      // Whether each bin div has a border
+
+	logger *slog.Logger
 }
 
-func New(p *physical.Shelf, log *slog.Logger) Model {
+func New(p *shelf.Entity, log *slog.Logger) Model {
 	logger := log.WithGroup("shelf")
 
 	// Initialize base style for bins (alignments only; border/padding handled by div options)
@@ -50,32 +58,39 @@ func New(p *physical.Shelf, log *slog.Logger) Model {
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center)
 
-	// Initialize margin and padding structs for div.Div options
-	defaultBinDivMargin := div.TopRightBottomLeft{
+	// Initialize margin and padding structs forlayout.Div options
+	defaultBinDivMargin := layout.TopRightBottomLeft{
 		Top:    defaultBinDivMarginVertical,
 		Right:  defaultBinDivMarginHorizontal,
 		Bottom: defaultBinDivMarginVertical,
 		Left:   defaultBinDivMarginHorizontal,
 	}
 
-	defaultBinDivPadding := div.TopRightBottomLeft{
+	defaultBinDivPadding := layout.TopRightBottomLeft{
 		Top:    defaultBinDivPaddingVertical,
 		Right:  defaultBinDivPaddingHorizontal,
 		Bottom: defaultBinDivPaddingVertical,
 		Left:   defaultBinDivPaddingHorizontal,
 	}
 
-	return Model{
-		selectedBin:    0,
-		physicalShelf:  p,
-		width:          0,
-		height:         0,
-		logger:         logger,
-		binDivStyle:    baseBinDivStyle,
-		binDivMargin:   defaultBinDivMargin,
-		binDivPadding:  defaultBinDivPadding,
-		binDivBorder:   defaultBinDivBorder,
+	m := Model{
+		id:            p.ID,
+		selectedBin:   0,
+		physicalShelf: p,
+		width:         0,
+		height:        0,
+		logger:        logger,
+		binDivStyle:   baseBinDivStyle,
+		binDivMargin:  defaultBinDivMargin,
+		binDivPadding: defaultBinDivPadding,
+		binDivBorder:  defaultBinDivBorder,
 	}
+
+	if p != nil {
+		m = m.loadPhysicalShelf(p)
+	}
+
+	return m
 }
 
 func (m Model) Init() tea.Cmd {
@@ -101,7 +116,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			slog.Int("new_height", m.height),
 		)
 	case LoadShelfMsg:
-		m.physicalShelf = msg.phy
+		m = m.loadPhysicalShelf(msg.phy)
+
+		m.logger.Info("model", slog.Any("m", m))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -116,19 +133,19 @@ func (m Model) View() string {
 		slog.Int("height", availableHeight),
 	)
 
+	// if no physical shelf return message (likely won't happen)
 	if m.physicalShelf == nil {
 		return "no shelves loaded"
 	}
+
+	// don't render if no space is available
 	if availableWidth <= 0 || availableHeight <= 0 {
-		return "" // Don't render if no space is available
+		return ""
 	}
 
-	shape := m.physicalShelf.Shape
-	if shape == nil || len(m.physicalShelf.Bins) == 0 {
-		return "shelf has no shape or bins to display"
+	if len(m.physicalShelf.AllBins()) == 0 {
+		return "shelf has no bins to display"
 	}
-
-	numBins := len(m.physicalShelf.Bins)
 
 	// Calculate the combined horizontal space consumed by padding and border for a single bin div
 	binInternalHorizontalPaddingAndBorder := (m.binDivPadding.Left + m.binDivPadding.Right)
@@ -151,42 +168,25 @@ func (m Model) View() string {
 	// Minimum height a bin div must have to show content + padding + border
 	minBinDivTotalHeight := minBinContentHeight + binInternalVerticalPaddingAndBorder
 
-	// Estimate the *minimum content width* for a bin based on minBinContentHeight and aspect ratio.
-	// This is the ideal minimum width for the text content itself.
-	estimatedMinContentWidth := minBinContentHeight * 3
-
-	// Calculate the total horizontal space required for a *single bin* if it were rendered at its minimum size,
-	// including its content, internal padding, border, and surrounding margins.
-	minTotalBinOccupiedWidth := estimatedMinContentWidth + binInternalHorizontalPaddingAndBorder + totalHorizontalMarginPerBin
-	if minTotalBinOccupiedWidth < 1 { // Ensure at least 1 to prevent division by zero
-		minTotalBinOccupiedWidth = 1
+	// Estimate the minimum total width needed for a bin including content, padding, border, and its own margins.
+	// This helps in determining how many bins can fit in a row initially.
+	// Assume a 3:1 aspect ratio for the content area for this estimate.
+	minBinTotalRenderWidthEstimate := (minBinContentHeight * 3) + binInternalHorizontalPaddingAndBorder + totalHorizontalMarginPerBin
+	if minBinTotalRenderWidthEstimate < 1 { // Ensure at least 1 to avoid division by zero
+		minBinTotalRenderWidthEstimate = 1
 	}
 
-	cols := 1
-	rows := 1
-
-	if rect, ok := shape.(*physical.Rectangular); ok {
-		cols = rect.X
-		rows = rect.Y
-	} else {
-		// For irregular shelves, determine columns based on available width
-		// and the estimated total width a single bin would occupy.
-		maxBinsPerRowBasedOnAvailableWidth := availableWidth / minTotalBinOccupiedWidth
-		if maxBinsPerRowBasedOnAvailableWidth < 1 {
-			maxBinsPerRowBasedOnAvailableWidth = 1
-		}
-		cols = maxBinsPerRowBasedOnAvailableWidth
-		rows = int(math.Ceil(float64(numBins) / float64(cols)))
-	}
+	cols := m.physicalShelf.DimX()
+	rows := m.physicalShelf.DimY()
 
 	if cols <= 0 || rows <= 0 {
 		return "shelf shape has invalid dimensions or insufficient space"
 	}
 
-	// Now that cols and rows are determined, calculate the effective available space
-	// that can be distributed among the actual bin content, padding, and border *for the chosen cols/rows*.
+	// Now calculate the effective available space for the *bin content, padding, and border*
+	// considering the determined `cols` and `rows` and all margins.
 	effectiveAvailableWidthForBinsContentArea := availableWidth - (totalHorizontalMarginPerBin * cols)
-	effectiveAvailableHeightForBinsContentArea := availableHeight - (totalVerticalMarginPerBin * rows) // totalVerticalMarginPerBin includes top/bottom margins for each row
+	effectiveAvailableHeightForBinsContentArea := availableHeight - (totalVerticalMarginPerBin * rows)
 
 	// Ensure these effective available dimensions are not negative
 	if effectiveAvailableWidthForBinsContentArea < 0 {
@@ -201,14 +201,15 @@ func (m Model) View() string {
 	candidateBinWidth := effectiveAvailableWidthForBinsContentArea / cols
 	candidateBinHeight := effectiveAvailableHeightForBinsContentArea / rows
 
-	// Adjust final bin dimensions to maintain aspect ratio (3:1 assumed for content area)
+	// Adjust final bin height to maintain aspect ratio (3:1 assumed for content area)
 	// and to respect the minimum total height for the div (content + padding + border).
-	// The finalBinWidth and finalBinHeight will be the explicit dimensions passed to div.WithDimensions.
+	// We calculate the content width that would maintain the 3:1 aspect ratio based on candidate height,
+	// then add back padding and border.
 	finalBinHeight := int(math.Min(float64(candidateBinHeight), float64(candidateBinWidth)/3.0))
 	if finalBinHeight < minBinDivTotalHeight {
 		finalBinHeight = minBinDivTotalHeight
 	}
-	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio based on the final height
+	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio for content, padding and border area
 
 	// Ensure finalBinWidth/Height are not negative
 	if finalBinWidth < 0 {
@@ -229,81 +230,53 @@ func (m Model) View() string {
 		slog.Int("binInternalVerticalPaddingAndBorder", binInternalVerticalPaddingAndBorder),
 	)
 
-	// Create the main shelf div (column-wise arrangement of rows)
-	shelfRootDiv, err := div.New(div.Column, lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center))
-	if err != nil {
-		m.logger.Error("error creating shelf root div", slog.Any("error", err))
-		return "Error rendering shelf."
-	}
-	// The root div should explicitly take up the available space.
-	shelfRootDiv.Resize(availableWidth, availableHeight)
+	root, _ := layout.New(layout.Column, style.Centered)
+	root.Resize(m.width, m.height)
 
 	binIndex := 0
 	for r := 0; r < rows; r++ {
-		rowDiv, err := div.New(div.Row, lipgloss.NewStyle()) // Row-wise arrangement of bins
-		if err != nil {
-			m.logger.Error("error creating row div", slog.Any("error", err))
-			return "Error rendering shelf."
-		}
-		// Rows are children of shelfRootDiv (Column direction).
-		// Their width should be exactly `availableWidth` so they don't overflow.
-		// Their height will be fixed based on the `finalBinHeight` and vertical margins.
-		// NOTE: Passing availableWidth to rowDiv.Resize implies that the rowDiv will try
-		// to distribute this width to its children (bins). If rowDiv's children (the bins)
-		// collectively ask for more space than rowDiv.width, then the internal lipgloss
-		// JoinHorizontal will cause wrapping. The goal is to constrain the *number* of
-		// bins in a row such that they fit within availableWidth.
-		rowDiv.Resize(availableWidth, finalBinHeight + m.binDivMargin.Top + m.binDivMargin.Bottom)
-
+		rowDiv, _ := layout.New(layout.Row, lipgloss.NewStyle())
+		rowDiv.Resize(
+			(finalBinWidth+m.binDivMargin.Left+m.binDivMargin.Right)*cols,
+			finalBinHeight+m.binDivMargin.Top+m.binDivMargin.Bottom,
+		)
 
 		for c := 0; c < cols; c++ {
-			var binNode *div.Div
-			var binLabel string
-			currentBinSelected := false
+			if binIndex < len(m.bins) {
+				b := m.bins[binIndex].
+					SetSize(finalBinWidth, finalBinHeight)
 
-			if binIndex < numBins { // Use numBins (total bins) to check if a physical bin exists
-				b := m.physicalShelf.Bins[binIndex]
-				count := len(b.Records)
-				binLabel = fmt.Sprintf("%s\n%d/%d", b.ID, count, b.Size)
-				currentBinSelected = (binIndex == m.selectedBin)
-			} else {
-				// Empty placeholder bin if there are fewer bins than calculated slots
-				binLabel = ""
+				rowDiv.AddChild(&layout.TextNode{
+					Body: b.View(),
+				})
 			}
-
-			binInnerStyle := m.binDivStyle.Copy()
-			if binIndex < numBins && len(m.physicalShelf.Bins[binIndex].Records) > 0 {
-				binInnerStyle = binInnerStyle.BorderBackground(lipgloss.Color("62"))
-			}
-			if currentBinSelected {
-				binInnerStyle = binInnerStyle.BorderForeground(lipgloss.Color("5"))
-			}
-
-			binNode, err = div.New(div.Column, binInnerStyle,
-				div.WithName(fmt.Sprintf("bin-%d", binIndex)),
-				div.WithMargin(m.binDivMargin.Top, m.binDivMargin.Right, m.binDivMargin.Bottom, m.binDivMargin.Left),
-				div.WithPadding(m.binDivPadding.Top, m.binDivPadding.Right, m.binDivPadding.Bottom, m.binDivPadding.Left),
-			)
-			if err != nil {
-				m.logger.Error("error creating bin div", slog.Any("error", err))
-				return "Error rendering shelf."
-			}
-
-			binNode.Resize(finalBinWidth, finalBinHeight)
-
-			if m.binDivBorder {
-				binNode.ApplyOption(div.WithBorder(true)) // Apply border if configured
-			}
-
-			binNode.AddChild(&div.TextNode{Body: binLabel}) // Add content to the bin div
-
-			rowDiv.AddChild(binNode)
 			binIndex++
 		}
-		shelfRootDiv.AddChild(rowDiv)
+		root.AddChild(rowDiv)
+	}
+	return root.Render()
+}
+
+func (m Model) loadPhysicalShelf(s *shelf.Entity) Model {
+	m.physicalShelf = s
+
+	m.bins = nil
+
+	alignedSelected := style.Centered.Bold(true).Foreground(style.LightGreen)
+
+	binStyles := bin.Style{
+		EmptySelected:   alignedSelected,
+		EmptyUnselected: style.Centered,
+		FullSelected:    alignedSelected.Background(style.DarkBlue),
+		FullUnselected:  style.Centered.Background(style.DarkBlue).Foreground(style.DarkBlack),
 	}
 
-	return shelfRootDiv.Render()
+	for _, pb := range m.physicalShelf.AllBins() {
+		b := bin.New(pb, binStyles)
+		m.bins = append(m.bins, b)
+	}
+
+	return m
 }
 
 func (m Model) SetSize(w, h int) Model {
@@ -318,6 +291,11 @@ func (m Model) SelectBin(b int) Model {
 		return m
 	}
 	m.selectedBin = b % numBins
+
+	bin := m.bins[m.selectedBin]
+
+	m.bins[m.selectedBin] = bin.Select()
+
 	return m
 }
 
@@ -326,7 +304,12 @@ func (m Model) SelectNextBin() Model {
 	if numBins == 0 {
 		return m
 	}
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Unselect()
+
 	m.selectedBin = (m.selectedBin + 1) % numBins
+
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Select()
+
 	return m
 }
 
@@ -335,16 +318,16 @@ func (m Model) SelectPrevBin() Model {
 	if numBins == 0 {
 		return m
 	}
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Unselect()
+
 	m.selectedBin = (m.selectedBin - 1 + numBins) % numBins
+
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Select()
 	return m
 }
 
 func (m Model) GetSelectedBin() bin.Model {
-	if m.physicalShelf == nil || len(m.physicalShelf.Bins) == 0 {
-		return bin.Model{}
-	}
-	b := m.physicalShelf.Bins[m.selectedBin]
-	return bin.New(b, style.ActiveTextStyle)
+	return m.bins[m.selectedBin]
 }
 
 func (m Model) Title() string {
@@ -365,11 +348,17 @@ func (m Model) Description() string {
 	if m.physicalShelf == nil {
 		return ""
 	}
-	bins := len(m.physicalShelf.Bins)
-	cap := bins * m.physicalShelf.Shape.BinSize()
+
+	bins := len(m.physicalShelf.AllBins())
+	cap := bins * m.physicalShelf.BinSize
+
 	return fmt.Sprintf("%d bins, capacity %d", bins, cap)
 }
 
-func (m Model) PhysicalShelf() *physical.Shelf {
+func (m Model) PhysicalShelf() *shelf.Entity {
 	return m.physicalShelf
+}
+
+func (m Model) ID() db.ID {
+	return m.id
 }

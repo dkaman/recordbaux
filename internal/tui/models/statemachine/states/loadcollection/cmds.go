@@ -2,31 +2,41 @@ package loadcollection
 
 import (
 	"context"
+	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/physical"
-
 	discogs "github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 )
 
 // LoadCollectionMsg carries a physical.Shelf pointer to the state.
 type LoadCollectionMsg struct {
-	Shelf *physical.Shelf
+	Shelf *shelf.Entity
 }
 
 type NewDiscogsCollectionMsg struct {
-	Releases []*physical.Record
+	Releases []*record.Entity
 }
 
 // WithCollection constructs a Tea command that sends a LoadCollectionMsg.
-func RetrieveDiscogsCollection(c *discogs.Client, username string, folder string) tea.Cmd {
+func RetrieveDiscogsCollection(c *discogs.Client, username string, folder string, log *slog.Logger) tea.Cmd {
+	l := log.WithGroup("retreivediscogscmd")
 	return func() tea.Msg {
-		var rs []*physical.Record
+		var rs []*record.Entity
 
-		releases, _ := c.Collection.GetReleasesByFolder(context.TODO(), username, 0)
+		releases, err := c.Collection.GetReleasesByFolder(context.TODO(), username, 0)
+		if err != nil {
+			l.Error("error getting releases from discogs",
+				slog.String("error", err.Error()),
+			)
+		}
+
+		l.Info("releases from discogs", releases)
+
 		for _, rel := range releases {
-			rs = append(rs, &physical.Record{Release: rel})
+			rs = append(rs, &record.Entity{Release: rel})
 		}
 
 		return NewDiscogsCollectionMsg{

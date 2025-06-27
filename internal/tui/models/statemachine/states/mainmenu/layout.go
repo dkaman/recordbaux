@@ -1,16 +1,22 @@
 package mainmenu
 
 import (
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/charmbracelet/bubbles/list"
+
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 
-func newMainMenuLayout(base *div.Div) (*div.Div, error) {
+func newMainMenuLayout(base *layout.Div, lst list.Model) (*layout.Div, error) {
 	base.ClearChildren()
-
-	base.AddChild(&div.TextNode{
-		Body: "no shelves defined, 'o' to create...",
-	})
-
+	if len(lst.Items()) == 0 {
+		base.AddChild(&layout.TextNode{
+			Body: "no shelves defined, 'o' to create...",
+		})
+	} else {
+		base.AddChild(&layout.TextNode{
+			Body: lst.View(),
+		})
+	}
 	return base, nil
 }

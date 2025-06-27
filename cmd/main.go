@@ -8,6 +8,7 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/tui"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 )
 
 func main() {
@@ -19,7 +20,9 @@ func main() {
 		log.Fatalf("error in model configuration: %v", err)
 	}
 
-	t := tui.New(cfg, nil)
+	db := shelf.NewMemoryRepo()
+
+	t := tui.New(cfg, nil, db)
 	p := tea.NewProgram(t)
 
 	if _, err := p.Run(); err != nil {

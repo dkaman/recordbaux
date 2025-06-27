@@ -7,99 +7,98 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/physical"
+	"github.com/dkaman/recordbaux/internal/db/bin"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/app"
-	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
-type resetFormMsg struct{}
+type refreshMsg struct{}
 
 type CreateShelfState struct {
 	app             *app.App
 	createShelfForm *form
 	nextState       states.StateType
-	layout          *div.Div
+	layout          *layout.Div
 	logger          *slog.Logger
 }
 
-func New(a *app.App, l *div.Div, log *slog.Logger) CreateShelfState {
+func New(a *app.App, l *layout.Div, log *slog.Logger) CreateShelfState {
 	f := newShelfCreateForm()
-
+	lay, _ := newCreateShelfLayout(l, f)
 	logger := log.WithGroup("createshelfstate")
 
 	return CreateShelfState{
 		app:             a,
 		nextState:       states.Undefined,
 		createShelfForm: f,
-		layout:          l,
+		layout:          lay,
 		logger:          logger,
 	}
 }
 
+// tea.Model implementation
+
 func (s CreateShelfState) Init() tea.Cmd {
+	s.logger.Info("createshelf state init called")
+	return s.refresh()
+}
+
+func (s CreateShelfState) refresh() tea.Cmd{
 	return func() tea.Msg {
-		return resetFormMsg{}
+		return refreshMsg{}
 	}
 }
 
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case resetFormMsg:
-		s.createShelfForm = newShelfCreateForm()
+	switch msg.(type) {
+	case refreshMsg:
 		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
-
-		cmds = append(cmds,
-			s.createShelfForm.Init(),
-		)
+		return s, tea.Batch(s.createShelfForm.Init())
 
 	case tea.WindowSizeMsg:
 		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
+		return s, tea.Batch(cmds...)
+	}
 
-	default:
-		fModel, formUpdateCmds := s.createShelfForm.Update(msg)
-		if f, ok := fModel.(*form); ok {
-			s.createShelfForm = f
-		}
-		cmds = append(cmds, formUpdateCmds)
+	fModel, formUpdateCmds := s.createShelfForm.Update(msg)
+	if f, ok := fModel.(*form); ok {
+		s.createShelfForm = f
+	}
+	cmds = append(cmds, formUpdateCmds)
 
-		addViewportText(s.layout, s.createShelfForm)
+	addViewportText(s.layout, s.createShelfForm)
 
-		// once done
-		if s.createShelfForm.State == huh.StateCompleted {
-			x := s.createShelfForm.DimX()
-			y := s.createShelfForm.DimY()
-			size := s.createShelfForm.BinSize()
+	// once done
+	if s.createShelfForm.State == huh.StateCompleted {
+		x := s.createShelfForm.DimX()
+		y := s.createShelfForm.DimY()
+		size := s.createShelfForm.BinSize()
+		numBins := s.createShelfForm.NumBins()
 
-			var shape physical.Shape
+		var newShelf *shelf.Entity
 
-			if s.createShelfForm.Shape() == Rect {
-				shape = &physical.Rectangular{
-					X:    x,
-					Y:    y,
-					Size: size,
-				}
-			} else {
-				shape = &physical.Irregular{
-					N:    s.createShelfForm.NumBins(),
-					Size: size,
-				}
-			}
-
-			newShelf, _ := physical.New(s.createShelfForm.Name(),
-				physical.WithShelfSortFunc(physical.AlphaByArtist),
-				physical.WithShape(shape),
+		if s.createShelfForm.Shape() == Rect {
+			newShelf, _ = shelf.New(s.createShelfForm.Name(), size,
+				shelf.WithShapeRect(x, y, size, bin.SortAlphaByArtist),
 			)
-
-			ns := shelf.New(newShelf, s.logger)
-			s.app.Shelves = append(s.app.Shelves, ns)
-
-			s.createShelfForm = newShelfCreateForm()
-			s.nextState = states.MainMenu
+		} else {
+			newShelf, _ = shelf.New(s.createShelfForm.Name(), size,
+				shelf.WithShapeIrregular(numBins, size, bin.SortAlphaByArtist),
+			)
 		}
+
+		s.logger.Info("new shelf", slog.Any("shelf", newShelf))
+
+		cmds = append(cmds, tcmds.SaveShelfCmd(s.app.Shelves, newShelf, s.logger))
+
+		s.createShelfForm = newShelfCreateForm()
+		s.nextState = states.MainMenu
 	}
 
 	return s, tea.Batch(cmds...)
@@ -121,6 +120,7 @@ func (s CreateShelfState) Next() (states.StateType, bool) {
 	return states.Undefined, false
 }
 
-func (s CreateShelfState) Transition() {
+func (s CreateShelfState) Transition() states.State {
 	s.nextState = states.Undefined
+	return s
 }

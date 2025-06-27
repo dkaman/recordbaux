@@ -9,13 +9,14 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/dkaman/recordbaux/internal/physical"
 	"github.com/dkaman/recordbaux/internal/tui/app"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/db/record"
 
 	discogs "github.com/dkaman/discogs-golang"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 type refreshShelfMsg struct{}
@@ -31,6 +32,8 @@ type LoadCollectionState struct {
 	collection      shelf.Model
 	discogsClient   *discogs.Client
 	discogsUsername string
+	layout *layout.Div
+	logger *slog.Logger
 
 	selectFolderForm *form
 
@@ -39,20 +42,14 @@ type LoadCollectionState struct {
 	inserting bool
 
 	progressBar   progress.Model
-	releases      []*physical.Record
+	releases      []*record.Entity
 	currentIndex  int
 	totalReleases int
 
-	layout *div.Div
-
-	logger *slog.Logger
 }
 
-// New constructs the LoadCollectionFromDiscogs state with an empty shelf model.
-func New(a *app.App, l *div.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
+func New(a *app.App, l *layout.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
 	logger := log.WithGroup("loadcollectionstate")
-
-	c := shelf.New(nil, logger)
 
 	f := newFolderSelectForm(client, username)
 
@@ -63,7 +60,6 @@ func New(a *app.App, l *div.Div, log *slog.Logger, client *discogs.Client, usern
 	return LoadCollectionState{
 		app:              a,
 		nextState:        states.Undefined,
-		collection:       c,
 		discogsClient:    client,
 		discogsUsername:  username,
 		selectFolderForm: f,
@@ -71,12 +67,13 @@ func New(a *app.App, l *div.Div, log *slog.Logger, client *discogs.Client, usern
 		fetching:         false,
 		inserting:        false,
 		layout:           l,
-		logger: logger,
+		logger:           logger,
 	}
 }
 
 // Init satisfies tea.Model.
 func (s LoadCollectionState) Init() tea.Cmd {
+	s.logger.Info("loadcollection state init called")
 	return tea.Batch(
 		s.collection.Init(),
 		s.selectFolderForm.Init(),
@@ -92,17 +89,25 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case refreshShelfMsg:
-		s.collection = s.app.CurrentShelf
+		s.logger.Info("loaded collection current shelf",
+			slog.Any("shelf", s.app.CurrentShelf),
+		)
+		s.collection = shelf.New(s.app.CurrentShelf, s.logger)
 
 		if s.selectFolderForm.State == huh.StateCompleted {
 			s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
 		}
 
 		return s, nil
+
 	case tea.WindowSizeMsg:
 		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
 
 	case NewDiscogsCollectionMsg:
+		s.logger.Info("new discogs collection to process",
+			slog.Any("releases", msg.Releases),
+		)
+
 		s.releases = msg.Releases
 		s.totalReleases = len(msg.Releases)
 		s.currentIndex = 0
@@ -122,10 +127,15 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case loadNextMsg:
 		if s.releases != nil && s.currentIndex < s.totalReleases {
+			s.logger.Info("inserting release",
+				slog.Any("release", s.releases[s.currentIndex]),
+			)
 			phy := s.collection.PhysicalShelf()
 			phy.Insert(s.releases[s.currentIndex])
 			s.currentIndex++
 
+			_ = s.app.Shelves.Save(phy)
+			s.app.CurrentShelf = phy
 			pct := float64(s.currentIndex) / float64(s.totalReleases)
 
 			cmds = append(cmds,
@@ -167,8 +177,14 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case doneFetchingMsg:
+		cmds = append(cmds,
+			tcmds.GetShelfCmd(s.app.Shelves, s.collection.ID(), s.logger),
+		)
+
 		s.releases = nil
 		s.nextState = states.LoadedShelf
+
+		return s, tea.Batch(cmds...)
 
 	default:
 		// If we're not yet fetching, pass input to the folder‐select form
@@ -192,12 +208,14 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s.progressBar.Init(),
 					s.progressBar.SetPercent(0),
 					s.spinner.Tick,
-					RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder),
+					RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder, s.logger),
 				)
 
 				s.layout, _ = newLoadedCollectionProgressLayout(
 					s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0,
 				)
+
+				s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
 
 				return s, tea.Batch(cmds...)
 			}
@@ -229,6 +247,7 @@ func (s LoadCollectionState) Next() (states.StateType, bool) {
 	return states.Undefined, false
 }
 
-func (s LoadCollectionState) Transition() {
+func (s LoadCollectionState) Transition() states.State {
 	s.nextState = states.Undefined
+	return s
 }

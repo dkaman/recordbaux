@@ -1,6 +1,8 @@
 package loadedbin
 
 import (
+	"log/slog"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -11,7 +13,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
@@ -23,13 +25,14 @@ type LoadedBinState struct {
 	nextState states.StateType
 	bin       bin.Model
 	keys      keyMap
-	layout    *div.Div
+	layout    *layout.Div
+	logger    *slog.Logger
 
 	records table.Model
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(a *app.App, l *div.Div) LoadedBinState {
+func New(a *app.App, l *layout.Div, log *slog.Logger) LoadedBinState {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
@@ -38,10 +41,12 @@ func New(a *app.App, l *div.Div) LoadedBinState {
 		nextState: states.Undefined,
 		keys:      defaultKeybinds(),
 		layout:    l,
+		logger:    log.WithGroup("loadedbin"),
 	}
 }
 
 func (s LoadedBinState) Init() tea.Cmd {
+	s.logger.Info("loadedbin state init called")
 	return func() tea.Msg {
 		return refreshLoadedBinMsg{}
 	}
@@ -52,7 +57,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case refreshLoadedBinMsg:
-		s.bin = s.app.CurrentBin
+		s.bin = bin.New(s.app.CurrentBin, bin.Style{})
 
 		columns := []table.Column{
 			{Title: "catalog no.", Width: 15},
@@ -92,7 +97,11 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tableUpdateCmds,
 	)
 
-	s.layout, _  = newLoadedBinLayout(s.layout, s.records)
+	idx := s.records.Cursor()
+
+	r := s.bin.PhysicalBin().Records[idx]
+
+	s.layout, _ = newLoadedBinLayout(s.layout, s.records, r)
 
 	return s, tea.Batch(cmds...)
 }
@@ -113,6 +122,7 @@ func (s LoadedBinState) Next() (states.StateType, bool) {
 	return states.Undefined, false
 }
 
-func (s LoadedBinState) Transition() {
+func (s LoadedBinState) Transition() states.State {
 	s.nextState = states.Undefined
+	return s
 }

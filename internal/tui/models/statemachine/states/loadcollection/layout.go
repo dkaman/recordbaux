@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/div"
+	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 var (
@@ -17,7 +17,7 @@ var (
 			AlignVertical(lipgloss.Center)
 )
 
-func newLoadedCollectionFormLayout(base *div.Div, f *form) *div.Div {
+func newLoadedCollectionFormLayout(base *layout.Div, f *form) *layout.Div {
 	base.ClearChildren()
 
 	// 1) Grab current viewport dimensions (set by t.WindowSizeMsg → base.Resize)
@@ -42,16 +42,16 @@ func newLoadedCollectionFormLayout(base *div.Div, f *form) *div.Div {
 	marginH := (w - boxW) / 2
 
 	// 4) Create the centered container with border, fixed size, and margins
-	centerBox, _ := div.New(div.Column, lipgloss.NewStyle(),
-		div.WithName("centerbox"),
-		div.WithBorder(true),
-		div.WithFixedWidth(boxW),
-		div.WithFixedHeight(boxH),
-		div.WithMargin(marginV, marginH, marginV, marginH),
+	centerBox, _ := layout.New(layout.Column, lipgloss.NewStyle(),
+		layout.WithName("centerbox"),
+		layout.WithBorder(true),
+		layout.WithFixedWidth(boxW),
+		layout.WithFixedHeight(boxH),
+		layout.WithMargin(marginV, marginH, marginV, marginH),
 	)
 
 	// 5) Render the Huh form inside
-	centerBox.AddChild(&div.TextNode{
+	centerBox.AddChild(&layout.TextNode{
 		Body: f.View(),
 	})
 
@@ -62,13 +62,13 @@ func newLoadedCollectionFormLayout(base *div.Div, f *form) *div.Div {
 }
 
 func newLoadedCollectionProgressLayout(
-	base *div.Div,
+	base *layout.Div,
 	pb progress.Model,
 	sp spinner.Model,
 	fetching bool,
 	inserting bool,
 	pct float64,
-) (*div.Div, error) {
+) (*layout.Div, error) {
 	base.ClearChildren()
 
 	var lines []string
@@ -97,7 +97,7 @@ func newLoadedCollectionProgressLayout(
 
 	// join the two lines vertically, then wrap in a single TextNode
 	joined := lipgloss.JoinVertical(lipgloss.Center, lines...)
-	base.AddChild(&div.TextNode{
+	base.AddChild(&layout.TextNode{
 		Body: style.ProgressStyle.Render(joined),
 	})
 

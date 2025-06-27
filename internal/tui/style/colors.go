@@ -40,5 +40,10 @@ var (
 			Bold(true)
 
 	LabelStyle       = TextStyle
+
 	ActiveLabelStyle = ActiveTextStyle
+
+	Centered = lipgloss.NewStyle().
+		AlignVertical(lipgloss.Center).
+		AlignHorizontal(lipgloss.Center)
 )

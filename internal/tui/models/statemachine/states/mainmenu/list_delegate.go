@@ -27,7 +27,7 @@ func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 
 	shPhy := shM.PhysicalShelf()
 
-	display := fmt.Sprintf("%s (%d bins × size %d)", shPhy.Name, len(shPhy.Bins), shPhy.Shape.BinSize())
+	display := fmt.Sprintf("%s (%d bins × size %d)", shPhy.Name, len(shPhy.Bins), shPhy.BinSize)
 
 	sty := style.TextStyle
 

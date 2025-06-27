@@ -12,8 +12,8 @@ type keyMap struct {
 func defaultKeybinds() keyMap {
 	return keyMap{
 		SelectShelf: key.NewBinding(
-			key.WithKeys("tab"),
-			key.WithHelp("tab", "switch shelf"),
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "select shelf"),
 		),
 		NewShelf: key.NewBinding(
 			key.WithKeys("o"),
