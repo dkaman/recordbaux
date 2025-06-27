@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -19,8 +19,8 @@ import (
 )
 
 type MainMenuState struct {
-	app       *app.App
-	nextState states.StateType
+	shelfService *services.ShelfService
+	nextState    states.StateType
 
 	keys   keyMap
 	layout *layout.Div
@@ -29,9 +29,9 @@ type MainMenuState struct {
 	shelves list.Model
 }
 
-type refreshMsg struct {}
+type refreshMsg struct{}
 
-func New(a *app.App, l *layout.Div, log *slog.Logger) MainMenuState {
+func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
 
 	delegate := list.NewDefaultDelegate()
@@ -46,19 +46,19 @@ func New(a *app.App, l *layout.Div, log *slog.Logger) MainMenuState {
 	lay, _ := newMainMenuLayout(l, lst)
 
 	return MainMenuState{
-		app:       a,
-		keys:      defaultKeybinds(),
-		layout:    lay,
-		shelves:   lst,
-		logger:    log,
-		nextState: states.Undefined,
+		shelfService: s,
+		keys:         defaultKeybinds(),
+		layout:       lay,
+		shelves:      lst,
+		logger:       log,
+		nextState:    states.Undefined,
 	}
 }
 
 func (s MainMenuState) Init() tea.Cmd {
 	s.logger.Info("mainmenu state init called")
 	return tea.Sequence(
-		tcmds.GetAllShelvesCmd(s.app.Shelves, s.logger),
+		tcmds.GetAllShelvesCmd(s.shelfService.Shelves, s.logger),
 		s.refresh(),
 	)
 }
@@ -74,7 +74,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case refreshMsg:
-		shlvs := s.app.AllShelves
+		shlvs := s.shelfService.AllShelves
 		items := make([]list.Item, len(shlvs))
 		for i, sh := range shlvs {
 			items[i] = shelf.New(sh, s.logger)
@@ -89,7 +89,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, s.keys.SelectShelf):
 			if sel, ok := s.shelves.SelectedItem().(shelf.Model); ok {
 				s.nextState = states.LoadedShelf
-				s.app.CurrentShelf = sel.PhysicalShelf()
+				s.shelfService.CurrentShelf = sel.PhysicalShelf()
 			}
 			return s, tea.Batch(cmds...)
 

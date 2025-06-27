@@ -9,11 +9,11 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
-	"github.com/dkaman/recordbaux/internal/db/record"
 
 	discogs "github.com/dkaman/discogs-golang"
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
@@ -27,13 +27,13 @@ type loadNextMsg struct{}
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
-	app             *app.App
+	shelfService    *services.ShelfService
 	nextState       states.StateType
 	collection      shelf.Model
 	discogsClient   *discogs.Client
 	discogsUsername string
-	layout *layout.Div
-	logger *slog.Logger
+	layout          *layout.Div
+	logger          *slog.Logger
 
 	selectFolderForm *form
 
@@ -45,10 +45,9 @@ type LoadCollectionState struct {
 	releases      []*record.Entity
 	currentIndex  int
 	totalReleases int
-
 }
 
-func New(a *app.App, l *layout.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
+func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
 	logger := log.WithGroup("loadcollectionstate")
 
 	f := newFolderSelectForm(client, username)
@@ -58,7 +57,7 @@ func New(a *app.App, l *layout.Div, log *slog.Logger, client *discogs.Client, us
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return LoadCollectionState{
-		app:              a,
+		shelfService:     s,
 		nextState:        states.Undefined,
 		discogsClient:    client,
 		discogsUsername:  username,
@@ -90,9 +89,9 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case refreshShelfMsg:
 		s.logger.Info("loaded collection current shelf",
-			slog.Any("shelf", s.app.CurrentShelf),
+			slog.Any("shelf", s.shelfService.CurrentShelf),
 		)
-		s.collection = shelf.New(s.app.CurrentShelf, s.logger)
+		s.collection = shelf.New(s.shelfService.CurrentShelf, s.logger)
 
 		if s.selectFolderForm.State == huh.StateCompleted {
 			s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
@@ -134,8 +133,8 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			phy.Insert(s.releases[s.currentIndex])
 			s.currentIndex++
 
-			_ = s.app.Shelves.Save(phy)
-			s.app.CurrentShelf = phy
+			_ = s.shelfService.Shelves.Save(phy)
+			s.shelfService.CurrentShelf = phy
 			pct := float64(s.currentIndex) / float64(s.totalReleases)
 
 			cmds = append(cmds,
@@ -178,7 +177,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case doneFetchingMsg:
 		cmds = append(cmds,
-			tcmds.GetShelfCmd(s.app.Shelves, s.collection.ID(), s.logger),
+			tcmds.GetShelfCmd(s.shelfService.Shelves, s.collection.ID(), s.logger),
 		)
 
 		s.releases = nil

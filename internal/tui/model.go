@@ -12,22 +12,22 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/db"
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
-	"github.com/dkaman/recordbaux/internal/db/shelf"
 
-	kfmt "github.com/dkaman/recordbaux/internal/tui/key"
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	kfmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
 type Model struct {
 	// global application config/state
-	cfg    *config.Config
-	app    *app.App
-	keys   keyMap
-	logger *slog.Logger
+	cfg          *config.Config
+	shelfService *services.ShelfService
+	keys         keyMap
+	logger       *slog.Logger
 
 	// tea models
 	stateMachine statemachine.Model
@@ -41,7 +41,7 @@ func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) Mod
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
-	a := app.NewApp(d)
+	s := services.NewShelfService(d)
 
 	l, _ := newTUILayout()
 	vp := l.Find("viewport")
@@ -52,11 +52,11 @@ func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) Mod
 		log = slog.New(slog.NewTextHandler(f, nil))
 	}
 
-	sm, _ := statemachine.New(a, c, vp, log)
+	sm, _ := statemachine.New(s, c, vp, log)
 
 	m := Model{
 		cfg:          c,
-		app:          a,
+		shelfService: s,
 		keys:         defaultKeybinds(),
 		helpVisible:  false,
 		layout:       l,
@@ -134,7 +134,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			slog.Any("shelf", msg.Shelf),
 		)
 
-		m.app.CurrentShelf = msg.Shelf
+		m.shelfService.CurrentShelf = msg.Shelf
 
 		return m, tea.Batch(cmds...)
 
@@ -146,7 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 
-		m.app.AllShelves = msg.Shelves
+		m.shelfService.AllShelves = msg.Shelves
 
 		return m, tea.Batch(cmds...)
 

@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dkaman/recordbaux/internal/config"
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
@@ -31,7 +31,7 @@ type Model struct {
 	logger *slog.Logger
 }
 
-func New(a *app.App, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
+func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
 	m := Model{
 		layout: newStateMachineLayout(d),
@@ -48,11 +48,11 @@ func New(a *app.App, c *config.Config, d *layout.Div, log *slog.Logger) (Model, 
 	}
 
 	m.allStates = map[states.StateType]states.State{
-		states.MainMenu:       mms.New(a, d, log),
-		states.CreateShelf:    css.New(a, d, log),
-		states.LoadedShelf:    lss.New(a, d, log),
-		states.LoadCollection: lcs.New(a, d, log, discogsClient, discogsUsername),
-		states.LoadedBin:      lbs.New(a, d, log),
+		states.MainMenu:       mms.New(s, d, log),
+		states.CreateShelf:    css.New(s, d, log),
+		states.LoadedShelf:    lss.New(s, d, log),
+		states.LoadCollection: lcs.New(s, d, log, discogsClient, discogsUsername),
+		states.LoadedBin:      lbs.New(s, d, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]

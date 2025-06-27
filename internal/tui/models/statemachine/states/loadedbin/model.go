@@ -9,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -21,27 +21,27 @@ import (
 type refreshLoadedBinMsg struct{}
 
 type LoadedBinState struct {
-	app       *app.App
-	nextState states.StateType
-	bin       bin.Model
-	keys      keyMap
-	layout    *layout.Div
-	logger    *slog.Logger
+	shelfService *services.ShelfService
+	nextState    states.StateType
+	bin          bin.Model
+	keys         keyMap
+	layout       *layout.Div
+	logger       *slog.Logger
 
 	records table.Model
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(a *app.App, l *layout.Div, log *slog.Logger) LoadedBinState {
+func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedBinState {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
 	return LoadedBinState{
-		app:       a,
-		nextState: states.Undefined,
-		keys:      defaultKeybinds(),
-		layout:    l,
-		logger:    log.WithGroup("loadedbin"),
+		shelfService: s,
+		nextState:    states.Undefined,
+		keys:         defaultKeybinds(),
+		layout:       l,
+		logger:       log.WithGroup("loadedbin"),
 	}
 }
 
@@ -57,7 +57,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case refreshLoadedBinMsg:
-		s.bin = bin.New(s.app.CurrentBin, bin.Style{})
+		s.bin = bin.New(s.shelfService.CurrentBin, bin.Style{})
 
 		columns := []table.Column{
 			{Title: "catalog no.", Width: 15},

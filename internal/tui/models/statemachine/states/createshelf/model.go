@@ -9,7 +9,7 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
@@ -19,20 +19,20 @@ import (
 type refreshMsg struct{}
 
 type CreateShelfState struct {
-	app             *app.App
+	shelfService    *services.ShelfService
 	createShelfForm *form
 	nextState       states.StateType
 	layout          *layout.Div
 	logger          *slog.Logger
 }
 
-func New(a *app.App, l *layout.Div, log *slog.Logger) CreateShelfState {
+func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) CreateShelfState {
 	f := newShelfCreateForm()
 	lay, _ := newCreateShelfLayout(l, f)
 	logger := log.WithGroup("createshelfstate")
 
 	return CreateShelfState{
-		app:             a,
+		shelfService:    s,
 		nextState:       states.Undefined,
 		createShelfForm: f,
 		layout:          lay,
@@ -47,7 +47,7 @@ func (s CreateShelfState) Init() tea.Cmd {
 	return s.refresh()
 }
 
-func (s CreateShelfState) refresh() tea.Cmd{
+func (s CreateShelfState) refresh() tea.Cmd {
 	return func() tea.Msg {
 		return refreshMsg{}
 	}
@@ -95,7 +95,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.logger.Info("new shelf", slog.Any("shelf", newShelf))
 
-		cmds = append(cmds, tcmds.SaveShelfCmd(s.app.Shelves, newShelf, s.logger))
+		cmds = append(cmds, tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger))
 
 		s.createShelfForm = newShelfCreateForm()
 		s.nextState = states.MainMenu

@@ -1,4 +1,4 @@
-package app
+package services
 
 import (
 	"github.com/dkaman/recordbaux/internal/db"
@@ -8,15 +8,15 @@ import (
 
 type shelfDB db.Repository[*shelf.Entity]
 
-type App struct {
+type ShelfService struct {
 	Shelves      shelfDB
 	AllShelves  []*shelf.Entity
 	CurrentShelf *shelf.Entity
 	CurrentBin   *bin.Entity
 }
 
-func NewApp(repo shelfDB) *App {
-	return &App{
+func NewShelfService(repo shelfDB) *ShelfService {
+	return &ShelfService{
 		Shelves: repo,
 	}
 }

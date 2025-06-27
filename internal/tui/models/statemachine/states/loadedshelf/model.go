@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/dkaman/recordbaux/internal/tui/app"
+	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
@@ -18,10 +18,10 @@ import (
 type refreshMsg struct{}
 
 type LoadedShelfState struct {
-	app       *app.App
-	keys      keyMap
-	nextState states.StateType
-	layout    *layout.Div
+	shelfService *services.ShelfService
+	keys         keyMap
+	nextState    states.StateType
+	layout       *layout.Div
 
 	shelf       shelf.Model
 	selectedBin int
@@ -30,14 +30,14 @@ type LoadedShelfState struct {
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(a *app.App, l *layout.Div, log *slog.Logger) LoadedShelfState {
+func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedShelfState {
 	logGroup := log.WithGroup(states.LoadedShelf.String())
 	return LoadedShelfState{
-		app:       a,
-		keys:      defaultKeybinds(),
-		nextState: states.Undefined,
-		layout:    l,
-		logger:    logGroup,
+		shelfService: s,
+		keys:         defaultKeybinds(),
+		nextState:    states.Undefined,
+		layout:       l,
+		logger:       logGroup,
 	}
 }
 
@@ -60,7 +60,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		contentWidth := s.layout.Width() - 2
 		contentHeight := s.layout.Height() - 2
 
-		sh := s.app.CurrentShelf
+		sh := s.shelfService.CurrentShelf
 
 		s.shelf = shelf.New(sh, s.logger).
 			SelectBin(0).
@@ -101,7 +101,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.logger.Info("bin selected",
 				slog.Any("bin", s.shelf.GetSelectedBin().PhysicalBin()),
 			)
-			s.app.CurrentBin = s.shelf.GetSelectedBin().PhysicalBin()
+			s.shelfService.CurrentBin = s.shelf.GetSelectedBin().PhysicalBin()
 			s.nextState = states.LoadedBin
 		}
 	}
