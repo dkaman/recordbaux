@@ -44,7 +44,7 @@ func GetAllShelvesCmd(repo shelfDB, logger *slog.Logger) tea.Cmd {
 	}
 }
 
-func GetShelfCmd(repo shelfDB, id db.ID, logger *slog.Logger) tea.Cmd {
+func GetShelfCmd(repo shelfDB, id uint, logger *slog.Logger) tea.Cmd {
 	l := logger.WithGroup("getshelfcmd")
 	return func() tea.Msg {
 		s, err := repo.Get(id)
@@ -69,7 +69,7 @@ func SaveShelfCmd(repo shelfDB, e *shelf.Entity, logger *slog.Logger) tea.Cmd {
 	}
 }
 
-func DeleteShelfCmd(repo shelfDB, id db.ID, logger *slog.Logger) tea.Cmd {
+func DeleteShelfCmd(repo shelfDB, id uint, logger *slog.Logger) tea.Cmd {
 	l := logger.WithGroup("deleteshelfcmd")
 	return func() tea.Msg {
 		err := repo.Delete(id)

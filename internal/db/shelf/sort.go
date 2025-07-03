@@ -11,7 +11,5 @@ var sortRegistry = map[string]sortFunc {
 }
 
 func AlphaByArtist(i, j *record.Entity) bool {
-	artistIName := i.Release.BasicInfo.Artists[0].Name
-	artistJName := j.Release.BasicInfo.Artists[0].Name
-	return artistIName < artistJName
+	return i.Artists[0] < j.Artists[0]
 }

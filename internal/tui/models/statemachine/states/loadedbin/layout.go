@@ -17,9 +17,9 @@ func newLoadedBinLayout(base *layout.Div, m table.Model, r *record.Entity) (*lay
 		Body: style.BaseTableStyle.Render(m.View()),
 	})
 
-	id := r.Release.ID
-	title := r.Release.BasicInfo.Title
-	artists := r.Release.BasicInfo.Artists
+	id := r.ID
+	title := r.Title
+	artists := r.Artists
 
 	info := fmt.Sprintf("id: %d\ntitle: %s\nartists: %v\n", id, title, artists)
 	base.AddChild(&layout.TextNode{

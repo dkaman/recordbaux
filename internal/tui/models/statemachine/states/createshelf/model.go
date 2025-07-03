@@ -79,7 +79,6 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		x := s.createShelfForm.DimX()
 		y := s.createShelfForm.DimY()
 		size := s.createShelfForm.BinSize()
-		numBins := s.createShelfForm.NumBins()
 
 		var newShelf *shelf.Entity
 
@@ -89,7 +88,6 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		} else {
 			newShelf, _ = shelf.New(s.createShelfForm.Name(), size,
-				shelf.WithShapeIrregular(numBins, size, bin.SortAlphaByArtist),
 			)
 		}
 

@@ -32,6 +32,7 @@ type LoadedShelfState struct {
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
 func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedShelfState {
 	logGroup := log.WithGroup(states.LoadedShelf.String())
+
 	return LoadedShelfState{
 		shelfService: s,
 		keys:         defaultKeybinds(),

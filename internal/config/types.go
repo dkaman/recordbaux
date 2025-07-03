@@ -4,12 +4,10 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
-var k = koanf.New(".")
-
 type ConfigOption func(*koanf.Koanf) error
 
 type Config struct {
-	config *koanf.Koanf
+	*koanf.Koanf
 }
 
 func New(opts ...ConfigOption) (*Config, error) {
@@ -22,11 +20,5 @@ func New(opts ...ConfigOption) (*Config, error) {
 		}
 	}
 
-	return &Config{
-		config: c,
-	}, nil
-}
-
-func (c *Config) String(key string) (string, error) {
-	return c.config.String(key), nil
+	return &Config{c}, nil
 }

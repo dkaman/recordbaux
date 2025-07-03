@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -32,7 +31,7 @@ const (
 )
 
 type Model struct {
-	id            db.ID
+	id            uint
 	selectedBin   int
 	physicalShelf *shelf.Entity
 
@@ -100,6 +99,11 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// update was called on a non-initialized model
+	if m.id == 0 {
+		return m, nil
+	}
+
 	m.logger.Info("shelf message received", slog.Any("msg", msg))
 
 	m.logger.Info("model dimensions",
@@ -125,6 +129,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	if m.id == 0 {
+		return ""
+	}
+
 	availableWidth := m.width
 	availableHeight := m.height
 
@@ -143,7 +151,7 @@ func (m Model) View() string {
 		return ""
 	}
 
-	if len(m.physicalShelf.AllBins()) == 0 {
+	if len(m.physicalShelf.Bins) == 0 {
 		return "shelf has no bins to display"
 	}
 
@@ -176,8 +184,17 @@ func (m Model) View() string {
 		minBinTotalRenderWidthEstimate = 1
 	}
 
-	cols := m.physicalShelf.DimX()
-	rows := m.physicalShelf.DimY()
+	s, err := m.physicalShelf.GetShape()
+	if err != nil {
+		m.logger.Error("error getting shape from entity",
+			slog.Any("error", err),
+		)
+		s.X = 0
+		s.Y = 0
+	}
+
+	cols := s.X
+	rows := s.Y
 
 	if cols <= 0 || rows <= 0 {
 		return "shelf shape has invalid dimensions or insufficient space"
@@ -271,7 +288,7 @@ func (m Model) loadPhysicalShelf(s *shelf.Entity) Model {
 		FullUnselected:  style.Centered.Background(style.DarkBlue).Foreground(style.DarkBlack),
 	}
 
-	for _, pb := range m.physicalShelf.AllBins() {
+	for _, pb := range m.physicalShelf.Bins {
 		b := bin.New(pb, binStyles)
 		m.bins = append(m.bins, b)
 	}
@@ -349,7 +366,7 @@ func (m Model) Description() string {
 		return ""
 	}
 
-	bins := len(m.physicalShelf.AllBins())
+	bins := len(m.physicalShelf.Bins)
 	cap := bins * m.physicalShelf.BinSize
 
 	return fmt.Sprintf("%d bins, capacity %d", bins, cap)
@@ -359,6 +376,6 @@ func (m Model) PhysicalShelf() *shelf.Entity {
 	return m.physicalShelf
 }
 
-func (m Model) ID() db.ID {
+func (m Model) ID() uint {
 	return m.id
 }

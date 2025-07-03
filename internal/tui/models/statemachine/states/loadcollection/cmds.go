@@ -36,7 +36,15 @@ func RetrieveDiscogsCollection(c *discogs.Client, username string, folder string
 		l.Info("releases from discogs", releases)
 
 		for _, rel := range releases {
-			rs = append(rs, &record.Entity{Release: rel})
+			r, err := record.New(rel)
+			if err != nil {
+				l.Error("error in release to record entity conversion",
+					slog.Any("error", err),
+				)
+				continue
+
+			}
+			rs = append(rs, r)
 		}
 
 		return NewDiscogsCollectionMsg{

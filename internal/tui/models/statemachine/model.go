@@ -22,6 +22,11 @@ var (
 	StateNotFoundErr = errors.New("state not found in state map")
 )
 
+const (
+	ConfDiscogsKey  = "recordbaux.discogs.key"
+	ConfDiscogsUser = "recordbaux.discogs.username"
+)
+
 type Model struct {
 	currentState     states.State
 	currentStateType states.StateType
@@ -38,8 +43,8 @@ func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Lo
 		logger: logGroup,
 	}
 
-	discogsAPIKey, _ := c.String("shelf.discogs.key")
-	discogsUsername, _ := c.String("shelf.discogs.username")
+	discogsAPIKey := c.String(ConfDiscogsKey)
+	discogsUsername := c.String(ConfDiscogsUser)
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)
@@ -69,7 +74,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	stateModel, stateCmds := m.currentState.Update(msg)
-	cmds = append(cmds, stateCmds)
+	if stateCmds != nil {
+		cmds = append(cmds, stateCmds)
+	}
 
 	if s, ok := stateModel.(states.State); ok {
 		if next, wanted := s.Next(); wanted {
@@ -91,7 +98,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentState.Init(),
 			)
 
-			return m, tea.Batch(cmds...)
+			m.logger.Info("statemachine: returning cmds",
+				slog.Any("cmds", cmds),
+			)
+
+			return m, tea.Sequence(cmds...)
 		}
 
 		m.currentState = s

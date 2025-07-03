@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/db/record"
-	"github.com/google/uuid"
 )
 
 var (
@@ -15,10 +13,11 @@ var (
 )
 
 type Entity struct {
-	ID       db.ID
+	ID       uint `gorm:"primaryKey"`
+	ShelfID  uint `gorm:"index"`
 	Label    string
 	Size     int
-	Records  []*record.Entity
+	Records  []*record.Entity `gorm:"foreignKey:BinID;references:ID"`
 	SortType string
 }
 
@@ -35,10 +34,7 @@ func New(l string, s int, sort string, opts ...option) (*Entity, error) {
 		return nil, fmt.Errorf("sort type '%s' not found in registry", sort)
 	}
 
-	u := uuid.New()
-
 	e := &Entity{
-		ID:       db.ID(u),
 		Label:    l,
 		Size:     s,
 		SortType: sort,
@@ -60,14 +56,29 @@ func (e *Entity) Insert(r *record.Entity) *record.Entity {
 
 	sort.Sort(e)
 
+	var bumped *record.Entity
+
 	if len(e.Records) > e.Size {
-		fullBin := e.Records[0:e.Size]
-		last := e.Records[len(e.Records) - 1]
-		e.Records = fullBin
-		return last
+		bumped = e.Records[e.Size]
+		e.Records = e.Records[:e.Size]
 	}
 
-	return nil
+	for i, rec := range e.Records {
+		rec.Position = i
+	}
+
+	if bumped != nil {
+		bumped.BinID = 0
+		bumped.Position = 0
+	}
+
+	return bumped
+}
+
+// implementing the tabler interface to change default name so it's not
+// entitites
+func (e *Entity) TableName() string {
+	return "bins"
 }
 
 // sort interface defs

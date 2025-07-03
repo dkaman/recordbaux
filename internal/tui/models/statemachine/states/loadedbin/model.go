@@ -36,12 +36,15 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedBinSta
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
+	t := table.New()
+
 	return LoadedBinState{
 		shelfService: s,
 		nextState:    states.Undefined,
 		keys:         defaultKeybinds(),
 		layout:       l,
 		logger:       log.WithGroup("loadedbin"),
+		records:      t,
 	}
 }
 
@@ -68,9 +71,9 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var rows []table.Row
 
 		for _, r := range s.bin.PhysicalBin().Records {
-			catno := r.Release.BasicInfo.Labels[0].CatNo
-			name := r.Release.BasicInfo.Title
-			artist := r.Release.BasicInfo.Artists[0].Name
+			catno := r.CatalogNumber
+			name := r.Title
+			artist := r.Artists[0]
 			row := table.Row{catno, name, artist}
 			rows = append(rows, row)
 		}
@@ -99,9 +102,10 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	idx := s.records.Cursor()
 
-	r := s.bin.PhysicalBin().Records[idx]
-
-	s.layout, _ = newLoadedBinLayout(s.layout, s.records, r)
+	if b := s.bin.PhysicalBin(); b != nil {
+		r := s.bin.PhysicalBin().Records[idx]
+		s.layout, _ = newLoadedBinLayout(s.layout, s.records, r)
+	}
 
 	return s, tea.Batch(cmds...)
 }
