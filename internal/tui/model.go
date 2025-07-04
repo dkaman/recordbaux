@@ -1,9 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -22,6 +22,10 @@ import (
 	kfmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
+var (
+	LoggerIsNilErr = errors.New("supplied slog logger is nil")
+)
+
 type Model struct {
 	// global application config/state
 	cfg          *config.Config
@@ -37,24 +41,31 @@ type Model struct {
 	layout      *layout.Div
 }
 
-func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) Model {
+func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) (Model, error) {
+	var m Model
+
+	if log == nil {
+		return m, LoggerIsNilErr
+	}
+
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
 	s := services.NewShelfService(d)
 
-	l, _ := newTUILayout()
-	vp := l.Find("viewport")
-
-	if log == nil {
-		// TODO handle errors
-		f, _ := os.OpenFile("./logs/recordbaux.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		log = slog.New(slog.NewTextHandler(f, nil))
+	l, err := newTUILayout()
+	if err != nil {
+		return m, fmt.Errorf("error creating layout: %w", err)
 	}
 
-	sm, _ := statemachine.New(s, c, vp, log)
+	vp := l.Find("viewport")
 
-	m := Model{
+	sm, err := statemachine.New(s, c, vp, log)
+	if err != nil {
+		return m, fmt.Errorf("error creating state machine: %w", err)
+	}
+
+	m = Model{
 		cfg:          c,
 		shelfService: s,
 		keys:         defaultKeybinds(),
@@ -64,14 +75,21 @@ func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) Mod
 		logger:       log.WithGroup("root"),
 	}
 
-	_ = addTopBarText(l, "recordbaux - organize your record collection")
-	_ = addStatusBarText(m.layout, fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()))
+	err = addTopBarText(l, "recordbaux - organize your record collection")
+	if err != nil {
+		return m, fmt.Errorf("error adding top bar text: %w", err)
+	}
 
-	return m
+	err = addStatusBarText(m.layout, fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()))
+	if err != nil {
+		return m, fmt.Errorf("error adding status bar text: %w", err)
+	}
+
+	return m, nil
 }
 
 func (m Model) Init() tea.Cmd {
-	m.logger.Info("root tui model init called")
+	m.logger.Debug("root tui model init called")
 	return m.stateMachine.Init()
 }
 
@@ -129,10 +147,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 			return m, tea.Batch(cmds...)
 		}
-
-		m.logger.Info("setting current shelf",
-			slog.Any("shelf", msg.Shelf),
-		)
 
 		m.shelfService.CurrentShelf = msg.Shelf
 

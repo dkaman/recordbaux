@@ -18,20 +18,17 @@ type PostgresConfig struct {
 	DBName   string `koanf:"dbname"`
 }
 
-func confToDSN(c PostgresConfig) string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s",
-		c.Host, c.Port, c.User, c.Password, c.DBName,
-	)
-}
-
 // PostgresRepo persists shelf.Entities directly via GORM.
 type PostgresRepo struct {
 	db *gorm.DB
 }
 
 // NewPostgresRepo opens a connection and migrates the schema based on your Entity definitions.
-func NewPostgresRepo(cnf PostgresConfig) (*PostgresRepo, error) {
-	dsn := confToDSN(cnf)
+func NewPostgresRepo(host string, port int, user string, password string, dbName string) (*PostgresRepo, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s",
+		host, port, user, password, dbName,
+	)
+
 	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to postgres: %w", err)

@@ -23,8 +23,8 @@ var (
 )
 
 const (
-	ConfDiscogsKey  = "recordbaux.discogs.key"
-	ConfDiscogsUser = "recordbaux.discogs.username"
+	ConfDiscogsKey  = "discogs.key"
+	ConfDiscogsUser = "discogs.username"
 )
 
 type Model struct {
@@ -38,6 +38,7 @@ type Model struct {
 
 func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
+
 	m := Model{
 		layout: newStateMachineLayout(d),
 		logger: logGroup,
@@ -45,11 +46,12 @@ func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Lo
 
 	discogsAPIKey := c.String(ConfDiscogsKey)
 	discogsUsername := c.String(ConfDiscogsUser)
+
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)
 	if err != nil {
-		m.logger.Info("error in discogs client", slog.Any("errorMsg", err))
+		return m, err
 	}
 
 	m.allStates = map[states.StateType]states.State{
@@ -66,7 +68,10 @@ func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Lo
 }
 
 func (m Model) Init() tea.Cmd {
-	m.logger.Info("statemachine init function called")
+	m.logger.Debug("statemachine init",
+		slog.String("currentState", m.currentStateType.String()),
+	)
+
 	return m.currentState.Init()
 }
 
@@ -80,7 +85,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if s, ok := stateModel.(states.State); ok {
 		if next, wanted := s.Next(); wanted {
-			m.logger.Info("state transition requested",
+			m.logger.Info("state transition",
 				slog.String("from", m.currentStateType.String()),
 				slog.String("to", next.String()),
 			)
@@ -96,10 +101,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			cmds = append(cmds,
 				m.currentState.Init(),
-			)
-
-			m.logger.Info("statemachine: returning cmds",
-				slog.Any("cmds", cmds),
 			)
 
 			return m, tea.Sequence(cmds...)

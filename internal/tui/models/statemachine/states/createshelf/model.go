@@ -43,7 +43,7 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) CreateShelfS
 // tea.Model implementation
 
 func (s CreateShelfState) Init() tea.Cmd {
-	s.logger.Info("createshelf state init called")
+	s.logger.Debug("createshelf state init called")
 	return s.refresh()
 }
 
@@ -80,6 +80,12 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		y := s.createShelfForm.DimY()
 		size := s.createShelfForm.BinSize()
 
+		s.logger.Debug("form complete",
+			slog.Int("x", x),
+			slog.Int("y", y),
+			slog.Int("size", size),
+		)
+
 		var newShelf *shelf.Entity
 
 		if s.createShelfForm.Shape() == Rect {
@@ -91,7 +97,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-		s.logger.Info("new shelf", slog.Any("shelf", newShelf))
+		s.logger.Debug("new shelf", slog.Any("shelf", newShelf))
 
 		cmds = append(cmds, tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger))
 

@@ -43,7 +43,7 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedShelfS
 }
 
 func (s LoadedShelfState) Init() tea.Cmd {
-	s.logger.Info("loadedshelf state init called")
+	s.logger.Debug("loadedshelf state init")
 	return s.refresh()
 }
 
@@ -93,15 +93,17 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.nextState = states.MainMenu
 
 		case key.Matches(msg, s.keys.Load):
-			s.logger.Info("loading colleciton",
+			s.logger.Debug("loading colleciton",
 				slog.Any("shelf", s.shelf.PhysicalShelf()),
 			)
+
 			s.nextState = states.LoadCollection
 
 		case msg.String() == "enter":
-			s.logger.Info("bin selected",
+			s.logger.Debug("bin selected",
 				slog.Any("bin", s.shelf.GetSelectedBin().PhysicalBin()),
 			)
+
 			s.shelfService.CurrentBin = s.shelf.GetSelectedBin().PhysicalBin()
 			s.nextState = states.LoadedBin
 		}

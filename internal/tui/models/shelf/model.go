@@ -104,25 +104,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.logger.Info("shelf message received", slog.Any("msg", msg))
-
-	m.logger.Info("model dimensions",
-		slog.Int("width", m.width),
-		slog.Int("height", m.height),
-	)
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.logger.Info("updated shelf dimensions from tea",
-			slog.Int("new_width", m.width),
-			slog.Int("new_height", m.height),
-		)
+
 	case LoadShelfMsg:
 		m = m.loadPhysicalShelf(msg.phy)
-
-		m.logger.Info("model", slog.Any("m", m))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -135,11 +123,6 @@ func (m Model) View() string {
 
 	availableWidth := m.width
 	availableHeight := m.height
-
-	m.logger.Info("shelf model dimensions in View()",
-		slog.Int("width", availableWidth),
-		slog.Int("height", availableHeight),
-	)
 
 	// if no physical shelf return message (likely won't happen)
 	if m.physicalShelf == nil {
@@ -236,7 +219,7 @@ func (m Model) View() string {
 		finalBinHeight = 0
 	}
 
-	m.logger.Info("calculated bin dimensions",
+	m.logger.Debug("calculated bin dimensions",
 		slog.Int("finalBinWidth", finalBinWidth),
 		slog.Int("finalBinHeight", finalBinHeight),
 		slog.Int("cols", cols),

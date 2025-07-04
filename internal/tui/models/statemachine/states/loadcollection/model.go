@@ -72,7 +72,7 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, client *disc
 
 // Init satisfies tea.Model.
 func (s LoadCollectionState) Init() tea.Cmd {
-	s.logger.Info("loadcollection state init called")
+	s.logger.Debug("loadcollection state init")
 	return tea.Batch(
 		s.collection.Init(),
 		s.selectFolderForm.Init(),
@@ -88,25 +88,14 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case refreshShelfMsg:
-		s.logger.Info("loaded collection current shelf",
-			slog.Any("shelf", s.shelfService.CurrentShelf),
-		)
 		s.collection = shelf.New(s.shelfService.CurrentShelf, s.logger)
-
-		if s.selectFolderForm.State == huh.StateCompleted {
-			s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
-		}
-
 		return s, nil
 
 	case tea.WindowSizeMsg:
 		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
+		return s, nil
 
 	case NewDiscogsCollectionMsg:
-		s.logger.Info("new discogs collection to process",
-			slog.Any("releases", msg.Releases),
-		)
-
 		s.releases = msg.Releases
 		s.totalReleases = len(msg.Releases)
 		s.currentIndex = 0
@@ -114,21 +103,29 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.fetching = true
 		s.inserting = true
 
-		cmds = append(cmds,
-			func() tea.Msg { return loadNextMsg{} },
-		)
-
 		s.layout, _ = newLoadedCollectionProgressLayout(
 			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 0.0,
+		)
+
+		s.logger.Debug("new discogs collection to process",
+			slog.Int("totalReleases", s.totalReleases),
+			slog.Int("currentIndex", s.currentIndex),
+			slog.Bool("fetching", s.fetching),
+			slog.Bool("inserting", s.inserting),
+		)
+
+		cmds = append(cmds,
+			func() tea.Msg { return loadNextMsg{} },
 		)
 
 		return s, tea.Batch(cmds...)
 
 	case loadNextMsg:
 		if s.releases != nil && s.currentIndex < s.totalReleases {
-			s.logger.Info("inserting release",
+			s.logger.Debug("inserting release",
 				slog.Any("release", s.releases[s.currentIndex]),
 			)
+
 			phy := s.collection.PhysicalShelf()
 			phy.Insert(s.releases[s.currentIndex])
 			s.currentIndex++
@@ -137,13 +134,13 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.shelfService.CurrentShelf = phy
 			pct := float64(s.currentIndex) / float64(s.totalReleases)
 
+			s.layout, _ = newLoadedCollectionProgressLayout(
+				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
+			)
+
 			cmds = append(cmds,
 				s.progressBar.SetPercent(pct),
 				tea.Cmd(func() tea.Msg { return loadNextMsg{} }),
-			)
-
-			s.layout, _ = newLoadedCollectionProgressLayout(
-				s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, pct,
 			)
 
 			return s, tea.Batch(cmds...)
@@ -151,6 +148,8 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.inserting = false
 		s.fetching = false
+
+		s.logger.Debug("finished inserting")
 
 		s.layout, _ = newLoadedCollectionProgressLayout(
 			s.layout, s.progressBar, s.spinner, s.fetching, s.inserting, 1.0,
@@ -163,8 +162,9 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, tea.Batch(cmds...)
 
 	case spinner.TickMsg:
-		if s.fetching {
+		if s.fetching && !s.inserting {
 			var spinnerCmds tea.Cmd
+
 			s.spinner, spinnerCmds = s.spinner.Update(msg)
 			cmds = append(cmds, spinnerCmds)
 

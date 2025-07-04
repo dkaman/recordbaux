@@ -37,11 +37,9 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) MainMenuStat
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles = style.DefaultItemStyles()
 
-	lst := list.New([]list.Item{}, delegate, 100, 20)
+	lst := list.New([]list.Item{}, delegate, 0, 0)
 	lst.Title = "select a shelf"
 	lst.Styles = style.DefaultListStyles()
-	items := make([]list.Item, 0)
-	lst.SetItems(items)
 
 	lay, _ := newMainMenuLayout(l, lst)
 
@@ -56,7 +54,10 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) MainMenuStat
 }
 
 func (s MainMenuState) Init() tea.Cmd {
-	s.logger.Info("mainmenu state init called")
+	s.logger.Debug("mainmenu state init",
+		slog.Int("numShelves", len(s.shelves.Items())),
+	)
+
 	return tea.Sequence(
 		tcmds.GetAllShelvesCmd(s.shelfService.Shelves, s.logger),
 		s.refresh(),
@@ -74,26 +75,38 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case refreshMsg:
+		s.logger.Debug("refreshing shelves from service")
+
 		shlvs := s.shelfService.AllShelves
 		items := make([]list.Item, len(shlvs))
+
 		for i, sh := range shlvs {
 			items[i] = shelf.New(sh, s.logger)
 		}
+
 		s.shelves.SetItems(items)
 		s.layout, _ = newMainMenuLayout(s.layout, s.shelves)
-
 		return s, nil
 
 	case tea.KeyMsg:
+		s.logger.Debug("key pressed",
+			slog.String("key", msg.Type.String()),
+		)
+
 		switch {
 		case key.Matches(msg, s.keys.SelectShelf):
 			if sel, ok := s.shelves.SelectedItem().(shelf.Model); ok {
+				s.logger.Debug("selected shelf", slog.Any("id", sel.ID()))
 				s.nextState = states.LoadedShelf
 				s.shelfService.CurrentShelf = sel.PhysicalShelf()
+				return s, tea.Batch(cmds...)
 			}
+
+			s.logger.Warn("somehow a shelf was selected that wasn't a shelf.Model")
 			return s, tea.Batch(cmds...)
 
 		case key.Matches(msg, s.keys.NewShelf):
+			s.logger.Debug("create shelf selected")
 			s.nextState = states.CreateShelf
 			return s, tea.Batch(cmds...)
 		}

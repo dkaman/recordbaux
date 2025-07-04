@@ -10,9 +10,8 @@ require (
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/dkaman/discogs-golang v0.0.0-20240908064405-fd4be31668fc
-	github.com/google/uuid v1.6.0
 	github.com/knadh/koanf/parsers/yaml v1.0.0
-	github.com/knadh/koanf/providers/env v1.1.0
+	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.2.0
 	gorm.io/driver/postgres v1.6.0

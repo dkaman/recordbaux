@@ -8,7 +8,7 @@ import (
 
 func WithFile(path string) ConfigOption {
 	return func(k *koanf.Koanf) error {
-		if err := k.Load(file.Provider("config/shelf.yaml"), yaml.Parser()); err != nil {
+		if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
 			return err
 		}
 		return nil

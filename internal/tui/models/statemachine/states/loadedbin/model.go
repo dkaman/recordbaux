@@ -49,7 +49,7 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedBinSta
 }
 
 func (s LoadedBinState) Init() tea.Cmd {
-	s.logger.Info("loadedbin state init called")
+	s.logger.Debug("loadedbin state init")
 	return func() tea.Msg {
 		return refreshLoadedBinMsg{}
 	}
