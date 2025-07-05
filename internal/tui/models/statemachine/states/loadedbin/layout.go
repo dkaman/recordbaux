@@ -13,18 +13,17 @@ import (
 func newLoadedBinLayout(base *layout.Div, m table.Model, r *record.Entity) (*layout.Div, error) {
 	base.ClearChildren()
 
-	base.AddChild(&layout.TextNode{
-		Body: style.BaseTableStyle.Render(m.View()),
-	})
+	m.SetHeight(base.Height()-2)
 
-	id := r.ID
-	title := r.Title
-	artists := r.Artists
+	left := style.BaseTableStyle.Render(m.View())
+	right := fmt.Sprintf("id: %d\ntitle: %s\nartists: %v\n", r.ID, r.Title, r.Artists)
 
-	info := fmt.Sprintf("id: %d\ntitle: %s\nartists: %v\n", id, title, artists)
-	base.AddChild(&layout.TextNode{
-		Body: info,
-	})
+	d, err := layout.Splitscreen(base.Width()-2, base.Height()-2, left, right)
+	if err != nil {
+		return nil, err
+	}
+
+	base.AddChild(d)
 
 	return base, nil
 }
