@@ -23,8 +23,10 @@ const (
 	CreateShelf
 	LoadedShelf
 	LoadCollection
+	FetchFromDiscogs
 	LoadedBin
 	SelectShelf
+	CreatePlaylist
 	Quit
 	Undefined
 )
@@ -35,8 +37,10 @@ func (s StateType) String() string {
 		"CreateShelf",
 		"LoadedShelf",
 		"LoadCollection",
+		"FetchFromDiscogs",
 		"LoadedBin",
 		"SelectShelf",
+		"CreatePlaylist",
 		"Quit",
 		"Undefined",
 	}[s]

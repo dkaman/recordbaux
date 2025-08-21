@@ -12,7 +12,9 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -28,10 +30,12 @@ var (
 
 type Model struct {
 	// global application config/state
-	cfg          *config.Config
-	shelfService *services.ShelfService
-	keys         keyMap
-	logger       *slog.Logger
+	cfg             *config.Config
+	shelfService    *services.ShelfService
+	trackService    *services.TrackService
+	playlistService *services.PlaylistService
+	keys            keyMap
+	logger          *slog.Logger
 
 	// tea models
 	stateMachine statemachine.Model
@@ -41,7 +45,7 @@ type Model struct {
 	layout      *layout.Div
 }
 
-func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) (Model, error) {
+func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t db.Repository[*track.Entity], p db.Repository[*playlist.Entity]) (Model, error) {
 	var m Model
 
 	if log == nil {
@@ -51,7 +55,9 @@ func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) (Mo
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
-	s := services.NewShelfService(d)
+	shelfService := services.NewShelfService(s)
+	trackService := services.NewTrackService(t)
+	playlistService := services.NewPlaylistService(p)
 
 	l, err := newTUILayout()
 	if err != nil {
@@ -60,19 +66,21 @@ func New(c *config.Config, log *slog.Logger, d db.Repository[*shelf.Entity]) (Mo
 
 	vp := l.Find("viewport")
 
-	sm, err := statemachine.New(s, c, vp, log)
+	sm, err := statemachine.New(shelfService, trackService, playlistService, c, vp, log)
 	if err != nil {
 		return m, fmt.Errorf("error creating state machine: %w", err)
 	}
 
 	m = Model{
-		cfg:          c,
-		shelfService: s,
-		keys:         defaultKeybinds(),
-		helpVisible:  false,
-		layout:       l,
-		stateMachine: sm,
-		logger:       log.WithGroup("root"),
+		cfg:             c,
+		shelfService:    shelfService,
+		trackService:    trackService,
+		playlistService: playlistService,
+		keys:            defaultKeybinds(),
+		helpVisible:     false,
+		layout:          l,
+		stateMachine:    sm,
+		logger:          log.WithGroup("root"),
 	}
 
 	err = addTopBarText(l, "recordbaux - organize your record collection")
@@ -138,7 +146,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				slog.String("error", msg.Err.Error()),
 			)
 		}
-		return m, tea.Batch(cmds...)
 
 	case tcmds.ShelfLoadedMsg:
 		if err := msg.Err; err != nil {
@@ -150,8 +157,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.shelfService.CurrentShelf = msg.Shelf
 
-		return m, tea.Batch(cmds...)
-
 	case tcmds.ShelvesLoadedMsg:
 		if err := msg.Err; err != nil {
 			m.logger.Error("error loading all shelves",
@@ -162,8 +167,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.shelfService.AllShelves = msg.Shelves
 
-		return m, tea.Batch(cmds...)
-
 	case tcmds.ShelfDeletedMsg:
 		if err := msg.Err; err != nil {
 			m.logger.Error("error deleting shelf",
@@ -171,7 +174,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-		return m, tea.Batch(cmds...)
+	case tcmds.AllTracksLoadedMsg:
+		if err := msg.Err; err != nil {
+			m.logger.Error("error loading all tracks",
+				slog.String("error", err.Error()),
+			)
+		}
+
+		m.trackService.AllTracks = msg.Tracks
+
+	case tcmds.PlaylistsLoadedMsg:
+		if err := msg.Err; err != nil {
+			m.logger.Error("error loading all playlists",
+				slog.String("error", err.Error()),
+			)
+		}
+		m.playlistService.AllPlaylists = msg.Playlists
 	}
 
 	// update state machine

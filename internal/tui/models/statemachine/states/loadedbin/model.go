@@ -104,6 +104,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if b := s.bin.PhysicalBin(); b != nil {
 		r := s.bin.PhysicalBin().Records[idx]
+		s.logger.Debug("record chosen", slog.Any("record", r))
 		s.layout, _ = newLoadedBinLayout(s.layout, s.records, r)
 	}
 

@@ -2,6 +2,7 @@ package record
 
 import (
 	"github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/db/track"
 )
 
 // Entity represents a physical record we are going to place on the physical
@@ -13,11 +14,13 @@ type Entity struct {
 	InstanceID int
 	ReleaseID  int
 	MasterID   int
-	Position   int `gorm:"index"`
 
 	Title         string
 	Artists       StringArray `gorm:"type:jsonb"`
 	CatalogNumber string
+	Coordinate    string `gorm:"index"`
+
+	Tracklist []*track.Entity `gorm:"foreignKey:RecordID;references:ID"`
 }
 
 func New(ri discogs.ReleaseInstance) (*Entity, error) {

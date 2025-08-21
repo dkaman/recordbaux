@@ -64,12 +64,13 @@ func (e *Entity) Insert(r *record.Entity) *record.Entity {
 	}
 
 	for i, rec := range e.Records {
-		rec.Position = i
+		coord := fmt.Sprintf("%s%d", e.Label, i)
+		rec.Coordinate = coord
 	}
 
 	if bumped != nil {
 		bumped.BinID = 0
-		bumped.Position = 0
+		bumped.Coordinate = ""
 	}
 
 	return bumped

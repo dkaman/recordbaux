@@ -8,15 +8,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 // shelfDelegate implements Bubble Tea's list.ItemDelegate for shelves
-type shelfDelegate struct{ focused bool }
+type shelfDelegate struct{}
 
 func (d shelfDelegate) Height() int  { return 1 }
-
 func (d shelfDelegate) Spacing() int { return 0 }
 
 func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
@@ -31,7 +31,7 @@ func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 
 	sty := style.TextStyle
 
-	if m.Index() == index && d.focused {
+	if m.Index() == index {
 		sty = style.ActiveTextStyle
 	}
 
@@ -44,3 +44,31 @@ func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 }
 
 func (d shelfDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+// playlistDelegate implements Bubble Tea's list.ItemDelegate for playlists
+type playlistDelegate struct{}
+
+func (d playlistDelegate) Height() int  { return 1 }
+func (d playlistDelegate) Spacing() int { return 0 }
+
+func (d playlistDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	plM, ok := listItem.(tplaylist.Model)
+	if !ok {
+		return
+	}
+
+	display := fmt.Sprintf("%s (%s)", plM.Title(), plM.Description())
+	sty := style.TextStyle
+	if m.Index() == index {
+		sty = style.ActiveTextStyle
+	}
+
+	prefix := "  "
+	if m.Index() == index {
+		prefix = "> "
+	}
+
+	w.Write([]byte(sty.Render(prefix + display)))
+}
+
+func (d playlistDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }

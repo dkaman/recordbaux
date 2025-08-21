@@ -102,6 +102,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger))
 
 		s.createShelfForm = newShelfCreateForm()
+
 		s.nextState = states.MainMenu
 	}
 

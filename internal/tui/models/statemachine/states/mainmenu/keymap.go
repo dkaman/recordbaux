@@ -5,32 +5,38 @@ import (
 )
 
 type keyMap struct {
-	SelectShelf    key.Binding
-	NewShelf       key.Binding
+	Select      key.Binding
+	NewShelf    key.Binding
+	SwitchFocus key.Binding
 }
 
 func defaultKeybinds() keyMap {
 	return keyMap{
-		SelectShelf: key.NewBinding(
+		Select: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "select shelf"),
+			key.WithHelp("enter", "select"),
 		),
 		NewShelf: key.NewBinding(
 			key.WithKeys("o"),
 			key.WithHelp("o", "new shelf"),
+		),
+		SwitchFocus: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "switch focus"),
 		),
 	}
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
-		k.SelectShelf,
+		k.Select,
 		k.NewShelf,
+		k.SwitchFocus,
 	}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.SelectShelf, k.NewShelf},
+		{k.Select, k.NewShelf, k.SwitchFocus},
 	}
 }

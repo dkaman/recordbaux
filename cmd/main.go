@@ -13,7 +13,10 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/infra"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/tui"
 )
 
@@ -58,13 +61,13 @@ func main() {
 		log.Fatalf("error unmarshalling database config: %v", err)
 	}
 
-	db, err := initDB(dbConf, logger)
+	shelfRepo, trackRepo, playlistRepo, err := initDB(dbConf, logger)
 	if err != nil {
 		log.Fatalf("error constructing shelf repo: %v", err)
 	}
 
 	// create the root tea.Model to begin execution loop
-	t, err := tui.New(cfg, logger, db)
+	t, err := tui.New(cfg, logger, shelfRepo, trackRepo, playlistRepo)
 	if err != nil {
 		log.Fatalf("error constructing tui model: %v", err)
 	}
@@ -140,20 +143,45 @@ type dbConfig struct {
 	DBName   string `koanf:"dbname"`
 }
 
-func initDB(c dbConfig, l *slog.Logger) (db.Repository[*shelf.Entity], error) {
+
+
+func initDB(c dbConfig, l *slog.Logger) (db.Repository[*shelf.Entity], db.Repository[*track.Entity], db.Repository[*playlist.Entity], error) {
 	switch c.Driver {
 	case "postgres":
-		r, err := shelf.NewPostgresRepo(c.Host, c.Port, c.User, c.Password, c.DBName)
+		gormDB, err := infra.NewPostgresConnection(c.Host, c.Port, c.User, c.Password, c.DBName)
 		if err != nil {
 			l.Error("database error",
 				slog.Any("error", err),
 			)
 		}
-		return r, nil
+
+		shelfRepo, err := shelf.NewRepo(gormDB)
+		if err != nil {
+			l.Error("database error",
+				slog.Any("error", err),
+			)
+		}
+
+		trackRepo, err := track.NewRepo(gormDB)
+		if err != nil {
+			l.Error("database error",
+				slog.Any("error", err),
+			)
+		}
+
+		playlistRepo, err := playlist.NewRepo(gormDB)
+		if err != nil {
+			l.Error("database error",
+				slog.Any("error", err),
+			)
+		}
+
+		return shelfRepo, trackRepo, playlistRepo, nil
 	case "memory":
+		// broken now
 		r := shelf.NewMemoryRepo()
-		return r, nil
+		return r, nil, nil, nil
 	}
 
-	return nil, fmt.Errorf("invalid db driver: %s", c.Driver)
+	return nil, nil, nil, fmt.Errorf("invalid db driver: %s", c.Driver)
 }

@@ -12,10 +12,12 @@ import (
 
 	discogs "github.com/dkaman/discogs-golang"
 	css "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createshelf"
+	ffd "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/fetchfromdiscogs"
 	lcs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadcollection"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
 	lss "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/mainmenu"
+	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
 )
 
 var (
@@ -36,7 +38,7 @@ type Model struct {
 	logger *slog.Logger
 }
 
-func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
+func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
 
 	m := Model{
@@ -55,11 +57,13 @@ func New(s *services.ShelfService, c *config.Config, d *layout.Div, log *slog.Lo
 	}
 
 	m.allStates = map[states.StateType]states.State{
-		states.MainMenu:       mms.New(s, d, log),
-		states.CreateShelf:    css.New(s, d, log),
-		states.LoadedShelf:    lss.New(s, d, log),
-		states.LoadCollection: lcs.New(s, d, log, discogsClient, discogsUsername),
-		states.LoadedBin:      lbs.New(s, d, log),
+		states.MainMenu:         mms.New(s, t, p, d, log),
+		states.CreateShelf:      css.New(s, d, log),
+		states.LoadedShelf:      lss.New(s, d, log),
+		states.LoadCollection:   lcs.New(s, d, log, discogsClient, discogsUsername),
+		states.LoadedBin:        lbs.New(s, d, log),
+		states.FetchFromDiscogs: ffd.New(s, d, log, discogsClient),
+		states.CreatePlaylist:   cps.New(s, t, p, d, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]
