@@ -11,13 +11,14 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	discogs "github.com/dkaman/discogs-golang"
+	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
 	css "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createshelf"
 	ffd "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/fetchfromdiscogs"
 	lcs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadcollection"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
+	lps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedplaylist"
 	lss "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedshelf"
 	mms "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/mainmenu"
-	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
 )
 
 var (
@@ -38,7 +39,7 @@ type Model struct {
 	logger *slog.Logger
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
+func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, r *services.RecordService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
 
 	m := Model{
@@ -48,7 +49,6 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 
 	discogsAPIKey := c.String(ConfDiscogsKey)
 	discogsUsername := c.String(ConfDiscogsUser)
-
 	discogsClient, err := discogs.New(
 		discogs.WithToken(discogsAPIKey),
 	)
@@ -64,6 +64,7 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 		states.LoadedBin:        lbs.New(s, d, log),
 		states.FetchFromDiscogs: ffd.New(s, d, log, discogsClient),
 		states.CreatePlaylist:   cps.New(s, t, p, d, log),
+		states.LoadedPlaylist:   lps.New(p, r, d, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]

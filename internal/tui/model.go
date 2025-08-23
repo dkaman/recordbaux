@@ -13,6 +13,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/record"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/services"
@@ -34,6 +35,7 @@ type Model struct {
 	shelfService    *services.ShelfService
 	trackService    *services.TrackService
 	playlistService *services.PlaylistService
+	recordService   *services.RecordService
 	keys            keyMap
 	logger          *slog.Logger
 
@@ -45,7 +47,7 @@ type Model struct {
 	layout      *layout.Div
 }
 
-func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t db.Repository[*track.Entity], p db.Repository[*playlist.Entity]) (Model, error) {
+func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t db.Repository[*track.Entity], p db.Repository[*playlist.Entity], r db.Repository[*record.Entity]) (Model, error) {
 	var m Model
 
 	if log == nil {
@@ -58,6 +60,7 @@ func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t d
 	shelfService := services.NewShelfService(s)
 	trackService := services.NewTrackService(t)
 	playlistService := services.NewPlaylistService(p)
+	recordService := services.NewRecordService(r)
 
 	l, err := newTUILayout()
 	if err != nil {
@@ -66,7 +69,7 @@ func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t d
 
 	vp := l.Find("viewport")
 
-	sm, err := statemachine.New(shelfService, trackService, playlistService, c, vp, log)
+	sm, err := statemachine.New(shelfService, trackService, playlistService, recordService, c, vp, log)
 	if err != nil {
 		return m, fmt.Errorf("error creating state machine: %w", err)
 	}
@@ -76,6 +79,7 @@ func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t d
 		shelfService:    shelfService,
 		trackService:    trackService,
 		playlistService: playlistService,
+		recordService:   recordService,
 		keys:            defaultKeybinds(),
 		helpVisible:     false,
 		layout:          l,

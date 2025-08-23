@@ -15,6 +15,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/db/infra"
 	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/record"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/tui"
@@ -61,13 +62,13 @@ func main() {
 		log.Fatalf("error unmarshalling database config: %v", err)
 	}
 
-	shelfRepo, trackRepo, playlistRepo, err := initDB(dbConf, logger)
+	shelfRepo, trackRepo, playlistRepo, recordRepo, err := initDB(dbConf, logger)
 	if err != nil {
 		log.Fatalf("error constructing shelf repo: %v", err)
 	}
 
 	// create the root tea.Model to begin execution loop
-	t, err := tui.New(cfg, logger, shelfRepo, trackRepo, playlistRepo)
+	t, err := tui.New(cfg, logger, shelfRepo, trackRepo, playlistRepo, recordRepo)
 	if err != nil {
 		log.Fatalf("error constructing tui model: %v", err)
 	}
@@ -145,7 +146,7 @@ type dbConfig struct {
 
 
 
-func initDB(c dbConfig, l *slog.Logger) (db.Repository[*shelf.Entity], db.Repository[*track.Entity], db.Repository[*playlist.Entity], error) {
+func initDB(c dbConfig, l *slog.Logger) (db.Repository[*shelf.Entity], db.Repository[*track.Entity], db.Repository[*playlist.Entity], db.Repository[*record.Entity], error) {
 	switch c.Driver {
 	case "postgres":
 		gormDB, err := infra.NewPostgresConnection(c.Host, c.Port, c.User, c.Password, c.DBName)
@@ -176,12 +177,19 @@ func initDB(c dbConfig, l *slog.Logger) (db.Repository[*shelf.Entity], db.Reposi
 			)
 		}
 
-		return shelfRepo, trackRepo, playlistRepo, nil
+		recordRepo, err := record.NewRepo(gormDB)
+		if err != nil {
+			l.Error("database error",
+				slog.Any("error", err),
+			)
+		}
+
+		return shelfRepo, trackRepo, playlistRepo, recordRepo, nil
 	case "memory":
 		// broken now
 		r := shelf.NewMemoryRepo()
-		return r, nil, nil, nil
+		return r, nil, nil, nil, nil
 	}
 
-	return nil, nil, nil, fmt.Errorf("invalid db driver: %s", c.Driver)
+	return nil, nil, nil, nil, fmt.Errorf("invalid db driver: %s", c.Driver)
 }

@@ -7,6 +7,7 @@ import (
 
 type trackDB db.Repository[*track.Entity]
 
+
 type TrackService struct {
 	Tracks    trackDB
 	AllTracks []*track.Entity

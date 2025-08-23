@@ -10,6 +10,7 @@ type playlistDB db.Repository[*playlist.Entity]
 type PlaylistService struct {
 	Playlists playlistDB
 	AllPlaylists []*playlist.Entity
+	CurrentPlaylist *playlist.Entity
 }
 
 func NewPlaylistService(repo playlistDB) *PlaylistService {

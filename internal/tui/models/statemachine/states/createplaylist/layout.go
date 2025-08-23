@@ -15,7 +15,7 @@ func newCreatePlaylistLayout(base *layout.Div, tracks table.Model) (*layout.Div,
 		return base, nil
 	}
 
-	tracks.SetHeight(base.Height())
+	tracks.SetHeight(base.Height()-2)
 	tracks.SetWidth(base.Width())
 
 	base.AddChild(&layout.TextNode{

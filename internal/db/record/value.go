@@ -19,6 +19,7 @@ type Entity struct {
 	Artists       StringArray `gorm:"type:jsonb"`
 	CatalogNumber string
 	Coordinate    string `gorm:"index"`
+	CheckedOut    bool   `gorm:"default:false"`
 
 	Tracklist []*track.Entity `gorm:"foreignKey:RecordID;references:ID"`
 }

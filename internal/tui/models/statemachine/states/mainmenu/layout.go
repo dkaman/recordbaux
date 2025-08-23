@@ -53,11 +53,11 @@ func newMainMenuLayout(base *layout.Div, shelves, playlists list.Model, focus fo
 	// We subtract 2 to account for the container's top/bottom and left/right borders.
 	shelfListW := shelfBox.Width()
 	shelfListH := shelfBox.Height()
-	shelves.SetSize(shelfListW, shelfListH)
+	shelves.SetSize(shelfListW, shelfListH-2)
 
 	playlistListW := playlistBox.Width()
 	playlistListH := playlistBox.Height()
-	playlists.SetSize(playlistListW, playlistListH)
+	playlists.SetSize(playlistListW, playlistListH-2)
 
 	// With the lists correctly sized, render their views and place them in their containers.
 	shelfBox.ClearChildren()

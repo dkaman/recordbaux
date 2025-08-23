@@ -155,7 +155,11 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.logger.Warn("somehow a shelf was selected that wasn't a shelf.Model")
 				return s, tea.Batch(cmds...)
 			} else {
-				s.logger.Debug("selected playlist")
+				if sel, ok := s.playlists.SelectedItem().(tplaylist.Model); ok {
+					s.playlistService.CurrentPlaylist = sel.PhysicalPlaylist()
+					s.nextState = states.LoadedPlaylist
+					return s, nil
+				}
 			}
 		}
 	}

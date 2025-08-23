@@ -1,6 +1,7 @@
 package cmds
 
 import (
+	"fmt"
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +10,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/db/track"
+	"github.com/dkaman/recordbaux/internal/db/record"
 )
 
 type ShelvesLoadedMsg struct {
@@ -38,14 +40,23 @@ type PlaylistSavedMsg struct {
 	Err error
 }
 
+type PlaylistDeletedMsg struct {
+	Err error
+}
+
 type AllTracksLoadedMsg struct {
 	Tracks []*track.Entity
 	Err    error
 }
 
+type PlaylistCheckedOutMsg struct {
+	Err error
+}
+
 type shelfDB db.Repository[*shelf.Entity]
 type playlistDB db.Repository[*playlist.Entity]
 type trackDB db.Repository[*track.Entity]
+type recordDB db.Repository[*record.Entity]
 
 func GetAllShelvesCmd(repo shelfDB, logger *slog.Logger) tea.Cmd {
 	l := logger.WithGroup("getallshelvescmd")
@@ -130,6 +141,20 @@ func SavePlaylistCmd(repo playlistDB, p *playlist.Entity, logger *slog.Logger) t
 	}
 }
 
+func DeletePlaylistCmd(repo playlistDB, id uint, logger *slog.Logger) tea.Cmd {
+	l := logger.WithGroup("deleteplaylistcmd")
+	return func() tea.Msg {
+		err := repo.Delete(id)
+		if err != nil {
+			l.Error("error deleting playlist",
+				slog.String("error", err.Error()),
+				slog.Any("id", id),
+			)
+		}
+		return PlaylistDeletedMsg{Err: err}
+	}
+}
+
 func GetAllTracksCmd(repo trackDB, logger *slog.Logger) tea.Cmd {
 	l := logger.WithGroup("getalltrackscmd")
 	return func() tea.Msg {
@@ -139,5 +164,38 @@ func GetAllTracksCmd(repo trackDB, logger *slog.Logger) tea.Cmd {
 			return AllTracksLoadedMsg{Tracks: nil, Err: err}
 		}
 		return AllTracksLoadedMsg{Tracks: ts, Err: nil}
+	}
+}
+
+func CheckoutPlaylistCmd(repo recordDB, p *playlist.Entity, logger *slog.Logger) tea.Cmd {
+	// l := logger.WithGroup("checkoutplaylistcmd")
+	return func() tea.Msg {
+		if p == nil || len(p.Tracks) == 0 {
+			return PlaylistCheckedOutMsg{Err: fmt.Errorf("playlist has no tracks to check out")}
+		}
+
+		// Collect all unique record IDs from the playlist's tracks
+		recordIDs := make(map[uint]struct{})
+		for _, track := range p.Tracks {
+			if track.RecordID != 0 {
+				recordIDs[track.RecordID] = struct{}{}
+			}
+		}
+
+		for id := range recordIDs {
+			rec, err := repo.Get(id)
+			if err != nil {
+				return PlaylistCheckedOutMsg{Err: err}
+			}
+
+			rec.CheckedOut = true
+			err = repo.Save(rec)
+			if err != nil {
+				return PlaylistCheckedOutMsg{Err: err}
+			}
+
+		}
+
+		return PlaylistCheckedOutMsg{Err: nil}
 	}
 }
