@@ -1,7 +1,7 @@
 package loadedbin
 
 import (
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/v2/key"
 )
 
 type keyMap struct {

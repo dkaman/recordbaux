@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/v2/help"
+	"github.com/charmbracelet/bubbles/v2/key"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/db"
@@ -19,7 +19,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	kfmt "github.com/dkaman/recordbaux/internal/tui/key"
@@ -43,8 +42,11 @@ type Model struct {
 	stateMachine statemachine.Model
 
 	// styling/layout
-	helpVisible bool
-	layout      *layout.Div
+	helpVisible   bool
+	topBarText    string
+	statusBarText string
+
+	width, height int
 }
 
 func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t db.Repository[*track.Entity], p db.Repository[*playlist.Entity], r db.Repository[*record.Entity]) (Model, error) {
@@ -62,14 +64,7 @@ func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t d
 	playlistService := services.NewPlaylistService(p)
 	recordService := services.NewRecordService(r)
 
-	l, err := newTUILayout()
-	if err != nil {
-		return m, fmt.Errorf("error creating layout: %w", err)
-	}
-
-	vp := l.Find("viewport")
-
-	sm, err := statemachine.New(shelfService, trackService, playlistService, recordService, c, vp, log)
+	sm, err := statemachine.New(shelfService, trackService, playlistService, recordService, c, log)
 	if err != nil {
 		return m, fmt.Errorf("error creating state machine: %w", err)
 	}
@@ -82,19 +77,10 @@ func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t d
 		recordService:   recordService,
 		keys:            defaultKeybinds(),
 		helpVisible:     false,
-		layout:          l,
 		stateMachine:    sm,
 		logger:          log.WithGroup("root"),
-	}
-
-	err = addTopBarText(l, "recordbaux - organize your record collection")
-	if err != nil {
-		return m, fmt.Errorf("error adding top bar text: %w", err)
-	}
-
-	err = addStatusBarText(m.layout, fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()))
-	if err != nil {
-		return m, fmt.Errorf("error adding status bar text: %w", err)
+		topBarText:      "recordbaux - organize your record collection",
+		statusBarText:   fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()),
 	}
 
 	return m, nil
@@ -113,14 +99,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	// update bars
-	statusBarText := fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
-	_ = addStatusBarText(m.layout, statusBarText)
-	_ = addHelpBarText(m.layout, m.Help())
+	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
+
+	processedMsg := msg
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		w, h := msg.Width, msg.Height
-		m.layout.Resize(w, h)
+		m.width, m.height = msg.Width, msg.Height
+
+		numBars := 2
+		if m.helpVisible {
+			numBars = 3
+		}
+
+		smWidth := m.width - 2
+		smHeight := m.height - numBars - 2
+
+		processedMsg = tea.WindowSizeMsg{
+			Width:  smWidth,
+			Height: smHeight,
+		}
 
 	case tea.KeyMsg:
 		switch {
@@ -129,17 +127,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.ToggleHelp):
 			m.helpVisible = !m.helpVisible
-
-			helpBar := m.layout.Find("helpbar")
-			if m.helpVisible {
-				helpBar.Show()
-			} else {
-				helpBar.Hide()
-			}
-
-			w, h := m.layout.Width(), m.layout.Height()
-			m.layout.Resize(w, h)
-
 			return m, nil
 		}
 
@@ -197,7 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// update state machine
-	stateMachineModel, stateMachineCmds := m.stateMachine.Update(msg)
+	stateMachineModel, stateMachineCmds := m.stateMachine.Update(processedMsg)
 	if sm, ok := stateMachineModel.(statemachine.Model); ok {
 		m.stateMachine = sm
 	}
@@ -207,11 +194,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	return m.layout.Render()
+	return m.renderModel()
 }
 
 func (m Model) Help() string {
-	return "global: " +
-		kfmt.FmtKeymap(m.keys.ShortHelp()) + " " +
+	return "global[ " +
+		kfmt.FmtKeymap(m.keys.ShortHelp()) + "] " +
 		m.stateMachine.Help()
 }

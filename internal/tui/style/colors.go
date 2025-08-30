@@ -1,7 +1,7 @@
 package style
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
 const (
@@ -22,10 +22,12 @@ const (
 	LightCyan    = lipgloss.ANSIColor(14)
 	LightWhite   = lipgloss.ANSIColor(15)
 
-	LightGrey    = lipgloss.Color("#AAAAAA")
-
 	Bullet   = "•"
 	Ellipsis = "…"
+)
+
+var (
+	LightGrey    = lipgloss.Color("#AAAAAA")
 )
 
 var (

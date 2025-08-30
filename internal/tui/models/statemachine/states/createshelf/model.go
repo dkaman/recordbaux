@@ -3,15 +3,13 @@ package createshelf
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/huh"
-
-	tea "github.com/charmbracelet/bubbletea"
+	huh "github.com/charmbracelet/huh/v2"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
@@ -22,20 +20,19 @@ type CreateShelfState struct {
 	shelfService    *services.ShelfService
 	createShelfForm *form
 	nextState       states.StateType
-	layout          *layout.Div
 	logger          *slog.Logger
+
+	width, height   int
 }
 
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) CreateShelfState {
+func New(s *services.ShelfService, log *slog.Logger) CreateShelfState {
 	f := newShelfCreateForm()
-	lay, _ := newCreateShelfLayout(l, f)
 	logger := log.WithGroup("createshelfstate")
 
 	return CreateShelfState{
 		shelfService:    s,
 		nextState:       states.Undefined,
 		createShelfForm: f,
-		layout:          lay,
 		logger:          logger,
 	}
 }
@@ -56,13 +53,12 @@ func (s CreateShelfState) refresh() tea.Cmd {
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case refreshMsg:
-		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
 		return s, tea.Batch(s.createShelfForm.Init())
 
 	case tea.WindowSizeMsg:
-		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
+		s.width, s.height = msg.Width, msg.Height
 		return s, tea.Batch(cmds...)
 	}
 
@@ -71,8 +67,6 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.createShelfForm = f
 	}
 	cmds = append(cmds, formUpdateCmds)
-
-	addViewportText(s.layout, s.createShelfForm)
 
 	// once done
 	if s.createShelfForm.State == huh.StateCompleted {
@@ -93,8 +87,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				shelf.WithShapeRect(x, y, size, bin.SortAlphaByArtist),
 			)
 		} else {
-			newShelf, _ = shelf.New(s.createShelfForm.Name(), size,
-			)
+			newShelf, _ = shelf.New(s.createShelfForm.Name(), size)
 		}
 
 		s.logger.Debug("new shelf", slog.Any("shelf", newShelf))
@@ -110,7 +103,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s CreateShelfState) View() string {
-	return ""
+	return s.renderModel()
 }
 
 func (s CreateShelfState) Help() string {

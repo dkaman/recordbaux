@@ -3,16 +3,15 @@ package mainmenu
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/list"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
@@ -32,18 +31,18 @@ type MainMenuState struct {
 	playlistService *services.PlaylistService
 	nextState       states.StateType
 
-	keys   keyMap
-	layout *layout.Div
+	keys keyMap
 
-	logger    *slog.Logger
-	shelves   list.Model
-	playlists list.Model
-	focus     focusedView
+	logger        *slog.Logger
+	shelves       list.Model
+	playlists     list.Model
+	focus         focusedView
+	width, height int
 }
 
 type refreshMsg struct{}
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, l *layout.Div, log *slog.Logger) MainMenuState {
+func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
 
 	// Shelves List
@@ -58,14 +57,11 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 	playlistList.Title = "playlists"
 	playlistList.Styles = style.DefaultListStyles()
 
-	lay, _ := newMainMenuLayout(l, shelfList, playlistList, shelvesView)
-
 	return MainMenuState{
 		shelfService:    s,
 		trackService:    t,
 		playlistService: p,
 		keys:            defaultKeybinds(),
-		layout:          lay,
 		shelves:         shelfList,
 		playlists:       playlistList,
 		logger:          log,
@@ -96,6 +92,9 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
+
 	case refreshMsg:
 		s.logger.Debug("refreshing shelves from service")
 
@@ -114,12 +113,11 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		s.playlists.SetItems(playlistItems)
 
-		s.layout, _ = newMainMenuLayout(s.layout, s.shelves, s.playlists, s.focus)
 		return s, nil
 
 	case tea.KeyMsg:
 		s.logger.Debug("key pressed",
-			slog.String("key", msg.Type.String()),
+			slog.String("key", msg.String()),
 		)
 
 		switch {
@@ -129,7 +127,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				s.focus = shelvesView
 			}
-			s.layout, _ = newMainMenuLayout(s.layout, s.shelves, s.playlists, s.focus)
+
 			return s, nil
 
 		case key.Matches(msg, s.keys.NewShelf):
@@ -173,12 +171,11 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, updateCmds)
 
-	s.layout, _ = newMainMenuLayout(s.layout, s.shelves, s.playlists, s.focus)
 	return s, tea.Batch(cmds...)
 }
 
 func (s MainMenuState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s MainMenuState) Next() (states.StateType, bool) {

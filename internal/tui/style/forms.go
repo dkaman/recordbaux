@@ -1,12 +1,21 @@
 package style
 
 import (
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/huh"
+	huh "github.com/charmbracelet/huh/v2"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
-func DefaultFormStyles() *huh.Theme {
-	t := huh.ThemeBase()
+type FormTheme struct {
+	Styles *huh.Styles
+}
+
+func (t *FormTheme) Theme(isDark bool) *huh.Styles {
+	return t.Styles
+
+}
+
+func DefaultFormStyles() *FormTheme {
+	t := huh.ThemeBase(true)
 
 	t.Focused.Base = t.Focused.Base.BorderForeground(LightGreen)
 	t.Focused.Card = t.Focused.Base
@@ -42,5 +51,7 @@ func DefaultFormStyles() *huh.Theme {
 	t.Group.Title = t.Focused.Title
 	t.Group.Description = t.Focused.Description
 
-	return t
+	return &FormTheme{
+		Styles: t,
+	}
 }

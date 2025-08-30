@@ -3,14 +3,13 @@ package loadedshelf
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/v2/key"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
@@ -21,23 +20,22 @@ type LoadedShelfState struct {
 	shelfService *services.ShelfService
 	keys         keyMap
 	nextState    states.StateType
-	layout       *layout.Div
 
 	shelf       shelf.Model
 	selectedBin int
 
 	logger *slog.Logger
+	width, height int
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedShelfState {
+func New(s *services.ShelfService, log *slog.Logger) LoadedShelfState {
 	logGroup := log.WithGroup(states.LoadedShelf.String())
 
 	return LoadedShelfState{
 		shelfService: s,
 		keys:         defaultKeybinds(),
 		nextState:    states.Undefined,
-		layout:       l,
 		logger:       logGroup,
 	}
 }
@@ -57,24 +55,17 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case refreshMsg:
-		contentWidth := s.layout.Width() - 2
-		contentHeight := s.layout.Height() - 2
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
 
+	case refreshMsg:
 		sh := s.shelfService.CurrentShelf
 
 		s.shelf = shelf.New(sh, s.logger).
-			SelectBin(0).
-			SetSize(contentWidth, contentHeight)
-
-		s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
+			SetSize(s.width, s.height).
+			SelectBin(0)
 
 		return s, tea.Batch(cmds...)
-
-	case tea.WindowSizeMsg:
-		s.layout.Resize(msg.Width, msg.Height)
-		msg.Width = msg.Width - 2
-		msg.Height = msg.Height - 2
 
 	case tea.KeyMsg:
 		sh := s.shelf.PhysicalShelf()
@@ -115,13 +106,11 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	cmds = append(cmds, shelfCmds)
 
-	s.layout, _ = newSelectShelfLayout(s.layout, s.shelf)
-
 	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedShelfState) View() string {
-	return ""
+	return s.renderModel()
 }
 
 func (s LoadedShelfState) Help() string {

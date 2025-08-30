@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/charmbracelet/huh"
+	huh "github.com/charmbracelet/huh/v2"
 
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/tui/style"

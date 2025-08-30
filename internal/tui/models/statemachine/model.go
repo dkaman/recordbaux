@@ -4,11 +4,11 @@ import (
 	"errors"
 	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
+
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	discogs "github.com/dkaman/discogs-golang"
 	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
@@ -34,16 +34,15 @@ type Model struct {
 	currentState     states.State
 	currentStateType states.StateType
 	allStates        map[states.StateType]states.State
-	layout           *layout.Div
 
-	logger *slog.Logger
+	logger        *slog.Logger
+	width, height int
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, r *services.RecordService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
+func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, r *services.RecordService, c *config.Config, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
 
 	m := Model{
-		layout: newStateMachineLayout(d),
 		logger: logGroup,
 	}
 
@@ -57,14 +56,14 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 	}
 
 	m.allStates = map[states.StateType]states.State{
-		states.MainMenu:         mms.New(s, t, p, d, log),
-		states.CreateShelf:      css.New(s, d, log),
-		states.LoadedShelf:      lss.New(s, d, log),
-		states.LoadCollection:   lcs.New(s, d, log, discogsClient, discogsUsername),
-		states.LoadedBin:        lbs.New(s, d, log),
-		states.FetchFromDiscogs: ffd.New(s, d, log, discogsClient),
-		states.CreatePlaylist:   cps.New(s, t, p, d, log),
-		states.LoadedPlaylist:   lps.New(p, r, d, log),
+		states.MainMenu:         mms.New(s, t, p, log),
+		states.CreateShelf:      css.New(s, log),
+		states.LoadedShelf:      lss.New(s, log),
+		states.LoadCollection:   lcs.New(s, log, discogsClient, discogsUsername),
+		states.LoadedBin:        lbs.New(s, log),
+		states.FetchFromDiscogs: ffd.New(s, log, discogsClient),
+		states.CreatePlaylist:   cps.New(s, t, p, log),
+		states.LoadedPlaylist:   lps.New(p, r, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]
@@ -83,6 +82,14 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.logger.Debug("dimensions at statemachine",
+			slog.Any("msg", msg),
+		)
+	}
+
 	stateModel, stateCmds := m.currentState.Update(msg)
 	if stateCmds != nil {
 		cmds = append(cmds, stateCmds)
@@ -96,13 +103,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 
 			s = s.Transition()
-
 			m.allStates[m.currentStateType] = s
+
 			m.currentState = m.allStates[next]
 			m.currentStateType = next
 
-			vp := m.layout.Find("viewport")
-			vp.ClearChildren()
+			sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+			resizedState, _ := m.currentState.Update(sizeMsg)
+			m.currentState = resizedState.(states.State)
 
 			cmds = append(cmds,
 				m.currentState.Init(),
@@ -118,7 +126,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	return ""
+	return m.renderModel()
 }
 
 func (m Model) Help() string {

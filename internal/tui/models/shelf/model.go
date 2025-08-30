@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"math"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
+
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 // Define constants for bin styling
@@ -18,59 +18,33 @@ const (
 	// Minimum height for bin content (e.g., for "ID\n0/0" label)
 	minBinContentHeight = 3 // ID (1) + count/size (1) + extra buffer (1) for internal text node
 
-	// Default internal padding for each bin's content (applied to div.Div)
-	defaultBinDivPaddingHorizontal = 0 // 1 char left + 1 char right
-	defaultBinDivPaddingVertical   = 0 // 0 char top + 0 char bottom
+	// Default internal padding for each bin's content
+	defaultBinDivPaddingHorizontal = 0
+	defaultBinDivPaddingVertical   = 0
 
-	// Default margin around each bin div (applied to div.Div)
-	defaultBinDivMarginHorizontal = 0 // 1 char space horizontally
-	defaultBinDivMarginVertical   = 0 // 1 char space vertically
+	// Default margin around each bin div
+	defaultBinDivMarginHorizontal = 0
+	defaultBinDivMarginVertical   = 0
 
 	// Default border setting for each bin div
-	defaultBinDivBorder = true // Whether each bin div has a border
+	defaultBinDivBorder = true
 )
+
+type topRightBottomLeft struct{ Top, Right, Bottom, Left int }
 
 type Model struct {
 	id            uint
 	selectedBin   int
 	physicalShelf *shelf.Entity
+	bins          []bin.Model
 
-	bins []bin.Model
-
-	// screen dimensions not shelf dimensions
-	width  int // Current allocated width for the entire shelf block
-	height int // Current allocated height for the entire shelf block
-
-	binDivStyle   lipgloss.Style            // Base style for individual bins' content
-	binDivMargin  layout.TopRightBottomLeft // Margin around each bin div
-	binDivPadding layout.TopRightBottomLeft // Padding inside each bin div (between border and content)
-	binDivBorder  bool                      // Whether each bin div has a border
-
+	width  int
+	height int
 	logger *slog.Logger
 }
 
 func New(p *shelf.Entity, log *slog.Logger) Model {
 	logger := log.WithGroup("shelf")
-
-	// Initialize base style for bins (alignments only; border/padding handled by div options)
-	baseBinDivStyle := lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-
-	// Initialize margin and padding structs forlayout.Div options
-	defaultBinDivMargin := layout.TopRightBottomLeft{
-		Top:    defaultBinDivMarginVertical,
-		Right:  defaultBinDivMarginHorizontal,
-		Bottom: defaultBinDivMarginVertical,
-		Left:   defaultBinDivMarginHorizontal,
-	}
-
-	defaultBinDivPadding := layout.TopRightBottomLeft{
-		Top:    defaultBinDivPaddingVertical,
-		Right:  defaultBinDivPaddingHorizontal,
-		Bottom: defaultBinDivPaddingVertical,
-		Left:   defaultBinDivPaddingHorizontal,
-	}
 
 	m := Model{
 		id:            p.ID,
@@ -79,10 +53,6 @@ func New(p *shelf.Entity, log *slog.Logger) Model {
 		width:         0,
 		height:        0,
 		logger:        logger,
-		binDivStyle:   baseBinDivStyle,
-		binDivMargin:  defaultBinDivMargin,
-		binDivPadding: defaultBinDivPadding,
-		binDivBorder:  defaultBinDivBorder,
 	}
 
 	if p != nil {
@@ -106,8 +76,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.width, m.height = msg.Width, msg.Height
 
 	case LoadShelfMsg:
 		m = m.loadPhysicalShelf(msg.phy)
@@ -123,62 +92,60 @@ func (m Model) View() string {
 
 	availableWidth := m.width
 	availableHeight := m.height
-
 	// if no physical shelf return message (likely won't happen)
 	if m.physicalShelf == nil {
 		return "no shelves loaded"
 	}
-
 	// don't render if no space is available
 	if availableWidth <= 0 || availableHeight <= 0 {
 		return ""
 	}
-
 	if len(m.physicalShelf.Bins) == 0 {
 		return "shelf has no bins to display"
 	}
 
+	// Local layout values, previously stored in the struct for the old layout system.
+	binDivMargin := topRightBottomLeft{
+		Top:    defaultBinDivMarginVertical,
+		Right:  defaultBinDivMarginHorizontal,
+		Bottom: defaultBinDivMarginVertical,
+		Left:   defaultBinDivMarginHorizontal,
+	}
+	binDivPadding := topRightBottomLeft{
+		Top:    defaultBinDivPaddingVertical,
+		Right:  defaultBinDivPaddingHorizontal,
+		Bottom: defaultBinDivPaddingVertical,
+		Left:   defaultBinDivPaddingHorizontal,
+	}
+	binDivBorder := defaultBinDivBorder
+
 	// Calculate the combined horizontal space consumed by padding and border for a single bin div
-	binInternalHorizontalPaddingAndBorder := (m.binDivPadding.Left + m.binDivPadding.Right)
-	if m.binDivBorder {
+	binInternalHorizontalPaddingAndBorder := (binDivPadding.Left + binDivPadding.Right)
+	if binDivBorder {
 		binInternalHorizontalPaddingAndBorder += 2 // 1 char for left border, 1 for right
 	}
-
 	// Calculate the combined vertical space consumed by padding and border for a single bin div
-	binInternalVerticalPaddingAndBorder := (m.binDivPadding.Top + m.binDivPadding.Bottom)
-	if m.binDivBorder {
+	binInternalVerticalPaddingAndBorder := (binDivPadding.Top + binDivPadding.Bottom)
+	if binDivBorder {
 		binInternalVerticalPaddingAndBorder += 2 // 1 char for top border, 1 for bottom
 	}
-
 	// Calculate the total horizontal margin consumed by *one* bin div (left + right)
-	totalHorizontalMarginPerBin := (m.binDivMargin.Left + m.binDivMargin.Right)
-
+	totalHorizontalMarginPerBin := (binDivMargin.Left + binDivMargin.Right)
 	// Calculate the total vertical margin consumed by *one* bin div (top + bottom)
-	totalVerticalMarginPerBin := (m.binDivMargin.Top + m.binDivMargin.Bottom)
-
+	totalVerticalMarginPerBin := (binDivMargin.Top + binDivMargin.Bottom)
 	// Minimum height a bin div must have to show content + padding + border
 	minBinDivTotalHeight := minBinContentHeight + binInternalVerticalPaddingAndBorder
-
-	// Estimate the minimum total width needed for a bin including content, padding, border, and its own margins.
-	// This helps in determining how many bins can fit in a row initially.
-	// Assume a 3:1 aspect ratio for the content area for this estimate.
-	minBinTotalRenderWidthEstimate := (minBinContentHeight * 3) + binInternalHorizontalPaddingAndBorder + totalHorizontalMarginPerBin
-	if minBinTotalRenderWidthEstimate < 1 { // Ensure at least 1 to avoid division by zero
-		minBinTotalRenderWidthEstimate = 1
-	}
 
 	s, err := m.physicalShelf.GetShape()
 	if err != nil {
 		m.logger.Error("error getting shape from entity",
 			slog.Any("error", err),
 		)
-		s.X = 0
-		s.Y = 0
+		return "error: could not read shelf shape"
 	}
 
 	cols := s.X
 	rows := s.Y
-
 	if cols <= 0 || rows <= 0 {
 		return "shelf shape has invalid dimensions or insufficient space"
 	}
@@ -187,7 +154,6 @@ func (m Model) View() string {
 	// considering the determined `cols` and `rows` and all margins.
 	effectiveAvailableWidthForBinsContentArea := availableWidth - (totalHorizontalMarginPerBin * cols)
 	effectiveAvailableHeightForBinsContentArea := availableHeight - (totalVerticalMarginPerBin * rows)
-
 	// Ensure these effective available dimensions are not negative
 	if effectiveAvailableWidthForBinsContentArea < 0 {
 		effectiveAvailableWidthForBinsContentArea = 0
@@ -195,23 +161,17 @@ func (m Model) View() string {
 	if effectiveAvailableHeightForBinsContentArea < 0 {
 		effectiveAvailableHeightForBinsContentArea = 0
 	}
-
 	// Calculate the "candidate" width and height for each bin div's *total area*
 	// (including its own padding and border but not outer margins).
 	candidateBinWidth := effectiveAvailableWidthForBinsContentArea / cols
 	candidateBinHeight := effectiveAvailableHeightForBinsContentArea / rows
-
 	// Adjust final bin height to maintain aspect ratio (3:1 assumed for content area)
 	// and to respect the minimum total height for the div (content + padding + border).
-	// We calculate the content width that would maintain the 3:1 aspect ratio based on candidate height,
-	// then add back padding and border.
 	finalBinHeight := int(math.Min(float64(candidateBinHeight), float64(candidateBinWidth)/3.0))
 	if finalBinHeight < minBinDivTotalHeight {
 		finalBinHeight = minBinDivTotalHeight
 	}
-	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio for content, padding and border area
-
-	// Ensure finalBinWidth/Height are not negative
+	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio
 	if finalBinWidth < 0 {
 		finalBinWidth = 0
 	}
@@ -219,42 +179,46 @@ func (m Model) View() string {
 		finalBinHeight = 0
 	}
 
-	m.logger.Debug("calculated bin dimensions",
-		slog.Int("finalBinWidth", finalBinWidth),
-		slog.Int("finalBinHeight", finalBinHeight),
-		slog.Int("cols", cols),
-		slog.Int("rows", rows),
-		slog.Int("effectiveAvailableWidthForBinsContentArea", effectiveAvailableWidthForBinsContentArea),
-		slog.Int("effectiveAvailableHeightForBinsContentArea", effectiveAvailableHeightForBinsContentArea),
-		slog.Int("binInternalHorizontalPaddingAndBorder", binInternalHorizontalPaddingAndBorder),
-		slog.Int("binInternalVerticalPaddingAndBorder", binInternalVerticalPaddingAndBorder),
-	)
+	// --- New Rendering Logic using lipgloss.Canvas ---
 
-	root, _ := layout.New(layout.Column, style.Centered)
-	root.Resize(m.width, m.height)
+	// Calculate total grid dimensions for centering
+	totalGridWidth := cols * (finalBinWidth + totalHorizontalMarginPerBin)
+	totalGridHeight := rows * (finalBinHeight + totalVerticalMarginPerBin)
+
+	// Calculate offsets to center the entire grid of bins
+	offsetX := (m.width - totalGridWidth) / 2
+	if offsetX < 0 {
+		offsetX = 0
+	}
+	offsetY := (m.height - totalGridHeight) / 2
+	if offsetY < 0 {
+		offsetY = 0
+	}
+
+	// Create a canvas to draw on.
+	canvas := lipgloss.NewCanvas()
 
 	binIndex := 0
 	for r := 0; r < rows; r++ {
-		rowDiv, _ := layout.New(layout.Row, lipgloss.NewStyle())
-		rowDiv.Resize(
-			(finalBinWidth+m.binDivMargin.Left+m.binDivMargin.Right)*cols,
-			finalBinHeight+m.binDivMargin.Top+m.binDivMargin.Bottom,
-		)
-
 		for c := 0; c < cols; c++ {
 			if binIndex < len(m.bins) {
-				b := m.bins[binIndex].
-					SetSize(finalBinWidth, finalBinHeight)
+				// Calculate the top-left position for the current bin's layer
+				xPos := offsetX + c*(finalBinWidth+totalHorizontalMarginPerBin)
+				yPos := offsetY + r*(finalBinHeight+totalVerticalMarginPerBin)
 
-				rowDiv.AddChild(&layout.TextNode{
-					Body: b.View(),
-				})
+				// Get the rendered view string from the bin model
+				b := m.bins[binIndex].SetSize(finalBinWidth, finalBinHeight)
+				binView := b.View()
+
+				// Create a new layer with the bin's content and place it on the canvas
+				binLayer := lipgloss.NewLayer(binView)
+				canvas.AddLayers(binLayer.X(xPos).Y(yPos))
 			}
 			binIndex++
 		}
-		root.AddChild(rowDiv)
 	}
-	return root.Render()
+
+	return canvas.Render()
 }
 
 func (m Model) loadPhysicalShelf(s *shelf.Entity) Model {

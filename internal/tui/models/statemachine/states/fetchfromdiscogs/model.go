@@ -3,11 +3,10 @@ package fetchfromdiscogs
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/progress"
+	"github.com/charmbracelet/bubbles/v2/spinner"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/db/record"
@@ -15,8 +14,8 @@ import (
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
@@ -27,7 +26,6 @@ type loadNextMsg struct{}
 type FetchFromDiscogsState struct {
 	shelfService *services.ShelfService
 	nextState    states.StateType
-	layout       *layout.Div
 	logger       *slog.Logger
 
 	spinner  spinner.Model
@@ -40,9 +38,12 @@ type FetchFromDiscogsState struct {
 	fetching      bool
 
 	discogsClient *discogs.Client
+	width, height int
+	pct           float64
+	currentTitle  string
 }
 
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
+func New(s *services.ShelfService, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
 	logGroup := log.WithGroup("fetchfromdiscogsstate")
 
 	sp := spinner.New()
@@ -51,13 +52,10 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, d *discogs.C
 
 	prg := progress.New(progress.WithDefaultGradient())
 
-	lay, _ := newFetchFromDiscogslayout(l, prg, sp, 0.0, true, "")
-
 	return FetchFromDiscogsState{
 		shelfService:  s,
 		nextState:     states.Undefined,
 		logger:        logGroup,
-		layout:        lay,
 		spinner:       sp,
 		progress:      prg,
 		fetching:      true,
@@ -85,6 +83,10 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width = msg.Width
+		s.height = msg.Height
+
 	case refreshMsg:
 		s.shelf = s.shelfService.CurrentShelf
 		return s, nil
@@ -94,6 +96,7 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.totalReleases = len(msg.Releases)
 		s.currentIndex = 0
 		s.fetching = false
+		s.pct = 0.0
 
 		s.logger.Debug("new discogs collection to process",
 			slog.Int("totalReleases", s.totalReleases),
@@ -104,8 +107,6 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.progress.Init(),
 			s.loadNextRecord(),
 		)
-
-		s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, 0.0, s.fetching, "")
 
 		return s, tea.Batch(cmds...)
 
@@ -123,7 +124,6 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Loop is finished. Finalize and prepare to transition state.
 		s.logger.Debug("finished processing all releases")
-		s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, 1.0, s.fetching, "")
 		s.releases = nil
 		s.nextState = states.LoadedShelf
 		return s, tcmds.GetShelfCmd(s.shelfService.Shelves, s.shelf.ID, s.logger)
@@ -135,6 +135,10 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Skip this record and move to the next one.
 			s.currentIndex++
 			return s, s.loadNextRecord()
+		}
+
+		if s.currentIndex < len(s.releases) {
+			s.currentTitle = msg.Record.Title
 		}
 
 		// Insert the hydrated record into the in-memory shelf object.
@@ -152,15 +156,12 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Depending on desired behavior, you could stop or just log and continue.
 		}
 
-		title := s.releases[s.currentIndex].Title
-
 		// The save was successful, so now we can update the progress and process the next record.
 		s.currentIndex++
-		pct := float64(s.currentIndex) / float64(s.totalReleases)
-		s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, pct, s.fetching, title)
+		s.pct = float64(s.currentIndex) / float64(s.totalReleases)
 
 		cmds = append(cmds,
-			s.progress.SetPercent(pct),
+			s.progress.SetPercent(s.pct),
 			s.loadNextRecord(),
 		)
 		return s, tea.Batch(cmds...)
@@ -172,8 +173,6 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.spinner, spinnerCmds = s.spinner.Update(msg)
 			cmds = append(cmds, spinnerCmds)
 
-			s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, 0, s.fetching, "")
-
 			return s, tea.Batch(cmds...)
 		}
 	}
@@ -182,7 +181,7 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s FetchFromDiscogsState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s FetchFromDiscogsState) Help() string {

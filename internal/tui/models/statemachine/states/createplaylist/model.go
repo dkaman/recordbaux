@@ -3,18 +3,17 @@ package createplaylist
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea"
+	huh "github.com/charmbracelet/huh/v2"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
@@ -29,7 +28,6 @@ type CreatePlaylistState struct {
 	nextState states.StateType
 	shelves   *services.ShelfService
 	tracks    *services.TrackService
-	layout    *layout.Div
 	logger    *slog.Logger
 	table     table.Model
 	keys      keyMap
@@ -39,9 +37,10 @@ type CreatePlaylistState struct {
 	namingPlaylist bool
 	nameForm       *form
 	playlistName   string
+	width, height  int
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, l *layout.Div, log *slog.Logger) CreatePlaylistState {
+func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, log *slog.Logger) CreatePlaylistState {
 	logger := log.WithGroup("createplayliststate")
 
 	// Add a column for the selection indicator
@@ -63,7 +62,6 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 		shelves:        s,
 		tracks:         t,
 		playlists:      p, // Store the playlist service
-		layout:         l,
 		logger:         logger,
 		table:          tbl,
 		keys:           defaultKeybinds(),
@@ -84,11 +82,6 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.nameForm = f
 		}
 		cmds = append(cmds, formUpdatesCmds)
-
-		// Re-render the form in the layout
-		s.layout.ClearChildren()
-		centeredForm := layout.CenteredBox(s.layout.Width(), s.layout.Height(), s.nameForm.View(), 0.5, 0.25)
-		s.layout.AddChild(centeredForm)
 
 		if s.nameForm.State == huh.StateCompleted {
 			name := s.nameForm.Name()
@@ -114,7 +107,8 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		s.layout.Resize(msg.Width, msg.Height)
+		s.width = msg.Width
+		s.height = msg.Height
 
 	case refreshMsg:
 		s.logger.Debug("refreshing tracks from service")
@@ -127,7 +121,6 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			rows = append(rows, table.Row{selectedMarker, t.Position, t.Title, t.Duration})
 		}
 		s.table.SetRows(rows)
-		s.layout, _ = newCreatePlaylistLayout(s.layout, s.table)
 		return s, nil
 
 	case tea.KeyMsg:
@@ -156,10 +149,6 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(s.selectedTracks) > 0 {
 				s.namingPlaylist = true
 				s.nameForm = newNameForm()
-				s.layout.ClearChildren()
-				centeredForm := layout.CenteredBox(s.layout.Width(), s.layout.Height(), s.nameForm.View(), 0.5, 0.25)
-				s.layout.AddChild(centeredForm)
-
 				return s, s.nameForm.Init()
 			}
 		}
@@ -169,13 +158,11 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	s.table, tableCmd = s.table.Update(msg)
 	cmds = append(cmds, tableCmd)
 
-	s.layout, _ = newCreatePlaylistLayout(s.layout, s.table)
-
 	return s, tea.Batch(cmds...)
 }
 
 func (s CreatePlaylistState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s CreatePlaylistState) Title() string {

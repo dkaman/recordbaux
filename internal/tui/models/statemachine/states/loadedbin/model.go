@@ -3,17 +3,17 @@ package loadedbin
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/v2/help"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+	"github.com/dkaman/recordbaux/internal/tui/models/record"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
@@ -25,14 +25,15 @@ type LoadedBinState struct {
 	nextState    states.StateType
 	bin          bin.Model
 	keys         keyMap
-	layout       *layout.Div
 	logger       *slog.Logger
 
 	records table.Model
+	selectedRecord record.Model
+	width, height int
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedBinState {
+func New(s *services.ShelfService, log *slog.Logger) LoadedBinState {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
@@ -42,7 +43,6 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedBinSta
 		shelfService: s,
 		nextState:    states.Undefined,
 		keys:         defaultKeybinds(),
-		layout:       l,
 		logger:       log.WithGroup("loadedbin"),
 		records:      t,
 	}
@@ -59,6 +59,12 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		w, h := msg.Width, msg.Height
+		s.width = w
+		s.height = h
+		// TODO send updates down to other models
+
 	case refreshLoadedBinMsg:
 		s.bin = bin.New(s.shelfService.CurrentBin, bin.Style{})
 
@@ -104,15 +110,14 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if b := s.bin.PhysicalBin(); b != nil {
 		r := s.bin.PhysicalBin().Records[idx]
-		s.logger.Debug("record chosen", slog.Any("record", r))
-		s.layout, _ = newLoadedBinLayout(s.layout, s.records, r)
+		s.selectedRecord = record.New(r)
 	}
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedBinState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s LoadedBinState) Help() string {

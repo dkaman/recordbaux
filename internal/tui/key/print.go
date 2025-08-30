@@ -3,7 +3,7 @@ package key
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/v2/key"
 )
 
 func FmtKeymap(bindings []key.Binding) string {

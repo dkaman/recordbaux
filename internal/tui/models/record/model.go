@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/table"
+
+	tea "github.com/charmbracelet/bubbletea/v2"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
+
 	"github.com/dkaman/recordbaux/internal/db/record"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 // Model represents the record view, displaying detailed information about a single record.
@@ -95,6 +96,8 @@ func (m Model) View() string {
 		return "No record loaded"
 	}
 
+	canvas := lipgloss.NewCanvas()
+
 	// Calculate height for each section to divide the screen
 	availableHeight := m.height
 	sectionHeight := availableHeight / 3
@@ -108,37 +111,26 @@ func (m Model) View() string {
 	// --- Render Track Info Card ---
 	trackInfoCard := m.renderTrackInfoCard()
 
-	// Use the layout package to combine the views
-	recordCard, err := layout.New(layout.Column, style.Centered,
-		layout.WithFixedWidth(m.width),
-		layout.WithFixedHeight(sectionHeight),
-		layout.WithChild(&layout.TextNode{Body: recordInfoCard}),
+	recordCard := lipgloss.NewLayer(style.Centered.Render(recordInfoCard))
+	tracklist := lipgloss.NewLayer(style.Centered.Render(tracklistTable))
+	trackInfo := lipgloss.NewLayer(style.Centered.Render(trackInfoCard))
+
+	canvas.AddLayers(
+		recordCard.
+			Width(m.width).
+			Height(sectionHeight).
+			X(0).Y(0),
+		tracklist.
+			Width(m.width).
+			Height(sectionHeight).
+			X(0).Y(sectionHeight),
+		trackInfo.
+			Width(m.width).
+			Height(sectionHeight).
+			X(0).Y(2*sectionHeight),
 	)
 
-	tracklist, err := layout.New(layout.Column, style.Centered,
-		layout.WithFixedWidth(m.width),
-		layout.WithFixedHeight(sectionHeight),
-		layout.WithChild(&layout.TextNode{Body: tracklistTable}),
-	)
-
-	trackInfo, err := layout.New(layout.Column, style.Centered,
-		layout.WithFixedWidth(m.width),
-		layout.WithFixedHeight(sectionHeight),
-		layout.WithChild(&layout.TextNode{Body: trackInfoCard}),
-	)
-
-	d, err := layout.New(layout.Column, lipgloss.NewStyle(),
-		layout.WithFixedWidth(m.width),
-		layout.WithFixedHeight(m.height),
-		layout.WithChild(recordCard),
-		layout.WithChild(tracklist),
-		layout.WithChild(trackInfo),
-	)
-	if err != nil {
-		return fmt.Sprintf("error viewing record: %s", err.Error())
-	}
-
-	return d.Render()
+	return canvas.Render()
 }
 
 // SetSize updates the model's dimensions.

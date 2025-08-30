@@ -3,15 +3,14 @@ package loadcollection
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/huh"
+	huh "github.com/charmbracelet/huh/v2"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
-	tea "github.com/charmbracelet/bubbletea"
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	discogs "github.com/dkaman/discogs-golang"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 type refreshShelfMsg struct{}
@@ -22,13 +21,13 @@ type LoadCollectionState struct {
 	nextState       states.StateType
 	discogsClient   *discogs.Client
 	discogsUsername string
-	layout          *layout.Div
 	logger          *slog.Logger
 
 	selectFolderForm *form
+	width, height    int
 }
 
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
+func New(s *services.ShelfService, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
 	logger := log.WithGroup("loadcollectionstate")
 
 	f := newFolderSelectForm(client, username)
@@ -39,7 +38,6 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, client *disc
 		discogsClient:    client,
 		discogsUsername:  username,
 		selectFolderForm: f,
-		layout:           l,
 		logger:           logger,
 	}
 }
@@ -60,16 +58,17 @@ func (s LoadCollectionState) refresh() tea.Cmd {
 func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width = msg.Width
+		s.height = msg.Height
+		return s, nil
+
 	case refreshShelfMsg:
 		s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
-		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
 		cmds = append(cmds, s.selectFolderForm.Init())
 		return s, tea.Batch(cmds...)
 
-	case tea.WindowSizeMsg:
-		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
-		return s, nil
 	}
 
 	fModel, formCmds := s.selectFolderForm.Update(msg)
@@ -77,8 +76,6 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.selectFolderForm = f
 	}
 	cmds = append(cmds, formCmds)
-
-	s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
 
 	if s.selectFolderForm.State == huh.StateCompleted {
 		folder := s.selectFolderForm.Folder()
@@ -103,7 +100,7 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the shelf view into the TopWindow section.
 func (s LoadCollectionState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s LoadCollectionState) Help() string {

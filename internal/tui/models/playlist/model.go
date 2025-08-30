@@ -2,9 +2,10 @@ package playlist
 
 import (
 	"fmt"
-	"github.com/dkaman/recordbaux/internal/db/playlist"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/playlist"
 )
 
 // Model is a wrapper for a playlist entity for use in the TUI.

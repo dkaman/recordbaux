@@ -1,16 +1,17 @@
 package loadedshelf
 
 import (
-	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
-func newSelectShelfLayout(base *layout.Div, sh shelf.Model) (*layout.Div, error) {
-	base.ClearChildren()
+func (s LoadedShelfState) renderModel() string {
+	canvas := lipgloss.NewCanvas()
 
-	base.AddChild(&layout.TextNode{
-		Body: sh.View(),
-	})
+	shelf := lipgloss.NewLayer(s.shelf.View())
 
-	return base, nil
+	canvas.AddLayers(shelf.
+		X(0).Y(0),
+	)
+
+	return canvas.Render()
 }

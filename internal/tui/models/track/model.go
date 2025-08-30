@@ -1,9 +1,9 @@
 package track
 
 import (
-	"github.com/dkaman/recordbaux/internal/db/track"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dkaman/recordbaux/internal/db/track"
 )
 
 // Model is a wrapper for a track entity for use in the TUI.

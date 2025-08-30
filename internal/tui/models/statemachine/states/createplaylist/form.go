@@ -2,7 +2,7 @@ package createplaylist
 
 import (
 
-	"github.com/charmbracelet/huh"
+	huh "github.com/charmbracelet/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )

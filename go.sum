@@ -12,6 +12,8 @@ github.com/charmbracelet/bubbles v0.21.0 h1:9TdC97SdRVg/1aaXNVWfFH3nnLAwOXr8Fn6u
 github.com/charmbracelet/bubbles v0.21.0/go.mod h1:HF+v6QUR4HkEpz62dx7ym2xc71/KBHg+zKwJtMw+qtg=
 github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1 h1:swACzss0FjnyPz1enfX56GKkLiuKg5FlyVmOLIlU2kE=
 github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1/go.mod h1:6HamsBKWqEC/FVHuQMHgQL+knPyvHH55HwJDHl/adMw=
+github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1.0.20250331172056-9d2d5dfc712c h1:eyz5x+HU6/UEI4zvxxN/S7CEqtBhkGz0pmvqqTn5nCQ=
+github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1.0.20250331172056-9d2d5dfc712c/go.mod h1:6HamsBKWqEC/FVHuQMHgQL+knPyvHH55HwJDHl/adMw=
 github.com/charmbracelet/bubbletea v1.3.5 h1:JAMNLTbqMOhSwoELIr0qyP4VidFq72/6E9j7HHmRKQc=
 github.com/charmbracelet/bubbletea v1.3.5/go.mod h1:TkCnmH+aBd4LrXhXcqrKiYwRs7qyQx5rBgH5fVY3v54=
 github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.4 h1:UgUuKKvBwgqm2ZEL+sKv/OLeavrUb4gfHgdxe6oIOno=
@@ -28,6 +30,10 @@ github.com/charmbracelet/harmonica v0.2.0 h1:8NxJWRWg/bzKqqEaaeFNipOu77YR5t8aSwG
 github.com/charmbracelet/harmonica v0.2.0/go.mod h1:KSri/1RMQOZLbw7AHqgcBycp8pgJnQMYYT8QZRqZ1Ao=
 github.com/charmbracelet/huh v0.7.0 h1:W8S1uyGETgj9Tuda3/JdVkc3x7DBLZYPZc4c+/rnRdc=
 github.com/charmbracelet/huh v0.7.0/go.mod h1:UGC3DZHlgOKHvHC07a5vHag41zzhpPFj34U92sOmyuk=
+github.com/charmbracelet/huh/v2 v2.0.0-20250204182907-1f0eb36d2a6c h1:MLSSs9ZxY+DnlMaEZqi+/z5z2Oagla+fHDVdhhn5zcI=
+github.com/charmbracelet/huh/v2 v2.0.0-20250204182907-1f0eb36d2a6c/go.mod h1:9Xq7rQ18tNWb2tRnYipitXqkrPxVuTKlmWnaUa99c44=
+github.com/charmbracelet/huh/v2 v2.0.0-20250422162056-df2a6889cde5 h1:gKHN9yIemTdxsjH7CQgtP3dZG8g1c15sGY88utxc3Vo=
+github.com/charmbracelet/huh/v2 v2.0.0-20250422162056-df2a6889cde5/go.mod h1:CuMdJc1ne/i8x5bcAp4TLAVsCicAC67IFDOkOlwPooI=
 github.com/charmbracelet/lipgloss v1.1.0 h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=
 github.com/charmbracelet/lipgloss v1.1.0/go.mod h1:/6Q8FR2o+kj8rz4Dq0zQc3vYf7X+B0binUUBwA0aL30=
 github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.2 h1:vq2enzx1Hr3UenVefpPEf+E2xMmqtZoSHhx8IE+V8ug=
