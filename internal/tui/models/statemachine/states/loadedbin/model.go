@@ -27,9 +27,9 @@ type LoadedBinState struct {
 	keys         keyMap
 	logger       *slog.Logger
 
-	records table.Model
+	records        table.Model
 	selectedRecord record.Model
-	width, height int
+	width, height  int
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
@@ -58,12 +58,15 @@ func (s LoadedBinState) Init() tea.Cmd {
 func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	processedMsg := msg
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		w, h := msg.Width, msg.Height
 		s.width = w
 		s.height = h
-		// TODO send updates down to other models
+
+		processedMsg = tea.WindowSizeMsg{Width: w/2, Height: h}
 
 	case refreshLoadedBinMsg:
 		s.bin = bin.New(s.shelfService.CurrentBin, bin.Style{})
@@ -88,9 +91,10 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			table.WithColumns(columns),
 			table.WithRows(rows),
 			table.WithFocused(true),
-			table.WithHeight(10),
 			table.WithStyles(style.DefaultTableStyles()),
 		)
+
+		return s, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		switch {
@@ -100,7 +104,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	tableModel, tableUpdateCmds := s.records.Update(msg)
+	tableModel, tableUpdateCmds := s.records.Update(processedMsg)
 	s.records = tableModel
 	cmds = append(cmds,
 		tableUpdateCmds,
@@ -108,9 +112,15 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	idx := s.records.Cursor()
 
+	// TODO fix this bug, not rendering
 	if b := s.bin.PhysicalBin(); b != nil {
 		r := s.bin.PhysicalBin().Records[idx]
-		s.selectedRecord = record.New(r)
+
+		recordModel, recordCmds := record.New(r).Update(processedMsg)
+		if rec, ok := recordModel.(record.Model); ok {
+			s.selectedRecord = rec
+		}
+		cmds = append(cmds, recordCmds)
 	}
 
 	return s, tea.Batch(cmds...)

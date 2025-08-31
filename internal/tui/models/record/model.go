@@ -65,7 +65,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.tracklistTable.SetWidth(m.width)
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up":
@@ -111,9 +111,9 @@ func (m Model) View() string {
 	// --- Render Track Info Card ---
 	trackInfoCard := m.renderTrackInfoCard()
 
-	recordCard := lipgloss.NewLayer(style.Centered.Render(recordInfoCard))
-	tracklist := lipgloss.NewLayer(style.Centered.Render(tracklistTable))
-	trackInfo := lipgloss.NewLayer(style.Centered.Render(trackInfoCard))
+	recordCard := lipgloss.NewLayer(recordInfoCard)
+	tracklist := lipgloss.NewLayer(tracklistTable)
+	trackInfo := lipgloss.NewLayer(trackInfoCard)
 
 	canvas.AddLayers(
 		recordCard.

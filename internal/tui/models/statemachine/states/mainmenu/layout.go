@@ -15,9 +15,24 @@ func (s MainMenuState) renderModel() string {
 		return canvas.Render()
 	}
 
+	boxW := s.width / 2
+	boxH := s.height
+
 	// Create styles for focused and blurred list containers
-	focusedStyle := lipgloss.NewStyle().BorderForeground(style.LightGreen)
-	blurredStyle := lipgloss.NewStyle().BorderForeground(style.DarkWhite)
+	focusedStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(style.LightGreen).
+		Width(boxW).
+		Height(boxH)
+
+	blurredStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(style.DarkWhite).
+		Width(boxW).
+		Height(boxH)
+
+	s.shelves.SetSize(boxW-2, boxH-2)
+	s.playlists.SetSize(boxW-2, boxH-2)
 
 	var shelfBoxStyle, playlistBoxStyle lipgloss.Style
 
@@ -29,24 +44,14 @@ func (s MainMenuState) renderModel() string {
 		playlistBoxStyle = focusedStyle
 	}
 
-	boxW := s.width / 2
-	boxH := s.height
-
-	s.shelves.SetSize(boxW, boxH)
-	s.playlists.SetSize(boxW, boxH)
-
 	shelfBox := lipgloss.NewLayer(shelfBoxStyle.Render(s.shelves.View()))
 	playlistBox := lipgloss.NewLayer(playlistBoxStyle.Render(s.playlists.View()))
 
 	canvas.AddLayers(shelfBox.
-		Width(boxW).
-		Height(boxH).
 		X(0).Y(0),
 	)
 
 	canvas.AddLayers(playlistBox.
-		Width(boxW).
-		Height(boxH).
 		X(boxW).Y(0),
 	)
 

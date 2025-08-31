@@ -2,8 +2,6 @@ package loadedbin
 
 import (
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
-
-	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 func (s LoadedBinState) renderModel() string {
@@ -12,24 +10,24 @@ func (s LoadedBinState) renderModel() string {
 	boxW := s.width/2
 	boxH := s.height
 
-	s.records.SetWidth(boxW)
-	s.records.SetHeight(boxH)
-	s.selectedRecord.SetSize(boxW, boxH)
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Width(boxW).
+		Height(boxH)
 
-	left := lipgloss.NewLayer(style.BaseTableStyle.Render(s.records.View()))
+	s.records.SetWidth(boxW-2)
+	s.records.SetHeight(boxH-2)
+	s.selectedRecord.SetSize(boxW-2, boxH-2)
 
-	right := lipgloss.NewLayer(s.selectedRecord.View())
+	left := lipgloss.NewLayer(boxStyle.Render(s.records.View()))
+	right := lipgloss.NewLayer(boxStyle.Render(s.selectedRecord.View()))
 
 	canvas.AddLayers(left.
-		Width(boxW).
-		Height(boxH).
 		X(0).Y(0),
 	)
 
 	canvas.AddLayers(right.
-		Width(boxW).
-		Height(boxH).
-		X(boxH).Y(0),
+		X(boxW).Y(0),
 	)
 
 	return canvas.Render()

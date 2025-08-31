@@ -7,12 +7,23 @@ import (
 func (s CreateShelfState) renderModel() string {
 	canvas := lipgloss.NewCanvas()
 
-	formLayer := lipgloss.NewLayer(s.createShelfForm.View())
+	formView := s.createShelfForm.View()
+	formW := lipgloss.Width(formView)
+	formH := lipgloss.Height(formView)
+
+	borderedForm := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Width(formW).
+		Height(formH).
+		Render(formView)
+
+	formLayer := lipgloss.NewLayer(borderedForm)
+
+	formX := (s.width - formW) / 2
+	formY := (s.height - formH) / 2
 
 	canvas.AddLayers(formLayer.
-		Width(s.width/3).
-		Height(s.height/3).
-		X(s.width/3).Y(s.height/3),
+		X(formX).Y(formY),
 	)
 
 	return canvas.Render()

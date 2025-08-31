@@ -226,13 +226,16 @@ func (m Model) loadPhysicalShelf(s *shelf.Entity) Model {
 
 	m.bins = nil
 
-	alignedSelected := style.Centered.Bold(true).Foreground(style.LightGreen)
+	alignedSelected := style.Centered.
+		Bold(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		Foreground(style.LightGreen)
 
 	binStyles := bin.Style{
 		EmptySelected:   alignedSelected,
-		EmptyUnselected: style.Centered,
+		EmptyUnselected: style.Centered.BorderStyle(lipgloss.NormalBorder()),
 		FullSelected:    alignedSelected.Background(style.DarkBlue),
-		FullUnselected:  style.Centered.Background(style.DarkBlue).Foreground(style.DarkBlack),
+		FullUnselected:  style.Centered.BorderStyle(lipgloss.NormalBorder()).Background(style.DarkBlue).Foreground(style.DarkBlack),
 	}
 
 	for _, pb := range m.physicalShelf.Bins {

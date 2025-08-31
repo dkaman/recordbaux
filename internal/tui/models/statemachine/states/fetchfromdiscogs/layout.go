@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
-
-	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 func (s FetchFromDiscogsState) renderModel() string {
 	var lines []string
+
+	canvas := lipgloss.NewCanvas()
 
 	// 1. Build the content lines, same as the old layout function.
 	if s.fetching {
@@ -29,15 +29,24 @@ func (s FetchFromDiscogsState) renderModel() string {
 	lines = append(lines, barLine)
 
 	// 2. Join the lines and apply the final style.
-	joined := lipgloss.JoinVertical(lipgloss.Center, lines...)
-	content := style.ProgressStyle.Render(joined)
+	content := lipgloss.JoinVertical(lipgloss.Center, lines...)
 
-	// 3. Use lipgloss.Place to center the content on the screen.
-	return lipgloss.Place(
-		s.width,
-		s.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		content,
+	contentW := lipgloss.Width(content)
+	contentH := lipgloss.Height(content)
+
+	borderedContent := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Width(contentW).
+		Height(contentH).
+		Render(content)
+
+	contentLayer := lipgloss.NewLayer(borderedContent)
+	contentX := (s.width - contentW) / 2
+	contentY := (s.height - contentH) / 2
+
+	canvas.AddLayers(contentLayer.
+		X(contentX).Y(contentY),
 	)
+
+	return canvas.Render()
 }
