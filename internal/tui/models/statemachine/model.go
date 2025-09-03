@@ -11,6 +11,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 
 	discogs "github.com/dkaman/discogs-golang"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
 	css "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createshelf"
 	ffd "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/fetchfromdiscogs"
@@ -82,12 +83,77 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
+	// transition
+	switch t := msg.(type) {
+	case tcmds.StateTransitionMsg:
+		var pre tea.Cmd = nil
+		if len(t.PreCmds) > 0 {
+			pre = tea.Batch(t.PreCmds...)
+		}
+
+		// 2) A continuation Msg that performs the swap & AfterInit.
+		type doSwapMsg struct{ tcmds.StateTransitionMsg }
+		doSwap := func() tea.Msg { return tcmds.StateTransitionPostMsg{t} }
+
+		// Execute: (PreInit...) -> doSwapMsg
+		if pre != nil {
+			return m, tea.Sequence(pre, doSwap)
+		}
+		return m, doSwap
+
+	case tcmds.StateTransitionPostMsg:
+		// Swap to the next state.
+		next := t.Next
+
+		m.logger.Info("state transition (envelope)",
+			slog.String("from", m.currentStateType.String()),
+			slog.String("to", next.String()),
+		)
+
+		// park the old state instance
+		if s, ok := m.currentState.(states.State); ok {
+			m.allStates[m.currentStateType] = s.Transition()
+		}
+
+		m.currentState = m.allStates[next]
+		m.currentStateType = next
+
+		return m, tea.Sequence(
+			m.currentState.Init(),
+			tea.Batch(t.PostCmds...),
+		)
+
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.logger.Debug("dimensions at statemachine",
+		m.width, m.height = t.Width, t.Height
+		m.logger.Debug("dimensions at statemachine, broadcasting to all states",
 			slog.Any("msg", msg),
 		)
+
+		// Create a slice for all the commands that the child updates might return.
+		allCmds := make([]tea.Cmd, 0, len(m.allStates))
+
+		// park current state so it will be updated like the rest
+		m.allStates[m.currentStateType] = m.currentState
+
+		// Iterate over every state and send it the size message.
+		for stateType, state := range m.allStates {
+			// Call the state's Update method.
+			updatedStateModel, cmd := state.Update(t)
+
+			// The Update method returns a new model, so we must replace the old one in our map.
+			if updatedState, ok := updatedStateModel.(states.State); ok {
+				m.allStates[stateType] = updatedState
+			}
+
+			if cmd != nil {
+				allCmds = append(allCmds, cmd)
+			}
+		}
+
+		// re-read now updated current state
+		m.currentState = m.allStates[m.currentStateType]
+
+		return m, tea.Batch(allCmds...)
 	}
 
 	stateModel, stateCmds := m.currentState.Update(msg)
@@ -96,29 +162,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if s, ok := stateModel.(states.State); ok {
-		if next, wanted := s.Next(); wanted {
-			m.logger.Info("state transition",
-				slog.String("from", m.currentStateType.String()),
-				slog.String("to", next.String()),
-			)
-
-			s = s.Transition()
-			m.allStates[m.currentStateType] = s
-
-			m.currentState = m.allStates[next]
-			m.currentStateType = next
-
-			sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
-			resizedState, _ := m.currentState.Update(sizeMsg)
-			m.currentState = resizedState.(states.State)
-
-			cmds = append(cmds,
-				m.currentState.Init(),
-			)
-
-			return m, tea.Sequence(cmds...)
-		}
-
 		m.currentState = s
 	}
 

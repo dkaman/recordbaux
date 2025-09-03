@@ -14,10 +14,9 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
-
-type refreshMsg struct{}
 
 type PlaylistLoadedState struct {
 	playlistService *services.PlaylistService
@@ -51,7 +50,7 @@ func New(p *services.PlaylistService, r *services.RecordService, log *slog.Logge
 }
 
 func (s PlaylistLoadedState) Init() tea.Cmd {
-	return func() tea.Msg { return refreshMsg{} }
+	return nil
 }
 
 func (s PlaylistLoadedState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -65,8 +64,9 @@ func (s PlaylistLoadedState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.trackTable.SetWidth(msg.Width - 2)
 		s.trackTable.SetHeight(msg.Height - 2)
 
-	case refreshMsg:
-		playlist := s.playlistService.CurrentPlaylist
+	case tplaylist.LoadPlaylistMsg:
+		playlist := msg.Phy
+
 		var rows []table.Row
 		if playlist != nil {
 			for _, t := range playlist.Tracks {
@@ -79,8 +79,7 @@ func (s PlaylistLoadedState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = states.MainMenu
-			return s, nil
+			return s, tcmds.WithNextState(states.MainMenu, nil, nil)
 		case key.Matches(msg, s.keys.Checkout):
 			s.logger.Info("checking out playlist")
 			playlist := s.playlistService.CurrentPlaylist

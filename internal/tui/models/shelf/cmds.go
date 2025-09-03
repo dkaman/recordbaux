@@ -7,13 +7,13 @@ import (
 )
 
 type LoadShelfMsg struct {
-	phy *shelf.Entity
+	Phy *shelf.Entity
 }
 
 func WithPhysicalShelf(p *shelf.Entity) tea.Cmd {
 	return func() tea.Msg {
 		return LoadShelfMsg{
-			phy: p,
+			Phy: p,
 		}
 	}
 }

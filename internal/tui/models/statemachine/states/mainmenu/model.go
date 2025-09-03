@@ -10,6 +10,7 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
+	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
@@ -39,8 +40,6 @@ type MainMenuState struct {
 	focus         focusedView
 	width, height int
 }
-
-type refreshMsg struct{}
 
 func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
@@ -78,14 +77,7 @@ func (s MainMenuState) Init() tea.Cmd {
 	return tea.Sequence(
 		tcmds.GetAllShelvesCmd(s.shelfService.Shelves, s.logger),
 		tcmds.GetAllPlaylistsCmd(s.playlistService.Playlists, s.logger),
-		s.refresh(),
 	)
-}
-
-func (s MainMenuState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshMsg{}
-	}
 }
 
 func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,32 +86,37 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
+		return s, nil
 
-	case refreshMsg:
+	case tcmds.ShelvesLoadedMsg:
 		s.logger.Debug("refreshing shelves from service")
 
-		shlvs := s.shelfService.AllShelves
+		shlvs := msg.Shelves
 		items := make([]list.Item, len(shlvs))
 
 		for i, sh := range shlvs {
 			items[i] = shelf.New(sh, s.logger)
 		}
+
 		s.shelves.SetItems(items)
 
-		playlists := s.playlistService.AllPlaylists
+		return s, nil
+
+	case tcmds.PlaylistsLoadedMsg:
+		s.logger.Debug("refreshing playlists from service")
+
+		playlists := msg.Playlists
 		playlistItems := make([]list.Item, len(playlists))
+
 		for i, p := range playlists {
 			playlistItems[i] = tplaylist.New(p)
 		}
+
 		s.playlists.SetItems(playlistItems)
 
 		return s, nil
 
 	case tea.KeyMsg:
-		s.logger.Debug("key pressed",
-			slog.String("key", msg.String()),
-		)
-
 		switch {
 		case key.Matches(msg, s.keys.SwitchFocus):
 			if s.focus == shelvesView {
@@ -133,30 +130,32 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, s.keys.NewShelf):
 			if s.focus == shelvesView {
 				s.logger.Debug("create shelf selected")
-				s.nextState = states.CreateShelf
-				return s, tea.Batch(cmds...)
+				return s, tcmds.WithNextState(states.CreateShelf, nil, nil)
 			} else {
 				s.logger.Debug("create playlist selected")
-				cmds = append(cmds, tcmds.GetAllTracksCmd(s.trackService.Tracks, s.logger))
-				s.nextState = states.CreatePlaylist
-				return s, tea.Batch(cmds...)
+				return s, tcmds.WithNextState(
+					states.CreatePlaylist,
+					nil,
+					[]tea.Cmd{tcmds.GetAllTracksCmd(s.trackService.Tracks, s.logger)},
+				)
 			}
 
 		case key.Matches(msg, s.keys.Select):
 			if s.focus == shelvesView {
 				if sel, ok := s.shelves.SelectedItem().(shelf.Model); ok {
-					s.logger.Debug("selected shelf", slog.Any("id", sel.ID()))
-					s.nextState = states.LoadedShelf
-					s.shelfService.CurrentShelf = sel.PhysicalShelf()
-					return s, tea.Batch(cmds...)
+					return s, tcmds.WithNextState(
+						states.LoadedShelf,
+						nil,
+						[]tea.Cmd{shelf.WithPhysicalShelf(sel.PhysicalShelf())},
+					)
 				}
-				s.logger.Warn("somehow a shelf was selected that wasn't a shelf.Model")
-				return s, tea.Batch(cmds...)
 			} else {
 				if sel, ok := s.playlists.SelectedItem().(tplaylist.Model); ok {
-					s.playlistService.CurrentPlaylist = sel.PhysicalPlaylist()
-					s.nextState = states.LoadedPlaylist
-					return s, nil
+					return s, tcmds.WithNextState(
+						states.LoadedPlaylist,
+						nil,
+						[]tea.Cmd{playlist.WithPhysicalPlaylist(sel.PhysicalPlaylist())},
+					)
 				}
 			}
 		}

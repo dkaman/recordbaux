@@ -1,6 +1,8 @@
 package mainmenu
 
 import (
+	"log/slog"
+
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
@@ -33,6 +35,11 @@ func (s MainMenuState) renderModel() string {
 
 	s.shelves.SetSize(boxW-2, boxH-2)
 	s.playlists.SetSize(boxW-2, boxH-2)
+
+	s.logger.Debug("box dims",
+		slog.Any("width", s.width),
+		slog.Any("height", s.height),
+	)
 
 	var shelfBoxStyle, playlistBoxStyle lipgloss.Style
 

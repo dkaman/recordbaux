@@ -9,12 +9,14 @@ import (
 // Model is a wrapper for a track entity for use in the TUI.
 type Model struct {
 	physicalTrack *track.Entity
+	Selected      bool
 }
 
 // New creates a new track model.
 func New(t *track.Entity) Model {
 	return Model{
 		physicalTrack: t,
+		Selected:      false,
 	}
 }
 

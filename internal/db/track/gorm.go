@@ -16,7 +16,8 @@ func NewRepo(db *gorm.DB) (*Repo, error) {
 // All returns every shelf.Entity stored in the database.
 func (r *Repo) All() ([]*Entity, error) {
 	var tracks []*Entity
-	err := r.db.Find(&tracks).Error
+	err := r.db.
+		Find(&tracks).Error
 
 	if err != nil {
 		return nil, err
@@ -28,7 +29,8 @@ func (r *Repo) All() ([]*Entity, error) {
 // Get looks up a shelf.Entity by its ID.
 func (r *Repo) Get(id uint) (*Entity, error) {
 	var t Entity
-	err := r.db.First(&t, "id = ?", id).Error
+	err := r.db.
+		First(&t, "id = ?", id).Error
 
 	if err != nil {
 		return nil, err

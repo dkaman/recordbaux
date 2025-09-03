@@ -8,7 +8,7 @@ type keyMap struct {
 	Select      key.Binding
 	NewShelf    key.Binding
 	SwitchFocus key.Binding
-	Edit      key.Binding
+	Edit        key.Binding
 	Delete      key.Binding
 }
 

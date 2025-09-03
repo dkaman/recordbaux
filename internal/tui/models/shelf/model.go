@@ -79,7 +79,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 
 	case LoadShelfMsg:
-		m = m.loadPhysicalShelf(msg.phy)
+		m = m.loadPhysicalShelf(msg.Phy)
 	}
 
 	return m, tea.Batch(cmds...)

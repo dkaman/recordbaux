@@ -1,28 +1,36 @@
 package createplaylist
-
 import (
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
-
-
 func (s CreatePlaylistState) renderModel() string {
 	canvas := lipgloss.NewCanvas()
-
-	var tracksLayer *lipgloss.Layer
-
-	if len(s.table.Rows()) == 0 {
-		tracksLayer = lipgloss.NewLayer("no tracks defined, load some into a shelf...")
-	} else {
-		s.table.SetWidth(s.width)
-		s.table.SetHeight(s.height)
-		tracksLayer = lipgloss.NewLayer(s.table.View())
-	}
-
+	tracksLayer := lipgloss.NewLayer(s.list.View())
 	canvas.AddLayers(tracksLayer.
 		Width(s.width).
 		Height(s.height).
 		X(0).Y(0),
 	)
+
+	if s.namingPlaylist {
+		formView := s.nameForm.View()
+
+		formW := s.width / 8
+		formH := 5
+
+		formStyle := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			Width(formW).
+			Height(formH)
+
+		formLayer := lipgloss.NewLayer(formStyle.Render(formView))
+
+		formX := (s.width - formW) / 2
+		formY := (s.height - formH) / 2
+
+		canvas.AddLayers(formLayer.
+			X(formX).Y(formY).Z(1),
+		)
+	}
 
 	return canvas.Render()
 }

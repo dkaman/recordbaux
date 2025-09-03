@@ -5,7 +5,8 @@ import (
 )
 
 type Entity struct {
-	ID       uint `gorm:"primaryKey"`
+	ID uint `gorm:"primaryKey"`
+
 	RecordID uint `gorm:"index"`
 
 	Duration string

@@ -92,11 +92,13 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.logger.Debug("new shelf", slog.Any("shelf", newShelf))
 
-		cmds = append(cmds, tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger))
-
 		s.createShelfForm = newShelfCreateForm()
 
-		s.nextState = states.MainMenu
+		return s, tcmds.WithNextState(
+			states.MainMenu,
+			[]tea.Cmd{tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger)},
+			nil,
+		)
 	}
 
 	return s, tea.Batch(cmds...)

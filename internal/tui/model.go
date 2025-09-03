@@ -20,7 +20,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	kfmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
 
@@ -129,58 +128,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.helpVisible = !m.helpVisible
 			return m, nil
 		}
-
-	// we're going to handle all db messages in root
-	case tcmds.ShelfSavedMsg:
-		if msg.Err != nil {
-			m.logger.Error("error saving shelf",
-				slog.String("error", msg.Err.Error()),
-			)
-		}
-
-	case tcmds.ShelfLoadedMsg:
-		if err := msg.Err; err != nil {
-			m.logger.Error("error loading shelf",
-				slog.String("error", err.Error()),
-			)
-			return m, tea.Batch(cmds...)
-		}
-
-		m.shelfService.CurrentShelf = msg.Shelf
-
-	case tcmds.ShelvesLoadedMsg:
-		if err := msg.Err; err != nil {
-			m.logger.Error("error loading all shelves",
-				slog.String("error", err.Error()),
-			)
-			return m, tea.Batch(cmds...)
-		}
-
-		m.shelfService.AllShelves = msg.Shelves
-
-	case tcmds.ShelfDeletedMsg:
-		if err := msg.Err; err != nil {
-			m.logger.Error("error deleting shelf",
-				slog.String("error", err.Error()),
-			)
-		}
-
-	case tcmds.AllTracksLoadedMsg:
-		if err := msg.Err; err != nil {
-			m.logger.Error("error loading all tracks",
-				slog.String("error", err.Error()),
-			)
-		}
-
-		m.trackService.AllTracks = msg.Tracks
-
-	case tcmds.PlaylistsLoadedMsg:
-		if err := msg.Err; err != nil {
-			m.logger.Error("error loading all playlists",
-				slog.String("error", err.Error()),
-			)
-		}
-		m.playlistService.AllPlaylists = msg.Playlists
 	}
 
 	// update state machine

@@ -8,13 +8,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
-
-type refreshMsg struct{}
 
 type LoadedShelfState struct {
 	shelfService *services.ShelfService
@@ -42,13 +42,7 @@ func New(s *services.ShelfService, log *slog.Logger) LoadedShelfState {
 
 func (s LoadedShelfState) Init() tea.Cmd {
 	s.logger.Debug("loadedshelf state init")
-	return s.refresh()
-}
-
-func (s LoadedShelfState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshMsg{}
-	}
+	return nil
 }
 
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -58,8 +52,8 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
 
-	case refreshMsg:
-		sh := s.shelfService.CurrentShelf
+	case shelf.LoadShelfMsg:
+		sh := msg.Phy
 
 		s.shelf = shelf.New(sh, s.logger).
 			SetSize(s.width, s.height).
@@ -81,22 +75,22 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.shelf = s.shelf.SelectPrevBin()
 
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = states.MainMenu
+			return s, tcmds.WithNextState(states.MainMenu, nil, nil)
 
 		case key.Matches(msg, s.keys.Load):
-			s.logger.Debug("loading colleciton",
-				slog.Any("shelf", s.shelf.PhysicalShelf()),
+			return s, tcmds.WithNextState(
+				states.LoadCollection,
+				nil,
+				[]tea.Cmd{shelf.WithPhysicalShelf(s.shelf.PhysicalShelf())},
 			)
-
-			s.nextState = states.LoadCollection
 
 		case msg.String() == "enter":
-			s.logger.Debug("bin selected",
-				slog.Any("bin", s.shelf.GetSelectedBin().PhysicalBin()),
+			b := s.shelf.GetSelectedBin().PhysicalBin()
+			return s, tcmds.WithNextState(
+				states.LoadedBin,
+				nil,
+				[]tea.Cmd{bin.WithPhysicalBin(b)},
 			)
-
-			s.shelfService.CurrentBin = s.shelf.GetSelectedBin().PhysicalBin()
-			s.nextState = states.LoadedBin
 		}
 	}
 

@@ -17,9 +17,8 @@ import (
 
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	tshelf "github.com/dkaman/recordbaux/internal/tui/models/shelf"
 )
-
-type refreshMsg struct{}
 
 type loadNextMsg struct{}
 
@@ -64,13 +63,7 @@ func New(s *services.ShelfService, log *slog.Logger, d *discogs.Client) FetchFro
 }
 
 func (s FetchFromDiscogsState) Init() tea.Cmd {
-	return s.refresh()
-}
-
-func (s FetchFromDiscogsState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshMsg{}
-	}
+	return nil
 }
 
 func (s FetchFromDiscogsState) loadNextRecord() tea.Cmd {
@@ -87,8 +80,8 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width = msg.Width
 		s.height = msg.Height
 
-	case refreshMsg:
-		s.shelf = s.shelfService.CurrentShelf
+	case tshelf.LoadShelfMsg:
+		s.shelf = msg.Phy
 		return s, nil
 
 	case tcmds.NewDiscogsCollectionMsg:
@@ -125,8 +118,12 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Loop is finished. Finalize and prepare to transition state.
 		s.logger.Debug("finished processing all releases")
 		s.releases = nil
-		s.nextState = states.LoadedShelf
-		return s, tcmds.GetShelfCmd(s.shelfService.Shelves, s.shelf.ID, s.logger)
+
+		return s, tcmds.WithNextState(
+			states.LoadedShelf,
+			nil,
+			[]tea.Cmd{tcmds.GetShelfCmd(s.shelfService.Shelves, s.shelf.ID, s.logger)},
+		)
 
 	// Step 3: Receives the fully hydrated record from the enrichment command.
 	case tcmds.NewDiscogsEnrichRecordMsg:
@@ -144,10 +141,12 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Insert the hydrated record into the in-memory shelf object.
 		s.shelf.Insert(msg.Record)
 		s.logger.Debug("received record and inserted", slog.Any("record", msg.Record))
-		s.shelfService.CurrentShelf = s.shelf
 
 		// Dispatch a command to save the updated shelf to the database.
-		return s, tcmds.SaveShelfCmd(s.shelfService.Shelves, s.shelf, s.logger)
+		return s, tea.Batch(
+			tcmds.SaveShelfCmd(s.shelfService.Shelves, s.shelf, s.logger),
+			tshelf.WithPhysicalShelf(s.shelf),
+		)
 
 	// Step 4: Receives confirmation that the shelf was saved.
 	case tcmds.ShelfSavedMsg:

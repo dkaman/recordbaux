@@ -15,10 +15,9 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
 )
-
-type refreshLoadedBinMsg struct{}
 
 type LoadedBinState struct {
 	shelfService *services.ShelfService
@@ -50,9 +49,7 @@ func New(s *services.ShelfService, log *slog.Logger) LoadedBinState {
 
 func (s LoadedBinState) Init() tea.Cmd {
 	s.logger.Debug("loadedbin state init")
-	return func() tea.Msg {
-		return refreshLoadedBinMsg{}
-	}
+	return nil
 }
 
 func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -68,8 +65,8 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		processedMsg = tea.WindowSizeMsg{Width: w/2, Height: h}
 
-	case refreshLoadedBinMsg:
-		s.bin = bin.New(s.shelfService.CurrentBin, bin.Style{})
+	case bin.LoadBinMsg:
+		s.bin = bin.New(msg.Phy, bin.Style{})
 
 		columns := []table.Column{
 			{Title: "catalog no.", Width: 15},
@@ -99,8 +96,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			s.nextState = states.LoadedShelf
-			return s, tea.Batch(cmds...)
+			return s, tcmds.WithNextState(states.LoadedShelf, nil, nil)
 		}
 	}
 
