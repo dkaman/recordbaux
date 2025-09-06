@@ -17,8 +17,8 @@ import (
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
-	shelfService    *services.ShelfService
 	nextState       states.StateType
+	svcs            *services.AllServices
 	discogsClient   *discogs.Client
 	discogsUsername string
 	logger          *slog.Logger
@@ -28,13 +28,13 @@ type LoadCollectionState struct {
 	width, height    int
 }
 
-func New(s *services.ShelfService, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
+func New(svcs *services.AllServices, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
 	logger := log.WithGroup("loadcollectionstate")
 
 	f := newFolderSelectForm(client, username)
 
 	return LoadCollectionState{
-		shelfService:     s,
+		svcs:             svcs,
 		nextState:        states.Undefined,
 		discogsClient:    client,
 		discogsUsername:  username,

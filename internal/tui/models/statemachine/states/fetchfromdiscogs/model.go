@@ -23,9 +23,9 @@ import (
 type loadNextMsg struct{}
 
 type FetchFromDiscogsState struct {
-	shelfService *services.ShelfService
-	nextState    states.StateType
-	logger       *slog.Logger
+	svcs      *services.AllServices
+	nextState states.StateType
+	logger    *slog.Logger
 
 	spinner  spinner.Model
 	progress progress.Model
@@ -42,7 +42,7 @@ type FetchFromDiscogsState struct {
 	currentTitle  string
 }
 
-func New(s *services.ShelfService, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
+func New(svcs *services.AllServices, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
 	logGroup := log.WithGroup("fetchfromdiscogsstate")
 
 	sp := spinner.New()
@@ -52,7 +52,7 @@ func New(s *services.ShelfService, log *slog.Logger, d *discogs.Client) FetchFro
 	prg := progress.New(progress.WithDefaultGradient())
 
 	return FetchFromDiscogsState{
-		shelfService:  s,
+		svcs:          svcs,
 		nextState:     states.Undefined,
 		logger:        logGroup,
 		spinner:       sp,
@@ -122,7 +122,7 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, tcmds.WithNextState(
 			states.LoadedShelf,
 			nil,
-			[]tea.Cmd{tcmds.GetShelfCmd(s.shelfService.Shelves, s.shelf.ID, s.logger)},
+			[]tea.Cmd{s.svcs.GetShelfCmd(s.shelf.ID)},
 		)
 
 	// Step 3: Receives the fully hydrated record from the enrichment command.
@@ -144,12 +144,12 @@ func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Dispatch a command to save the updated shelf to the database.
 		return s, tea.Batch(
-			tcmds.SaveShelfCmd(s.shelfService.Shelves, s.shelf, s.logger),
+			s.svcs.SaveShelfCmd(s.shelf),
 			tshelf.WithPhysicalShelf(s.shelf),
 		)
 
 	// Step 4: Receives confirmation that the shelf was saved.
-	case tcmds.ShelfSavedMsg:
+	case services.ShelfSavedMsg:
 		if msg.Err != nil {
 			s.logger.Error("failed to save shelf", slog.String("error", msg.Err.Error()))
 			// Depending on desired behavior, you could stop or just log and continue.

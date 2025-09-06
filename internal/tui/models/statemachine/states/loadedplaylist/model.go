@@ -19,8 +19,7 @@ import (
 )
 
 type PlaylistLoadedState struct {
-	playlistService *services.PlaylistService
-	recordService   *services.RecordService
+	svcs *services.AllServices
 	nextState       states.StateType
 	keys            keyMap
 	logger          *slog.Logger
@@ -28,7 +27,7 @@ type PlaylistLoadedState struct {
 	width, height   int
 }
 
-func New(p *services.PlaylistService, r *services.RecordService, log *slog.Logger) PlaylistLoadedState {
+func New(svcs *services.AllServices, log *slog.Logger) PlaylistLoadedState {
 	columns := []table.Column{
 		{Title: "Position", Width: 10},
 		{Title: "Title", Width: 50},
@@ -41,8 +40,7 @@ func New(p *services.PlaylistService, r *services.RecordService, log *slog.Logge
 
 	return PlaylistLoadedState{
 		nextState: states.Undefined,
-		playlistService: p,
-		recordService:   r,
+		svcs: svcs,
 		keys:            defaultKeybinds(),
 		logger:          log.WithGroup("playlistloaded"),
 		trackTable:      tbl,
@@ -80,12 +78,12 @@ func (s PlaylistLoadedState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, s.keys.Back):
 			return s, tcmds.WithNextState(states.MainMenu, nil, nil)
-		case key.Matches(msg, s.keys.Checkout):
-			s.logger.Info("checking out playlist")
-			playlist := s.playlistService.CurrentPlaylist
-			if playlist != nil && len(playlist.Tracks) > 0 {
-				return s, tcmds.CheckoutPlaylistCmd(s.recordService.Records, playlist, s.logger)
-			}
+		// case key.Matches(msg, s.keys.Checkout):
+		// 	s.logger.Info("checking out playlist")
+		// 	playlist := s.playlistService.CurrentPlaylist
+		// 	if playlist != nil && len(playlist.Tracks) > 0 {
+		// 		return s, tcmds.CheckoutPlaylistCmd(s.recordService.Records, playlist, s.logger)
+		// 	}
 		}
 	}
 

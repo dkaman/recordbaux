@@ -20,11 +20,11 @@ import (
 )
 
 type LoadedBinState struct {
-	shelfService *services.ShelfService
-	nextState    states.StateType
-	bin          bin.Model
-	keys         keyMap
-	logger       *slog.Logger
+	svcs      *services.AllServices
+	nextState states.StateType
+	bin       bin.Model
+	keys      keyMap
+	logger    *slog.Logger
 
 	records        table.Model
 	selectedRecord record.Model
@@ -32,18 +32,18 @@ type LoadedBinState struct {
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(s *services.ShelfService, log *slog.Logger) LoadedBinState {
+func New(svcs *services.AllServices, log *slog.Logger) LoadedBinState {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
 	t := table.New()
 
 	return LoadedBinState{
-		shelfService: s,
-		nextState:    states.Undefined,
-		keys:         defaultKeybinds(),
-		logger:       log.WithGroup("loadedbin"),
-		records:      t,
+		svcs:      svcs,
+		nextState: states.Undefined,
+		keys:      defaultKeybinds(),
+		logger:    log.WithGroup("loadedbin"),
+		records:   t,
 	}
 }
 
@@ -63,7 +63,7 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width = w
 		s.height = h
 
-		processedMsg = tea.WindowSizeMsg{Width: w/2, Height: h}
+		processedMsg = tea.WindowSizeMsg{Width: w / 2, Height: h}
 
 	case bin.LoadBinMsg:
 		s.bin = bin.New(msg.Phy, bin.Style{})

@@ -40,7 +40,7 @@ type Model struct {
 	width, height int
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, r *services.RecordService, c *config.Config, log *slog.Logger) (Model, error) {
+func New(svcs *services.AllServices, c *config.Config, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
 
 	m := Model{
@@ -57,14 +57,14 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 	}
 
 	m.allStates = map[states.StateType]states.State{
-		states.MainMenu:         mms.New(s, t, p, log),
-		states.CreateShelf:      css.New(s, log),
-		states.LoadedShelf:      lss.New(s, log),
-		states.LoadCollection:   lcs.New(s, log, discogsClient, discogsUsername),
-		states.LoadedBin:        lbs.New(s, log),
-		states.FetchFromDiscogs: ffd.New(s, log, discogsClient),
-		states.CreatePlaylist:   cps.New(s, t, p, log),
-		states.LoadedPlaylist:   lps.New(p, r, log),
+		states.MainMenu:         mms.New(svcs, log),
+		states.CreateShelf:      css.New(svcs, log),
+		states.LoadedShelf:      lss.New(svcs, log),
+		states.LoadCollection:   lcs.New(svcs, log, discogsClient, discogsUsername),
+		states.LoadedBin:        lbs.New(svcs, log),
+		states.FetchFromDiscogs: ffd.New(svcs, log, discogsClient),
+		states.CreatePlaylist:   cps.New(svcs, log),
+		states.LoadedPlaylist:   lps.New(svcs, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]

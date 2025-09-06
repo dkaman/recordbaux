@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
@@ -27,10 +27,8 @@ const (
 )
 
 type MainMenuState struct {
-	shelfService    *services.ShelfService
-	trackService    *services.TrackService
-	playlistService *services.PlaylistService
-	nextState       states.StateType
+	svcs      *services.AllServices
+	nextState states.StateType
 
 	keys keyMap
 
@@ -41,7 +39,7 @@ type MainMenuState struct {
 	width, height int
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, log *slog.Logger) MainMenuState {
+func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
 
 	// Shelves List
@@ -57,15 +55,13 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 	playlistList.Styles = style.DefaultListStyles()
 
 	return MainMenuState{
-		shelfService:    s,
-		trackService:    t,
-		playlistService: p,
-		keys:            defaultKeybinds(),
-		shelves:         shelfList,
-		playlists:       playlistList,
-		logger:          log,
-		focus:           shelvesView,
-		nextState:       states.Undefined,
+		svcs:      svcs,
+		keys:      defaultKeybinds(),
+		shelves:   shelfList,
+		playlists: playlistList,
+		logger:    log,
+		focus:     shelvesView,
+		nextState: states.Undefined,
 	}
 }
 
@@ -75,8 +71,8 @@ func (s MainMenuState) Init() tea.Cmd {
 	)
 
 	return tea.Sequence(
-		tcmds.GetAllShelvesCmd(s.shelfService.Shelves, s.logger),
-		tcmds.GetAllPlaylistsCmd(s.playlistService.Playlists, s.logger),
+		s.svcs.GetAllShelvesCmd(),
+		s.svcs.GetAllPlaylistsCmd(),
 	)
 }
 
@@ -88,7 +84,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width, s.height = msg.Width, msg.Height
 		return s, nil
 
-	case tcmds.ShelvesLoadedMsg:
+	case services.ShelvesLoadedMsg:
 		s.logger.Debug("refreshing shelves from service")
 
 		shlvs := msg.Shelves
@@ -102,7 +98,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return s, nil
 
-	case tcmds.PlaylistsLoadedMsg:
+	case services.PlaylistsLoadedMsg:
 		s.logger.Debug("refreshing playlists from service")
 
 		playlists := msg.Playlists
@@ -136,7 +132,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return s, tcmds.WithNextState(
 					states.CreatePlaylist,
 					nil,
-					[]tea.Cmd{tcmds.GetAllTracksCmd(s.trackService.Tracks, s.logger)},
+					[]tea.Cmd{s.svcs.GetAllTracksCmd()},
 				)
 			}
 

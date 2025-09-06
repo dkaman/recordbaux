@@ -99,35 +99,30 @@ func (m Model) View() string {
 	canvas := lipgloss.NewCanvas()
 
 	// Calculate height for each section to divide the screen
-	availableHeight := m.height
-	sectionHeight := availableHeight / 3
+	sectionHeight := m.height / 3
 
 	// --- Render Record Info Card ---
-	recordInfoCard := m.renderRecordInfoCard()
+	recordInfoCard := m.renderRecordInfoCard(m.width, sectionHeight)
 
 	// --- Render Tracklist Table ---
+	m.tracklistTable.SetWidth(m.width)
+	m.tracklistTable.SetHeight(sectionHeight)
 	tracklistTable := m.tracklistTable.View()
 
-	// --- Render Track Info Card ---
-	trackInfoCard := m.renderTrackInfoCard()
+	// // --- Render Track Info Card ---
+	// trackInfoCard := m.renderTrackInfoCard(m.width, sectionHeight)
 
 	recordCard := lipgloss.NewLayer(recordInfoCard)
 	tracklist := lipgloss.NewLayer(tracklistTable)
-	trackInfo := lipgloss.NewLayer(trackInfoCard)
+	// trackInfo := lipgloss.NewLayer(trackInfoCard)
 
 	canvas.AddLayers(
 		recordCard.
-			Width(m.width).
-			Height(sectionHeight).
 			X(0).Y(0),
 		tracklist.
-			Width(m.width).
-			Height(sectionHeight).
 			X(0).Y(sectionHeight),
-		trackInfo.
-			Width(m.width).
-			Height(sectionHeight).
-			X(0).Y(2*sectionHeight),
+		// trackInfo.
+		// 	X(0).Y(2*sectionHeight),
 	)
 
 	return canvas.Render()
@@ -141,7 +136,7 @@ func (m Model) SetSize(w, h int) Model {
 }
 
 // renderRecordInfoCard formats the record data into a string for the UI.
-func (m Model) renderRecordInfoCard() string {
+func (m Model) renderRecordInfoCard(w, h int) string {
 	var s strings.Builder
 	s.WriteString("Record Card\n\n") // Add a title
 	s.WriteString(fmt.Sprintf("Title: %s\n", m.physicalRecord.Title))
@@ -149,14 +144,27 @@ func (m Model) renderRecordInfoCard() string {
 	s.WriteString(fmt.Sprintf("Catalog Number: %s\n", m.physicalRecord.CatalogNumber))
 	s.WriteString(fmt.Sprintf("physical location: %s\n", m.physicalRecord.Coordinate))
 
-	return s.String()
+	sty := lipgloss.NewStyle().
+		Width(w).
+		Height(h).
+		Align(lipgloss.Center)
+
+	return sty.Render(s.String())
 }
 
 // renderTrackInfoCard formats a single track's data for the UI.
-func (m Model) renderTrackInfoCard() string {
+func (m Model) renderTrackInfoCard(w, h int) string {
 	if len(m.physicalRecord.Tracklist) == 0 {
 		return "No track info available."
 	}
 	t := m.physicalRecord.Tracklist[m.tracklistTable.Cursor()]
-	return fmt.Sprintf("Track Info Card\n\nTitle: %s\nArtist: %s\nDuration: %s", t.Title, m.physicalRecord.Artists[0], t.Duration)
+
+	card := fmt.Sprintf("Track Info Card\n\nTitle: %s\nArtist: %s\nDuration: %s", t.Title, m.physicalRecord.Artists[0], t.Duration)
+
+	sty := lipgloss.NewStyle().
+		Width(w).
+		Height(h).
+		Align(lipgloss.Center)
+
+	return sty.Render(card)
 }

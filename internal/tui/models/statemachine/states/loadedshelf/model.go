@@ -17,26 +17,26 @@ import (
 )
 
 type LoadedShelfState struct {
-	shelfService *services.ShelfService
-	keys         keyMap
-	nextState    states.StateType
+	svcs      *services.AllServices
+	keys      keyMap
+	nextState states.StateType
 
 	shelf       shelf.Model
 	selectedBin int
 
-	logger *slog.Logger
+	logger        *slog.Logger
 	width, height int
 }
 
 // New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(s *services.ShelfService, log *slog.Logger) LoadedShelfState {
+func New(svcs *services.AllServices, log *slog.Logger) LoadedShelfState {
 	logGroup := log.WithGroup(states.LoadedShelf.String())
 
 	return LoadedShelfState{
-		shelfService: s,
-		keys:         defaultKeybinds(),
-		nextState:    states.Undefined,
-		logger:       logGroup,
+		svcs:      svcs,
+		keys:      defaultKeybinds(),
+		nextState: states.Undefined,
+		logger:    logGroup,
 	}
 }
 

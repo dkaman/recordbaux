@@ -3,8 +3,8 @@ package createshelf
 import (
 	"log/slog"
 
-	huh "github.com/charmbracelet/huh/v2"
 	tea "github.com/charmbracelet/bubbletea/v2"
+	huh "github.com/charmbracelet/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
@@ -17,20 +17,20 @@ import (
 type refreshMsg struct{}
 
 type CreateShelfState struct {
-	shelfService    *services.ShelfService
+	svcs            *services.AllServices
 	createShelfForm *form
 	nextState       states.StateType
 	logger          *slog.Logger
 
-	width, height   int
+	width, height int
 }
 
-func New(s *services.ShelfService, log *slog.Logger) CreateShelfState {
+func New(svcs *services.AllServices, log *slog.Logger) CreateShelfState {
 	f := newShelfCreateForm()
 	logger := log.WithGroup("createshelfstate")
 
 	return CreateShelfState{
-		shelfService:    s,
+		svcs:            svcs,
 		nextState:       states.Undefined,
 		createShelfForm: f,
 		logger:          logger,
@@ -96,7 +96,7 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return s, tcmds.WithNextState(
 			states.MainMenu,
-			[]tea.Cmd{tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger)},
+			[]tea.Cmd{s.svcs.SaveShelfCmd(newShelf)},
 			nil,
 		)
 	}

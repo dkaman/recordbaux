@@ -11,11 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
-	"github.com/dkaman/recordbaux/internal/db"
-	"github.com/dkaman/recordbaux/internal/db/playlist"
-	"github.com/dkaman/recordbaux/internal/db/record"
-	"github.com/dkaman/recordbaux/internal/db/shelf"
-	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -29,13 +24,10 @@ var (
 
 type Model struct {
 	// global application config/state
-	cfg             *config.Config
-	shelfService    *services.ShelfService
-	trackService    *services.TrackService
-	playlistService *services.PlaylistService
-	recordService   *services.RecordService
-	keys            keyMap
-	logger          *slog.Logger
+	cfg    *config.Config
+	svcs   *services.AllServices
+	keys   keyMap
+	logger *slog.Logger
 
 	// tea models
 	stateMachine statemachine.Model
@@ -48,7 +40,7 @@ type Model struct {
 	width, height int
 }
 
-func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t db.Repository[*track.Entity], p db.Repository[*playlist.Entity], r db.Repository[*record.Entity]) (Model, error) {
+func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model, error) {
 	var m Model
 
 	if log == nil {
@@ -58,28 +50,20 @@ func New(c *config.Config, log *slog.Logger, s db.Repository[*shelf.Entity], t d
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
-	shelfService := services.NewShelfService(s)
-	trackService := services.NewTrackService(t)
-	playlistService := services.NewPlaylistService(p)
-	recordService := services.NewRecordService(r)
-
-	sm, err := statemachine.New(shelfService, trackService, playlistService, recordService, c, log)
+	sm, err := statemachine.New(svcs, c, log)
 	if err != nil {
 		return m, fmt.Errorf("error creating state machine: %w", err)
 	}
 
 	m = Model{
-		cfg:             c,
-		shelfService:    shelfService,
-		trackService:    trackService,
-		playlistService: playlistService,
-		recordService:   recordService,
-		keys:            defaultKeybinds(),
-		helpVisible:     false,
-		stateMachine:    sm,
-		logger:          log.WithGroup("root"),
-		topBarText:      "recordbaux - organize your record collection",
-		statusBarText:   fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()),
+		cfg:           c,
+		svcs:          svcs,
+		keys:          defaultKeybinds(),
+		helpVisible:   false,
+		stateMachine:  sm,
+		logger:        log.WithGroup("root"),
+		topBarText:    "recordbaux - organize your record collection",
+		statusBarText: fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType()),
 	}
 
 	return m, nil

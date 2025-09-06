@@ -21,20 +21,18 @@ import (
 
 type CreatePlaylistState struct {
 	nextState states.StateType
-	shelves   *services.ShelfService
-	tracks    *services.TrackService
+	svcs      *services.AllServices
 	logger    *slog.Logger
 	keys      keyMap
 	list      list.Model
 
-	playlists      *services.PlaylistService
 	namingPlaylist bool
 	nameForm       *form
 	playlistName   string
 	width, height  int
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, log *slog.Logger) CreatePlaylistState {
+func New(svcs *services.AllServices, log *slog.Logger) CreatePlaylistState {
 	logger := log.WithGroup("createplayliststate")
 
 	delegate := trackDelegate{}
@@ -44,9 +42,7 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 
 	return CreatePlaylistState{
 		nextState: states.Undefined,
-		shelves:   s,
-		tracks:    t,
-		playlists: p,
+		svcs:      svcs,
 		logger:    logger,
 		list:      trackList,
 		keys:      defaultKeybinds(),
@@ -80,7 +76,7 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					newPlaylist.Tracks = append(newPlaylist.Tracks, trackModel.PhysicalTrack())
 				}
 			}
-			cmds = append(cmds, tcmds.SavePlaylistCmd(s.playlists.Playlists, newPlaylist, s.logger))
+			cmds = append(cmds, s.svcs.SavePlaylistCmd(newPlaylist))
 
 			items := s.list.Items()
 			for i, item := range items {
@@ -110,7 +106,7 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return s, nil
 
-	case tcmds.AllTracksLoadedMsg:
+	case services.AllTracksLoadedMsg:
 		s.logger.Debug("refreshing tracks from service")
 		tracks := msg.Tracks
 		items := make([]list.Item, len(tracks))
