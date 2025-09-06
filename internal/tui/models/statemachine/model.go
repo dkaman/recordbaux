@@ -112,7 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// park the old state instance
 		if s, ok := m.currentState.(states.State); ok {
-			m.allStates[m.currentStateType] = s.Transition()
+			m.allStates[m.currentStateType] = s
 		}
 
 		m.currentState = m.allStates[next]

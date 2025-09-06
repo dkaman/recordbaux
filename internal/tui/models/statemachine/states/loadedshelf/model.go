@@ -35,7 +35,6 @@ func New(svcs *services.AllServices, log *slog.Logger) LoadedShelfState {
 	return LoadedShelfState{
 		svcs:      svcs,
 		keys:      defaultKeybinds(),
-		nextState: states.Undefined,
 		logger:    logGroup,
 	}
 }
@@ -109,17 +108,4 @@ func (s LoadedShelfState) View() string {
 
 func (s LoadedShelfState) Help() string {
 	return keyFmt.FmtKeymap(s.keys.ShortHelp())
-}
-
-func (s LoadedShelfState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s LoadedShelfState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

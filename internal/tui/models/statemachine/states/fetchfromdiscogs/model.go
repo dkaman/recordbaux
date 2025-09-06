@@ -24,7 +24,6 @@ type loadNextMsg struct{}
 
 type FetchFromDiscogsState struct {
 	svcs      *services.AllServices
-	nextState states.StateType
 	logger    *slog.Logger
 
 	spinner  spinner.Model
@@ -53,7 +52,6 @@ func New(svcs *services.AllServices, log *slog.Logger, d *discogs.Client) FetchF
 
 	return FetchFromDiscogsState{
 		svcs:          svcs,
-		nextState:     states.Undefined,
 		logger:        logGroup,
 		spinner:       sp,
 		progress:      prg,
@@ -185,17 +183,4 @@ func (s FetchFromDiscogsState) View() string {
 
 func (s FetchFromDiscogsState) Help() string {
 	return "fetching collection from discogs"
-}
-
-func (s FetchFromDiscogsState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s FetchFromDiscogsState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

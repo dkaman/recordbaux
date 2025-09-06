@@ -19,7 +19,6 @@ type refreshMsg struct{}
 type CreateShelfState struct {
 	svcs            *services.AllServices
 	createShelfForm *form
-	nextState       states.StateType
 	logger          *slog.Logger
 
 	width, height int
@@ -31,7 +30,6 @@ func New(svcs *services.AllServices, log *slog.Logger) CreateShelfState {
 
 	return CreateShelfState{
 		svcs:            svcs,
-		nextState:       states.Undefined,
 		createShelfForm: f,
 		logger:          logger,
 	}
@@ -110,17 +108,4 @@ func (s CreateShelfState) View() string {
 
 func (s CreateShelfState) Help() string {
 	return "enter shelf details..."
-}
-
-func (s CreateShelfState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s CreateShelfState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

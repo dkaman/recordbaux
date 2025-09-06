@@ -20,7 +20,6 @@ import (
 )
 
 type CreatePlaylistState struct {
-	nextState states.StateType
 	svcs      *services.AllServices
 	logger    *slog.Logger
 	keys      keyMap
@@ -41,7 +40,6 @@ func New(svcs *services.AllServices, log *slog.Logger) CreatePlaylistState {
 	trackList.Title = "select tracks for new playlist"
 
 	return CreatePlaylistState{
-		nextState: states.Undefined,
 		svcs:      svcs,
 		logger:    logger,
 		list:      trackList,
@@ -169,16 +167,4 @@ func (s CreatePlaylistState) State() states.StateType {
 
 func (s CreatePlaylistState) Help() string {
 	return "create a playlist"
-}
-
-func (s CreatePlaylistState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-	return states.Undefined, false
-}
-
-func (s CreatePlaylistState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

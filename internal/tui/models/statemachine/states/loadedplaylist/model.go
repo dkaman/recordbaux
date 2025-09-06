@@ -20,7 +20,6 @@ import (
 
 type PlaylistLoadedState struct {
 	svcs *services.AllServices
-	nextState       states.StateType
 	keys            keyMap
 	logger          *slog.Logger
 	trackTable      table.Model
@@ -39,7 +38,6 @@ func New(svcs *services.AllServices, log *slog.Logger) PlaylistLoadedState {
 	tbl.SetStyles(style.DefaultTableStyles())
 
 	return PlaylistLoadedState{
-		nextState: states.Undefined,
 		svcs: svcs,
 		keys:            defaultKeybinds(),
 		logger:          log.WithGroup("playlistloaded"),
@@ -95,18 +93,6 @@ func (s PlaylistLoadedState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (s PlaylistLoadedState) View() string {
 	return s.renderModel()
-}
-
-func (s PlaylistLoadedState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-	return states.Undefined, false
-}
-
-func (s PlaylistLoadedState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }
 
 func (s PlaylistLoadedState) Help() string {

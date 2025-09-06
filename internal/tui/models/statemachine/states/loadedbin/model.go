@@ -21,7 +21,6 @@ import (
 
 type LoadedBinState struct {
 	svcs      *services.AllServices
-	nextState states.StateType
 	bin       bin.Model
 	keys      keyMap
 	logger    *slog.Logger
@@ -40,7 +39,6 @@ func New(svcs *services.AllServices, log *slog.Logger) LoadedBinState {
 
 	return LoadedBinState{
 		svcs:      svcs,
-		nextState: states.Undefined,
 		keys:      defaultKeybinds(),
 		logger:    log.WithGroup("loadedbin"),
 		records:   t,
@@ -128,17 +126,4 @@ func (s LoadedBinState) View() string {
 
 func (s LoadedBinState) Help() string {
 	return keyFmt.FmtKeymap(s.keys.ShortHelp())
-}
-
-func (s LoadedBinState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s LoadedBinState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

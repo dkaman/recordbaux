@@ -28,7 +28,6 @@ const (
 
 type MainMenuState struct {
 	svcs      *services.AllServices
-	nextState states.StateType
 
 	keys keyMap
 
@@ -61,7 +60,6 @@ func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
 		playlists: playlistList,
 		logger:    log,
 		focus:     shelvesView,
-		nextState: states.Undefined,
 	}
 }
 
@@ -171,19 +169,6 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (s MainMenuState) View() string {
 	return s.renderModel()
-}
-
-func (s MainMenuState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s MainMenuState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }
 
 func (s MainMenuState) Help() string {

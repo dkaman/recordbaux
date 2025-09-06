@@ -17,7 +17,6 @@ import (
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
-	nextState       states.StateType
 	svcs            *services.AllServices
 	discogsClient   *discogs.Client
 	discogsUsername string
@@ -35,7 +34,6 @@ func New(svcs *services.AllServices, log *slog.Logger, client *discogs.Client, u
 
 	return LoadCollectionState{
 		svcs:             svcs,
-		nextState:        states.Undefined,
 		discogsClient:    client,
 		discogsUsername:  username,
 		selectFolderForm: f,
@@ -98,17 +96,4 @@ func (s LoadCollectionState) View() string {
 
 func (s LoadCollectionState) Help() string {
 	return "select a discogs folder to load into this shelf..."
-}
-
-func (s LoadCollectionState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s LoadCollectionState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

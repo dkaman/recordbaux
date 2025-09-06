@@ -14,8 +14,6 @@ type State interface {
 	tea.Model
 	tea.ViewModel
 	helper
-	Next() (StateType, bool)
-	Transition() State
 }
 
 const (
