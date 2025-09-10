@@ -8,7 +8,9 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	discogs "github.com/dkaman/discogs-golang"
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
@@ -21,10 +23,12 @@ type LoadCollectionState struct {
 	discogsClient   *discogs.Client
 	discogsUsername string
 	logger          *slog.Logger
-	shelf           *shelf.Entity
+	handlers        *handlers.Registry
 
+	shelf            *shelf.Entity
 	selectFolderForm *form
-	width, height    int
+
+	width, height int
 }
 
 func New(svcs *services.AllServices, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
@@ -33,11 +37,13 @@ func New(svcs *services.AllServices, log *slog.Logger, client *discogs.Client, u
 	f := newFolderSelectForm(client, username)
 
 	return LoadCollectionState{
-		svcs:             svcs,
-		discogsClient:    client,
-		discogsUsername:  username,
+		svcs:            svcs,
+		discogsClient:   client,
+		discogsUsername: username,
+		logger:          logger,
+		handlers:        getHandlers(),
+
 		selectFolderForm: f,
-		logger:           logger,
 	}
 }
 
@@ -51,31 +57,27 @@ func (s LoadCollectionState) Init() tea.Cmd {
 func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tshelf.LoadShelfMsg:
-		s.shelf = msg.Phy
-		return s, nil
-
-	case tea.WindowSizeMsg:
-		s.width = msg.Width
-		s.height = msg.Height
-		return s, nil
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(LoadCollectionState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	fModel, formCmds := s.selectFolderForm.Update(msg)
-	if f, ok := fModel.(*form); ok {
-		s.selectFolderForm = f
-	}
-	cmds = append(cmds, formCmds)
+	var formCmd tea.Cmd
+	s.selectFolderForm, formCmd = util.UpdateModel(s.selectFolderForm, msg)
 
-	if s.selectFolderForm.State == huh.StateCompleted {
+	if s.selectFolderForm.Form.State == huh.StateCompleted {
 		folder := s.selectFolderForm.Folder()
 
 		s.logger.Debug("folder selected with form",
 			slog.Any("folder", folder),
 		)
 
-		return s, tcmds.WithNextState(
+		return s, tcmds.Transition(
 			states.FetchFromDiscogs,
 			nil,
 			[]tea.Cmd{
@@ -85,7 +87,8 @@ func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 	}
 
-	// No further key handling while form is present
+	cmds = append(cmds, formCmd)
+
 	return s, tea.Batch(cmds...)
 }
 

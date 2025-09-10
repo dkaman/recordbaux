@@ -1,13 +1,16 @@
 package tui
 
 import (
-
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 func (m Model) renderModel() string {
+	if !m.ready {
+		return "\n initializing..."
+	}
+
 	canvas := lipgloss.NewCanvas()
 
 	numBars := 2

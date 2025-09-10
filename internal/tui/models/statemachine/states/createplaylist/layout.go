@@ -4,6 +4,8 @@ import (
 )
 func (s CreatePlaylistState) renderModel() string {
 	canvas := lipgloss.NewCanvas()
+	s.list.SetWidth(s.width)
+	s.list.SetHeight(s.height)
 	tracksLayer := lipgloss.NewLayer(s.list.View())
 	canvas.AddLayers(tracksLayer.
 		Width(s.width).

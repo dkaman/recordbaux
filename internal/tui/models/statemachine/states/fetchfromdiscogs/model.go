@@ -12,19 +12,19 @@ import (
 	"github.com/dkaman/recordbaux/internal/db/record"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
-	tshelf "github.com/dkaman/recordbaux/internal/tui/models/shelf"
 )
 
 type loadNextMsg struct{}
 
 type FetchFromDiscogsState struct {
-	svcs      *services.AllServices
-	logger    *slog.Logger
+	svcs          *services.AllServices
+	logger        *slog.Logger
+	discogsClient *discogs.Client
+	handlers      *handlers.Registry
 
 	spinner  spinner.Model
 	progress progress.Model
@@ -34,11 +34,10 @@ type FetchFromDiscogsState struct {
 	currentIndex  int
 	totalReleases int
 	fetching      bool
-
-	discogsClient *discogs.Client
-	width, height int
 	pct           float64
 	currentTitle  string
+
+	width, height int
 }
 
 func New(svcs *services.AllServices, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
@@ -53,10 +52,12 @@ func New(svcs *services.AllServices, log *slog.Logger, d *discogs.Client) FetchF
 	return FetchFromDiscogsState{
 		svcs:          svcs,
 		logger:        logGroup,
-		spinner:       sp,
-		progress:      prg,
-		fetching:      true,
 		discogsClient: d,
+		handlers:      getHandlers(),
+
+		spinner:  sp,
+		progress: prg,
+		fetching: true,
 	}
 }
 
@@ -73,105 +74,14 @@ func (s FetchFromDiscogsState) loadNextRecord() tea.Cmd {
 func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		s.width = msg.Width
-		s.height = msg.Height
-
-	case tshelf.LoadShelfMsg:
-		s.shelf = msg.Phy
-		return s, nil
-
-	case tcmds.NewDiscogsCollectionMsg:
-		s.releases = msg.Releases
-		s.totalReleases = len(msg.Releases)
-		s.currentIndex = 0
-		s.fetching = false
-		s.pct = 0.0
-
-		s.logger.Debug("new discogs collection to process",
-			slog.Int("totalReleases", s.totalReleases),
-			slog.Int("currentIndex", s.currentIndex),
-		)
-
-		cmds = append(cmds,
-			s.progress.Init(),
-			s.loadNextRecord(),
-		)
-
-		return s, tea.Batch(cmds...)
-
-	// Step 2: Triggered internally to process the current record.
-	case loadNextMsg:
-		if s.currentIndex < s.totalReleases {
-			s.logger.Debug("enriching release",
-				slog.Any("release", s.releases[s.currentIndex].Title),
-				slog.Int("index", s.currentIndex),
-			)
-			// Dispatch a command to fetch detailed track info.
-			rec := s.releases[s.currentIndex]
-			return s, tcmds.EnrichReleaseInstance(s.discogsClient, rec)
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
 		}
-
-		// Loop is finished. Finalize and prepare to transition state.
-		s.logger.Debug("finished processing all releases")
-		s.releases = nil
-
-		return s, tcmds.WithNextState(
-			states.LoadedShelf,
-			nil,
-			[]tea.Cmd{s.svcs.GetShelfCmd(s.shelf.ID)},
-		)
-
-	// Step 3: Receives the fully hydrated record from the enrichment command.
-	case tcmds.NewDiscogsEnrichRecordMsg:
-		if msg.Err != nil {
-			s.logger.Error("failed to enrich record, skipping", slog.String("error", msg.Err.Error()))
-			// Skip this record and move to the next one.
-			s.currentIndex++
-			return s, s.loadNextRecord()
-		}
-
-		if s.currentIndex < len(s.releases) {
-			s.currentTitle = msg.Record.Title
-		}
-
-		// Insert the hydrated record into the in-memory shelf object.
-		s.shelf.Insert(msg.Record)
-		s.logger.Debug("received record and inserted", slog.Any("record", msg.Record))
-
-		// Dispatch a command to save the updated shelf to the database.
-		return s, tea.Batch(
-			s.svcs.SaveShelfCmd(s.shelf),
-			tshelf.WithPhysicalShelf(s.shelf),
-		)
-
-	// Step 4: Receives confirmation that the shelf was saved.
-	case services.ShelfSavedMsg:
-		if msg.Err != nil {
-			s.logger.Error("failed to save shelf", slog.String("error", msg.Err.Error()))
-			// Depending on desired behavior, you could stop or just log and continue.
-		}
-
-		// The save was successful, so now we can update the progress and process the next record.
-		s.currentIndex++
-		s.pct = float64(s.currentIndex) / float64(s.totalReleases)
-
-		cmds = append(cmds,
-			s.progress.SetPercent(s.pct),
-			s.loadNextRecord(),
-		)
-		return s, tea.Batch(cmds...)
-
-	case spinner.TickMsg:
-		if s.fetching {
-			var spinnerCmds tea.Cmd
-
-			s.spinner, spinnerCmds = s.spinner.Update(msg)
-			cmds = append(cmds, spinnerCmds)
-
-			return s, tea.Batch(cmds...)
-		}
+		s = model.(FetchFromDiscogsState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
 	return s, tea.Batch(cmds...)

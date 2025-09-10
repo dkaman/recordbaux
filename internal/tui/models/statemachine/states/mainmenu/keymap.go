@@ -10,6 +10,7 @@ type keyMap struct {
 	SwitchFocus key.Binding
 	Edit        key.Binding
 	Delete      key.Binding
+	Quit        key.Binding
 }
 
 func defaultKeybinds() keyMap {
@@ -34,6 +35,10 @@ func defaultKeybinds() keyMap {
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete"),
 		),
+		Quit: key.NewBinding(
+			key.WithKeys("q"),
+			key.WithHelp("q", "nop"),
+		),
 	}
 }
 
@@ -44,11 +49,12 @@ func (k keyMap) ShortHelp() []key.Binding {
 		k.SwitchFocus,
 		k.Edit,
 		k.Delete,
+		k.Quit,
 	}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Select, k.NewShelf, k.SwitchFocus, k.Edit, k.Delete},
+		{k.Select, k.NewShelf, k.SwitchFocus, k.Edit, k.Delete, k.Quit},
 	}
 }

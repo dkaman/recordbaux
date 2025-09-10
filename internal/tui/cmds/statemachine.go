@@ -6,22 +6,38 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 )
 
-type StateTransitionMsg struct {
+type envelope struct {
 	Next     states.StateType
-	PreCmds  []tea.Cmd
 	PostCmds []tea.Cmd
 }
 
-type StateTransitionPostMsg struct {
-	StateTransitionMsg
+type StateTransitionMsg struct {
+	Transition envelope
 }
 
-func WithNextState(t states.StateType, before []tea.Cmd, after []tea.Cmd) tea.Cmd {
-	return func() tea.Msg {
-		return StateTransitionMsg{
-			Next:     t,
-			PreCmds:  before,
+func Transition(t states.StateType, before []tea.Cmd, after []tea.Cmd) tea.Cmd {
+	var pre tea.Cmd = nil
+
+	if len(before) > 0 {
+		pre = tea.Batch(before...)
+	}
+
+	// lambda command that emits the actual transition message so that we
+	// can sequence against the precmds before the current state is parked
+	swap := func() tea.Msg {
+		e := envelope{
+			Next: t,
 			PostCmds: after,
 		}
+
+		return StateTransitionMsg{
+			Transition:  e,
+		}
 	}
+
+	if pre != nil {
+		return tea.Sequence(pre, swap)
+	}
+
+	return swap
 }

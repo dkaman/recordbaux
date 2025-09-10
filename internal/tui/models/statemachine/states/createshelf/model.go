@@ -9,17 +9,19 @@ import (
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
-type refreshMsg struct{}
-
 type CreateShelfState struct {
-	svcs            *services.AllServices
+	svcs     *services.AllServices
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
 	createShelfForm *form
-	logger          *slog.Logger
 
 	width, height int
 }
@@ -32,6 +34,7 @@ func New(svcs *services.AllServices, log *slog.Logger) CreateShelfState {
 		svcs:            svcs,
 		createShelfForm: f,
 		logger:          logger,
+		handlers:        getHandlers(),
 	}
 }
 
@@ -39,35 +42,26 @@ func New(svcs *services.AllServices, log *slog.Logger) CreateShelfState {
 
 func (s CreateShelfState) Init() tea.Cmd {
 	s.logger.Debug("createshelf state init called")
-	return s.refresh()
-}
-
-func (s CreateShelfState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshMsg{}
-	}
+	return s.createShelfForm.Init()
 }
 
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case refreshMsg:
-		return s, tea.Batch(s.createShelfForm.Init())
-
-	case tea.WindowSizeMsg:
-		s.width, s.height = msg.Width, msg.Height
-		return s, tea.Batch(cmds...)
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(CreateShelfState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	fModel, formUpdateCmds := s.createShelfForm.Update(msg)
-	if f, ok := fModel.(*form); ok {
-		s.createShelfForm = f
-	}
-	cmds = append(cmds, formUpdateCmds)
+	var formUpdateCmd tea.Cmd
+	s.createShelfForm, formUpdateCmd = util.UpdateModel(s.createShelfForm, msg)
 
 	// once done
-	if s.createShelfForm.State == huh.StateCompleted {
+	if s.createShelfForm.Form.State == huh.StateCompleted {
 		x := s.createShelfForm.DimX()
 		y := s.createShelfForm.DimY()
 		size := s.createShelfForm.BinSize()
@@ -92,12 +86,14 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		s.createShelfForm = newShelfCreateForm()
 
-		return s, tcmds.WithNextState(
+		return s, tcmds.Transition(
 			states.MainMenu,
 			[]tea.Cmd{s.svcs.SaveShelfCmd(newShelf)},
 			nil,
 		)
 	}
+
+	cmds = append(cmds, formUpdateCmd)
 
 	return s, tea.Batch(cmds...)
 }

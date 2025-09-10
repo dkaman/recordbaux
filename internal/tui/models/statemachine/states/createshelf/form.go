@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	tea "github.com/charmbracelet/bubbletea/v2"
 	huh "github.com/charmbracelet/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -18,17 +19,17 @@ const (
 )
 
 type form struct {
-	*huh.Form
-	name    string
-	shape   string
+	Form   *huh.Form
+	name  string
+	shape string
 
 	// square/rect shape
-	dimX    string
-	dimY    string
+	dimX        string
+	dimY        string
 	binSizeRect string
 
 	// irregular shape
-	numBins string
+	numBins    string
 	binSizeIrr string
 }
 
@@ -110,10 +111,25 @@ func newShelfCreateForm() *form {
 	return f
 }
 
+func (f *form) Init() tea.Cmd {
+	return f.Form.Init()
+}
+
+func (f *form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	mod, cmd := f.Form.Update(msg)
+	if frm, ok := mod.(*huh.Form); ok {
+		f.Form = frm
+	}
+	return f, cmd
+}
+
+func (f *form) View() string {
+	return f.Form.View()
+}
+
 func (f *form) Name() string {
 	return f.name
 }
-
 
 func (f *form) Shape() shape {
 	if f.shape == "rect" {

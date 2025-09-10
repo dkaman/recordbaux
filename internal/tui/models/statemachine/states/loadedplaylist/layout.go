@@ -4,7 +4,7 @@ import (
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
-func (s PlaylistLoadedState) renderModel() string {
+func (s LoadedPlaylistState) renderModel() string {
 	canvas := lipgloss.NewCanvas()
 
 	s.trackTable.SetWidth(s.width)

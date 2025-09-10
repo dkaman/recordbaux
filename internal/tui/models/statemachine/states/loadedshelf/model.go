@@ -3,28 +3,25 @@ package loadedshelf
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/key"
 
 	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
-	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 )
 
 type LoadedShelfState struct {
-	svcs      *services.AllServices
-	keys      keyMap
-	nextState states.StateType
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
 
 	shelf       shelf.Model
 	selectedBin int
 
-	logger        *slog.Logger
 	width, height int
 }
 
@@ -33,9 +30,10 @@ func New(svcs *services.AllServices, log *slog.Logger) LoadedShelfState {
 	logGroup := log.WithGroup(states.LoadedShelf.String())
 
 	return LoadedShelfState{
-		svcs:      svcs,
-		keys:      defaultKeybinds(),
-		logger:    logGroup,
+		svcs:   svcs,
+		keys:   defaultKeybinds(),
+		logger: logGroup,
+		handlers: getHandlers(),
 	}
 }
 
@@ -47,57 +45,19 @@ func (s LoadedShelfState) Init() tea.Cmd {
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		s.width, s.height = msg.Width, msg.Height
-
-	case shelf.LoadShelfMsg:
-		sh := msg.Phy
-
-		s.shelf = shelf.New(sh, s.logger).
-			SetSize(s.width, s.height).
-			SelectBin(0)
-
-		return s, tea.Batch(cmds...)
-
-	case tea.KeyMsg:
-		sh := s.shelf.PhysicalShelf()
-		if sh == nil {
-			return s, nil
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
 		}
-
-		switch {
-		case key.Matches(msg, s.keys.Next):
-			s.shelf = s.shelf.SelectNextBin()
-
-		case key.Matches(msg, s.keys.Prev):
-			s.shelf = s.shelf.SelectPrevBin()
-
-		case key.Matches(msg, s.keys.Back):
-			return s, tcmds.WithNextState(states.MainMenu, nil, nil)
-
-		case key.Matches(msg, s.keys.Load):
-			return s, tcmds.WithNextState(
-				states.LoadCollection,
-				nil,
-				[]tea.Cmd{shelf.WithPhysicalShelf(s.shelf.PhysicalShelf())},
-			)
-
-		case msg.String() == "enter":
-			b := s.shelf.GetSelectedBin().PhysicalBin()
-			return s, tcmds.WithNextState(
-				states.LoadedBin,
-				nil,
-				[]tea.Cmd{bin.WithPhysicalBin(b)},
-			)
-		}
+		s = model.(LoadedShelfState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	shelfModel, shelfCmds := s.shelf.Update(msg)
-	if sh, ok := shelfModel.(shelf.Model); ok {
-		s.shelf = sh
-	}
-	cmds = append(cmds, shelfCmds)
+	var shelfCmd tea.Cmd
+	s.shelf, shelfCmd = util.UpdateModel(s.shelf, msg)
+	cmds = append(cmds, shelfCmd)
 
 	return s, tea.Batch(cmds...)
 }
@@ -107,5 +67,5 @@ func (s LoadedShelfState) View() string {
 }
 
 func (s LoadedShelfState) Help() string {
-	return keyFmt.FmtKeymap(s.keys.ShortHelp())
+	return util.FmtKeymap(s.keys.ShortHelp())
 }

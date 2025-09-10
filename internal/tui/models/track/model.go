@@ -1,6 +1,8 @@
 package track
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/track"
@@ -40,7 +42,12 @@ func (m Model) FilterValue() string {
 	if m.physicalTrack == nil {
 		return ""
 	}
-	return m.physicalTrack.Title
+
+	title := m.physicalTrack.Title
+	bpm := m.physicalTrack.BPM
+	k := m.physicalTrack.Key
+
+	return fmt.Sprintf("%s bpm:%d key:%s", title, bpm, k)
 }
 
 // Title returns the track's name.
