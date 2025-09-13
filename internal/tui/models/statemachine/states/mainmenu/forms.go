@@ -1,4 +1,4 @@
-package createshelf
+package mainmenu
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ const (
 	NotDefined
 )
 
-type form struct {
+type createShelfForm struct {
 	Form   *huh.Form
 	name  string
 	shape string
@@ -43,8 +43,8 @@ func validateNum(s string) error {
 	return nil
 }
 
-func newShelfCreateForm() *form {
-	f := &form{}
+func newCreateShelfForm() *createShelfForm {
+	f := &createShelfForm{}
 
 	f.Form = huh.NewForm(
 		// Page 1: name + shape
@@ -111,11 +111,11 @@ func newShelfCreateForm() *form {
 	return f
 }
 
-func (f *form) Init() tea.Cmd {
+func (f *createShelfForm) Init() tea.Cmd {
 	return f.Form.Init()
 }
 
-func (f *form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (f *createShelfForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mod, cmd := f.Form.Update(msg)
 	if frm, ok := mod.(*huh.Form); ok {
 		f.Form = frm
@@ -123,15 +123,15 @@ func (f *form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return f, cmd
 }
 
-func (f *form) View() string {
+func (f *createShelfForm) View() string {
 	return f.Form.View()
 }
 
-func (f *form) Name() string {
+func (f *createShelfForm) Name() string {
 	return f.name
 }
 
-func (f *form) Shape() shape {
+func (f *createShelfForm) Shape() shape {
 	if f.shape == "rect" {
 		return Rect
 	} else if f.shape == "irregular" {
@@ -142,17 +142,17 @@ func (f *form) Shape() shape {
 	return NotDefined
 }
 
-func (f *form) DimX() int {
+func (f *createShelfForm) DimX() int {
 	x, _ := strconv.Atoi(f.dimX)
 	return x
 }
 
-func (f *form) DimY() int {
+func (f *createShelfForm) DimY() int {
 	y, _ := strconv.Atoi(f.dimY)
 	return y
 }
 
-func (f *form) BinSize() int {
+func (f *createShelfForm) BinSize() int {
 	if f.Shape() == Rect {
 		n, _ := strconv.Atoi(f.binSizeRect)
 		return n
@@ -161,7 +161,7 @@ func (f *form) BinSize() int {
 	return m
 }
 
-func (f *form) NumBins() int {
+func (f *createShelfForm) NumBins() int {
 	nb, _ := strconv.Atoi(f.numBins)
 	return nb
 }

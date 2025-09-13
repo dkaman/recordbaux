@@ -19,7 +19,6 @@ type State interface {
 const (
 	// states
 	MainMenu StateType = iota
-	CreateShelf
 	LoadedShelf
 	LoadCollection
 	FetchFromDiscogs
@@ -34,7 +33,6 @@ const (
 func (s StateType) String() string {
 	return [...]string{
 		"MainMenu",
-		"CreateShelf",
 		"LoadedShelf",
 		"LoadCollection",
 		"FetchFromDiscogs",

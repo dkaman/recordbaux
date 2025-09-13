@@ -14,7 +14,6 @@ import (
 
 	discogs "github.com/dkaman/discogs-golang"
 	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
-	css "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createshelf"
 	ffd "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/fetchfromdiscogs"
 	lcs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadcollection"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
@@ -62,7 +61,6 @@ func New(svcs *services.AllServices, c *config.Config, log *slog.Logger) (Model,
 
 	m.allStates = map[states.StateType]states.State{
 		states.MainMenu:         mms.New(svcs, log),
-		states.CreateShelf:      css.New(svcs, log),
 		states.LoadedShelf:      lss.New(svcs, log),
 		states.LoadCollection:   lcs.New(svcs, log, discogsClient, discogsUsername),
 		states.LoadedBin:        lbs.New(svcs, log),

@@ -10,7 +10,6 @@ builds:
     dir: ./cmd
     goos:
       - linux
-      - freebsd
       - darwin
       - windows
     goarch:
