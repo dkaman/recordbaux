@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"gorm.io/gorm"
+
 	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
@@ -56,13 +58,18 @@ func main() {
 	}
 
 	// database configuration
-	var dbConf dbConfig
+	var dbConf infra.Config
 	err = cfg.Unmarshal(ConfigDB, &dbConf)
 	if err != nil {
 		log.Fatalf("error unmarshalling database config: %v", err)
 	}
 
-	svcs, err := initServices(dbConf, logger)
+	gormDB, err := infra.New(dbConf)
+	if err != nil {
+		log.Fatalf("error connecting to database: %v", err)
+	}
+
+	svcs, err := initServices(gormDB, logger)
 	if err != nil {
 		log.Fatalf("error constructing shelf repo: %v", err)
 	}
@@ -135,57 +142,36 @@ func parseLogLevel(levelStr string) (slog.Level, error) {
 	return lvl, nil
 }
 
-type dbConfig struct {
-	Driver   string `koanf:"driver"`
-	Host     string `koanf:"host"`
-	Port     int    `koanf:"port"`
-	User     string `koanf:"user"`
-	Password string `koanf:"password"`
-	DBName   string `koanf:"dbname"`
-}
-
-func initServices(c dbConfig, l *slog.Logger) (*services.AllServices, error) {
-	switch c.Driver {
-	case "postgres":
-		gormDB, err := infra.NewPostgresConnection(c.Host, c.Port, c.User, c.Password, c.DBName)
-		if err != nil {
-			l.Error("database error",
-				slog.Any("error", err),
-			)
-		}
-
-		shelfRepo, err := shelf.NewRepo(gormDB)
-		if err != nil {
-			l.Error("database error",
-				slog.Any("error", err),
-			)
-		}
-
-		trackRepo, err := track.NewRepo(gormDB)
-		if err != nil {
-			l.Error("database error",
-				slog.Any("error", err),
-			)
-		}
-
-		playlistRepo, err := playlist.NewRepo(gormDB)
-		if err != nil {
-			l.Error("database error",
-				slog.Any("error", err),
-			)
-		}
-
-		recordRepo, err := record.NewRepo(gormDB)
-		if err != nil {
-			l.Error("database error",
-				slog.Any("error", err),
-			)
-		}
-
-		svc := services.New(l, shelfRepo, recordRepo, playlistRepo, trackRepo)
-
-		return svc, nil
+func initServices(db *gorm.DB, l *slog.Logger) (*services.AllServices, error) {
+	shelfRepo, err := shelf.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
 	}
 
-	return nil, fmt.Errorf("invalid db driver: %s", c.Driver)
+	trackRepo, err := track.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	playlistRepo, err := playlist.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	recordRepo, err := record.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	svc := services.New(l, shelfRepo, recordRepo, playlistRepo, trackRepo)
+
+	return svc, nil
 }

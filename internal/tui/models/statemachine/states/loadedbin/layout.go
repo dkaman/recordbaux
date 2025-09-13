@@ -17,7 +17,7 @@ func (s LoadedBinState) renderModel() string {
 
 	s.records.SetWidth(boxW-2)
 	s.records.SetHeight(boxH-2)
-	s.selectedRecord.SetSize(boxW-2, boxH-2)
+	s.selectedRecord = s.selectedRecord.SetSize(boxW-2, boxH-2)
 
 	left := lipgloss.NewLayer(boxStyle.Render(s.records.View()))
 	right := lipgloss.NewLayer(boxStyle.Render(s.selectedRecord.View()))
