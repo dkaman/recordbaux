@@ -3,40 +3,38 @@ package createshelf
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/huh"
-
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	huh "github.com/charmbracelet/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
-type refreshMsg struct{}
-
 type CreateShelfState struct {
-	shelfService    *services.ShelfService
+	svcs     *services.AllServices
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
 	createShelfForm *form
-	nextState       states.StateType
-	layout          *layout.Div
-	logger          *slog.Logger
+
+	width, height int
 }
 
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) CreateShelfState {
+func New(svcs *services.AllServices, log *slog.Logger) CreateShelfState {
 	f := newShelfCreateForm()
-	lay, _ := newCreateShelfLayout(l, f)
 	logger := log.WithGroup("createshelfstate")
 
 	return CreateShelfState{
-		shelfService:    s,
-		nextState:       states.Undefined,
+		svcs:            svcs,
 		createShelfForm: f,
-		layout:          lay,
 		logger:          logger,
+		handlers:        getHandlers(),
 	}
 }
 
@@ -44,38 +42,26 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) CreateShelfS
 
 func (s CreateShelfState) Init() tea.Cmd {
 	s.logger.Debug("createshelf state init called")
-	return s.refresh()
-}
-
-func (s CreateShelfState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshMsg{}
-	}
+	return s.createShelfForm.Init()
 }
 
 func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-
-	switch msg.(type) {
-	case refreshMsg:
-		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
-		return s, tea.Batch(s.createShelfForm.Init())
-
-	case tea.WindowSizeMsg:
-		s.layout, _ = newCreateShelfLayout(s.layout, s.createShelfForm)
-		return s, tea.Batch(cmds...)
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(CreateShelfState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	fModel, formUpdateCmds := s.createShelfForm.Update(msg)
-	if f, ok := fModel.(*form); ok {
-		s.createShelfForm = f
-	}
-	cmds = append(cmds, formUpdateCmds)
-
-	addViewportText(s.layout, s.createShelfForm)
+	var formUpdateCmd tea.Cmd
+	s.createShelfForm, formUpdateCmd = util.UpdateModel(s.createShelfForm, msg)
 
 	// once done
-	if s.createShelfForm.State == huh.StateCompleted {
+	if s.createShelfForm.Form.State == huh.StateCompleted {
 		x := s.createShelfForm.DimX()
 		y := s.createShelfForm.DimY()
 		size := s.createShelfForm.BinSize()
@@ -93,39 +79,29 @@ func (s CreateShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				shelf.WithShapeRect(x, y, size, bin.SortAlphaByArtist),
 			)
 		} else {
-			newShelf, _ = shelf.New(s.createShelfForm.Name(), size,
-			)
+			newShelf, _ = shelf.New(s.createShelfForm.Name(), size)
 		}
 
 		s.logger.Debug("new shelf", slog.Any("shelf", newShelf))
 
-		cmds = append(cmds, tcmds.SaveShelfCmd(s.shelfService.Shelves, newShelf, s.logger))
-
 		s.createShelfForm = newShelfCreateForm()
 
-		s.nextState = states.MainMenu
+		return s, tcmds.Transition(
+			states.MainMenu,
+			[]tea.Cmd{s.svcs.SaveShelfCmd(newShelf)},
+			nil,
+		)
 	}
+
+	cmds = append(cmds, formUpdateCmd)
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s CreateShelfState) View() string {
-	return ""
+	return s.renderModel()
 }
 
 func (s CreateShelfState) Help() string {
 	return "enter shelf details..."
-}
-
-func (s CreateShelfState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s CreateShelfState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

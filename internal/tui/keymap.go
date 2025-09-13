@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/v2/key"
 )
 
 type keyMap struct {
@@ -12,12 +12,12 @@ type keyMap struct {
 func defaultKeybinds() keyMap {
 	return keyMap{
 		ToggleHelp: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "toggle help"),
+			key.WithKeys("H"),
+			key.WithHelp("H", "toggle help"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c", "esc"),
-			key.WithHelp("C-c, esc", "quit"),
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("C-c", "quit"),
 		),
 	}
 }

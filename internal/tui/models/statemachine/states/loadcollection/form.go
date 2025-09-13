@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/charmbracelet/huh"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	huh "github.com/charmbracelet/huh/v2"
 
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -20,7 +21,7 @@ const (
 )
 
 type form struct {
-	*huh.Form
+	Form   *huh.Form
 	folder string
 }
 
@@ -57,6 +58,22 @@ func newFolderSelectForm(c *discogs.Client, u string) *form {
 	).WithTheme(style.DefaultFormStyles())
 
 	return f
+}
+
+func (f *form) Init() tea.Cmd {
+	return f.Form.Init()
+}
+
+func (f *form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	mod, cmd := f.Form.Update(msg)
+	if frm, ok := mod.(*huh.Form); ok {
+		f.Form = frm
+	}
+	return f, cmd
+}
+
+func (f *form) View() string {
+	return f.Form.View()
 }
 
 func (f *form) Folder() string {

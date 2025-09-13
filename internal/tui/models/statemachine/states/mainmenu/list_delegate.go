@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/v2/list"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
-	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/style"
+
+	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
 )
 
 // shelfDelegate implements Bubble Tea's list.ItemDelegate for shelves

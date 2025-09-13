@@ -1,31 +1,34 @@
 package loadedbin
 
 import (
-	"github.com/charmbracelet/bubbles/table"
-
-	"github.com/dkaman/recordbaux/internal/db/record"
-	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
-
-	tRecord "github.com/dkaman/recordbaux/internal/tui/models/record"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
-func newLoadedBinLayout(base *layout.Div, m table.Model, r *record.Entity) (*layout.Div, error) {
-	base.ClearChildren()
+func (s LoadedBinState) renderModel() string {
+	canvas := lipgloss.NewCanvas()
 
-	m.SetHeight(base.Height()-2)
-	recordModel := tRecord.New(r)
+	boxW := s.width/2
+	boxH := s.height
 
-	left := style.BaseTableStyle.Render(m.View())
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Width(boxW).
+		Height(boxH)
 
-	right := recordModel.SetSize((base.Width()-3)/2, base.Height()-2).View()
+	s.records.SetWidth(boxW-2)
+	s.records.SetHeight(boxH-2)
+	s.selectedRecord.SetSize(boxW-2, boxH-2)
 
-	d, err := layout.Splitscreen(base.Width()-2, base.Height()-2, left, right)
-	if err != nil {
-		return nil, err
-	}
+	left := lipgloss.NewLayer(boxStyle.Render(s.records.View()))
+	right := lipgloss.NewLayer(boxStyle.Render(s.selectedRecord.View()))
 
-	base.AddChild(d)
+	canvas.AddLayers(left.
+		X(0).Y(0),
+	)
 
-	return base, nil
+	canvas.AddLayers(right.
+		X(boxW).Y(0),
+	)
+
+	return canvas.Render()
 }

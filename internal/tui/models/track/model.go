@@ -1,20 +1,24 @@
 package track
 
 import (
-	"github.com/dkaman/recordbaux/internal/db/track"
+	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/track"
 )
 
 // Model is a wrapper for a track entity for use in the TUI.
 type Model struct {
 	physicalTrack *track.Entity
+	Selected      bool
 }
 
 // New creates a new track model.
 func New(t *track.Entity) Model {
 	return Model{
 		physicalTrack: t,
+		Selected:      false,
 	}
 }
 
@@ -38,7 +42,12 @@ func (m Model) FilterValue() string {
 	if m.physicalTrack == nil {
 		return ""
 	}
-	return m.physicalTrack.Title
+
+	title := m.physicalTrack.Title
+	bpm := m.physicalTrack.BPM
+	k := m.physicalTrack.Key
+
+	return fmt.Sprintf("%s bpm:%d key:%s", title, bpm, k)
 }
 
 // Title returns the track's name.

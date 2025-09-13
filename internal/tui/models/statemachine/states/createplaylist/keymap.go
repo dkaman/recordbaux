@@ -1,7 +1,7 @@
 package createplaylist
 
 import (
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/v2/key"
 )
 
 type keyMap struct {
@@ -17,7 +17,7 @@ func defaultKeybinds() keyMap {
 			key.WithHelp("q/esc", "back"),
 		),
 		Select: key.NewBinding(
-			key.WithKeys(" "), // spacebar
+			key.WithKeys("space"), // spacebar
 			key.WithHelp("space", "toggle select"),
 		),
 		Create: key.NewBinding(

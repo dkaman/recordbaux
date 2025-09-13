@@ -3,11 +3,10 @@ package bin
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 )
 
 type Style struct {
@@ -25,7 +24,6 @@ type Model struct {
 	sty Style
 
 	width, height   int
-	margin, padding layout.TopRightBottomLeft
 	border          bool
 }
 
@@ -50,11 +48,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m Model) View() string {
 	var out string
 
-	d, _ := layout.New(layout.Column, lipgloss.NewStyle(),
-		layout.WithFixedWidth(m.width),
-		layout.WithFixedHeight(m.height),
-		layout.WithBorder(true),
-	)
+	var style lipgloss.Style
 
 	if m.physicalBin != nil {
 		name := m.physicalBin.Label
@@ -65,33 +59,19 @@ func (m Model) View() string {
 		filled := cur > 0
 		switch {
 		case !filled && m.selected:
-			d.ApplyOption(
-				layout.WithStyle(m.sty.EmptySelected),
-			)
-
+			style = m.sty.EmptySelected
 		case !filled && !m.selected:
-			d.ApplyOption(
-				layout.WithStyle(m.sty.EmptyUnselected),
-			)
+			style = m.sty.EmptyUnselected
 		case filled && m.selected:
-			d.ApplyOption(
-				layout.WithStyle(m.sty.FullSelected),
-			)
+			style = m.sty.FullSelected
 		case filled && !m.selected:
-			d.ApplyOption(
-				layout.WithStyle(m.sty.FullUnselected),
-			)
+			style = m.sty.FullUnselected
 		}
 	} else {
 		out = "no bin loaded"
 	}
 
-
-	d.AddChild(&layout.TextNode{
-		Body: out,
-	})
-
-	return d.Render()
+	return style.Width(m.width).Height(m.height).Render(out)
 }
 
 func (m Model) SetSize(w, h int) Model {

@@ -3,122 +3,100 @@ package loadcollection
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/huh"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	huh "github.com/charmbracelet/huh/v2"
 
+	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 
-	tea "github.com/charmbracelet/bubbletea"
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	discogs "github.com/dkaman/discogs-golang"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	tshelf "github.com/dkaman/recordbaux/internal/tui/models/shelf"
 )
-
-type refreshShelfMsg struct{}
 
 // LoadCollectionFromDiscogsState holds the shelf model and renders it.
 type LoadCollectionState struct {
-	shelfService    *services.ShelfService
-	nextState       states.StateType
+	svcs            *services.AllServices
 	discogsClient   *discogs.Client
 	discogsUsername string
-	layout          *layout.Div
 	logger          *slog.Logger
+	handlers        *handlers.Registry
 
+	shelf            *shelf.Entity
 	selectFolderForm *form
+
+	width, height int
 }
 
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
+func New(svcs *services.AllServices, log *slog.Logger, client *discogs.Client, username string) LoadCollectionState {
 	logger := log.WithGroup("loadcollectionstate")
 
 	f := newFolderSelectForm(client, username)
 
 	return LoadCollectionState{
-		shelfService:     s,
-		nextState:        states.Undefined,
-		discogsClient:    client,
-		discogsUsername:  username,
+		svcs:            svcs,
+		discogsClient:   client,
+		discogsUsername: username,
+		logger:          logger,
+		handlers:        getHandlers(),
+
 		selectFolderForm: f,
-		layout:           l,
-		logger:           logger,
 	}
 }
 
 // Init satisfies tea.Model.
 func (s LoadCollectionState) Init() tea.Cmd {
 	s.logger.Debug("loadcollection state init")
-	return s.refresh()
-}
-
-func (s LoadCollectionState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshShelfMsg{}
-	}
+	return s.selectFolderForm.Init()
 }
 
 // Update handles incoming LoadCollectionMsg and updates the shelf model.
 func (s LoadCollectionState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
-	case refreshShelfMsg:
-		s.selectFolderForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
-		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
-		cmds = append(cmds, s.selectFolderForm.Init())
-		return s, tea.Batch(cmds...)
-
-	case tea.WindowSizeMsg:
-		s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
-		return s, nil
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(LoadCollectionState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	fModel, formCmds := s.selectFolderForm.Update(msg)
-	if f, ok := fModel.(*form); ok {
-		s.selectFolderForm = f
-	}
-	cmds = append(cmds, formCmds)
+	var formCmd tea.Cmd
+	s.selectFolderForm, formCmd = util.UpdateModel(s.selectFolderForm, msg)
 
-	s.layout = newLoadedCollectionFormLayout(s.layout, s.selectFolderForm)
-
-	if s.selectFolderForm.State == huh.StateCompleted {
+	if s.selectFolderForm.Form.State == huh.StateCompleted {
 		folder := s.selectFolderForm.Folder()
 
 		s.logger.Debug("folder selected with form",
 			slog.Any("folder", folder),
 		)
 
-		// Kick off the Discogs fetch
-		cmds = append(cmds,
-			tcmds.RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder, s.logger),
+		return s, tcmds.Transition(
+			states.FetchFromDiscogs,
+			nil,
+			[]tea.Cmd{
+				tshelf.WithPhysicalShelf(s.shelf),
+				tcmds.RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder, s.logger),
+			},
 		)
-
-		s.nextState = states.FetchFromDiscogs
-
-		return s, tea.Batch(cmds...)
 	}
 
-	// No further key handling while form is present
+	cmds = append(cmds, formCmd)
+
 	return s, tea.Batch(cmds...)
 }
 
 // View renders the shelf view into the TopWindow section.
 func (s LoadCollectionState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s LoadCollectionState) Help() string {
 	return "select a discogs folder to load into this shelf..."
-}
-
-func (s LoadCollectionState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s LoadCollectionState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

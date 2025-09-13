@@ -1,26 +1,38 @@
 package createplaylist
-
 import (
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
+func (s CreatePlaylistState) renderModel() string {
+	canvas := lipgloss.NewCanvas()
+	s.list.SetWidth(s.width)
+	s.list.SetHeight(s.height)
+	tracksLayer := lipgloss.NewLayer(s.list.View())
+	canvas.AddLayers(tracksLayer.
+		Width(s.width).
+		Height(s.height).
+		X(0).Y(0),
+	)
 
-func newCreatePlaylistLayout(base *layout.Div, tracks table.Model) (*layout.Div, error) {
-	base.ClearChildren()
+	if s.namingPlaylist {
+		formView := s.nameForm.View()
 
-	if len(tracks.Rows()) == 0 {
-		base.AddChild(&layout.TextNode{
-			Body: "no tracks defined, load some into a shelf...",
-		})
-		return base, nil
+		formW := s.width / 8
+		formH := 5
+
+		formStyle := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			Width(formW).
+			Height(formH)
+
+		formLayer := lipgloss.NewLayer(formStyle.Render(formView))
+
+		formX := (s.width - formW) / 2
+		formY := (s.height - formH) / 2
+
+		canvas.AddLayers(formLayer.
+			X(formX).Y(formY).Z(1),
+		)
 	}
 
-	tracks.SetHeight(base.Height()-2)
-	tracks.SetWidth(base.Width())
-
-	base.AddChild(&layout.TextNode{
-		Body: tracks.View(),
-	})
-
-	return base, nil
+	return canvas.Render()
 }

@@ -3,32 +3,28 @@ package fetchfromdiscogs
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/progress"
+	"github.com/charmbracelet/bubbles/v2/spinner"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/db/record"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
 
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
-
-type refreshMsg struct{}
 
 type loadNextMsg struct{}
 
 type FetchFromDiscogsState struct {
-	shelfService *services.ShelfService
-	nextState    states.StateType
-	layout       *layout.Div
-	logger       *slog.Logger
+	svcs          *services.AllServices
+	logger        *slog.Logger
+	discogsClient *discogs.Client
+	handlers      *handlers.Registry
 
 	spinner  spinner.Model
 	progress progress.Model
@@ -38,11 +34,13 @@ type FetchFromDiscogsState struct {
 	currentIndex  int
 	totalReleases int
 	fetching      bool
+	pct           float64
+	currentTitle  string
 
-	discogsClient *discogs.Client
+	width, height int
 }
 
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
+func New(svcs *services.AllServices, log *slog.Logger, d *discogs.Client) FetchFromDiscogsState {
 	logGroup := log.WithGroup("fetchfromdiscogsstate")
 
 	sp := spinner.New()
@@ -51,28 +49,20 @@ func New(s *services.ShelfService, l *layout.Div, log *slog.Logger, d *discogs.C
 
 	prg := progress.New(progress.WithDefaultGradient())
 
-	lay, _ := newFetchFromDiscogslayout(l, prg, sp, 0.0, true, "")
-
 	return FetchFromDiscogsState{
-		shelfService:  s,
-		nextState:     states.Undefined,
+		svcs:          svcs,
 		logger:        logGroup,
-		layout:        lay,
-		spinner:       sp,
-		progress:      prg,
-		fetching:      true,
 		discogsClient: d,
+		handlers:      getHandlers(),
+
+		spinner:  sp,
+		progress: prg,
+		fetching: true,
 	}
 }
 
 func (s FetchFromDiscogsState) Init() tea.Cmd {
-	return s.refresh()
-}
-
-func (s FetchFromDiscogsState) refresh() tea.Cmd {
-	return func() tea.Msg {
-		return refreshMsg{}
-	}
+	return nil
 }
 
 func (s FetchFromDiscogsState) loadNextRecord() tea.Cmd {
@@ -84,120 +74,23 @@ func (s FetchFromDiscogsState) loadNextRecord() tea.Cmd {
 func (s FetchFromDiscogsState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case refreshMsg:
-		s.shelf = s.shelfService.CurrentShelf
-		return s, nil
-
-	case tcmds.NewDiscogsCollectionMsg:
-		s.releases = msg.Releases
-		s.totalReleases = len(msg.Releases)
-		s.currentIndex = 0
-		s.fetching = false
-
-		s.logger.Debug("new discogs collection to process",
-			slog.Int("totalReleases", s.totalReleases),
-			slog.Int("currentIndex", s.currentIndex),
-		)
-
-		cmds = append(cmds,
-			s.progress.Init(),
-			s.loadNextRecord(),
-		)
-
-		s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, 0.0, s.fetching, "")
-
-		return s, tea.Batch(cmds...)
-
-	// Step 2: Triggered internally to process the current record.
-	case loadNextMsg:
-		if s.currentIndex < s.totalReleases {
-			s.logger.Debug("enriching release",
-				slog.Any("release", s.releases[s.currentIndex].Title),
-				slog.Int("index", s.currentIndex),
-			)
-			// Dispatch a command to fetch detailed track info.
-			rec := s.releases[s.currentIndex]
-			return s, tcmds.EnrichReleaseInstance(s.discogsClient, rec)
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
 		}
-
-		// Loop is finished. Finalize and prepare to transition state.
-		s.logger.Debug("finished processing all releases")
-		s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, 1.0, s.fetching, "")
-		s.releases = nil
-		s.nextState = states.LoadedShelf
-		return s, tcmds.GetShelfCmd(s.shelfService.Shelves, s.shelf.ID, s.logger)
-
-	// Step 3: Receives the fully hydrated record from the enrichment command.
-	case tcmds.NewDiscogsEnrichRecordMsg:
-		if msg.Err != nil {
-			s.logger.Error("failed to enrich record, skipping", slog.String("error", msg.Err.Error()))
-			// Skip this record and move to the next one.
-			s.currentIndex++
-			return s, s.loadNextRecord()
-		}
-
-		// Insert the hydrated record into the in-memory shelf object.
-		s.shelf.Insert(msg.Record)
-		s.logger.Debug("received record and inserted", slog.Any("record", msg.Record))
-		s.shelfService.CurrentShelf = s.shelf
-
-		// Dispatch a command to save the updated shelf to the database.
-		return s, tcmds.SaveShelfCmd(s.shelfService.Shelves, s.shelf, s.logger)
-
-	// Step 4: Receives confirmation that the shelf was saved.
-	case tcmds.ShelfSavedMsg:
-		if msg.Err != nil {
-			s.logger.Error("failed to save shelf", slog.String("error", msg.Err.Error()))
-			// Depending on desired behavior, you could stop or just log and continue.
-		}
-
-		title := s.releases[s.currentIndex].Title
-
-		// The save was successful, so now we can update the progress and process the next record.
-		s.currentIndex++
-		pct := float64(s.currentIndex) / float64(s.totalReleases)
-		s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, pct, s.fetching, title)
-
-		cmds = append(cmds,
-			s.progress.SetPercent(pct),
-			s.loadNextRecord(),
-		)
-		return s, tea.Batch(cmds...)
-
-	case spinner.TickMsg:
-		if s.fetching {
-			var spinnerCmds tea.Cmd
-
-			s.spinner, spinnerCmds = s.spinner.Update(msg)
-			cmds = append(cmds, spinnerCmds)
-
-			s.layout, _ = newFetchFromDiscogslayout(s.layout, s.progress, s.spinner, 0, s.fetching, "")
-
-			return s, tea.Batch(cmds...)
-		}
+		s = model.(FetchFromDiscogsState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s FetchFromDiscogsState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s FetchFromDiscogsState) Help() string {
 	return "fetching collection from discogs"
-}
-
-func (s FetchFromDiscogsState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s FetchFromDiscogsState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
 }

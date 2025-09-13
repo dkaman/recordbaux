@@ -1,7 +1,7 @@
 package states
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 type StateType int
@@ -12,9 +12,8 @@ type helper interface{
 
 type State interface {
 	tea.Model
+	tea.ViewModel
 	helper
-	Next() (StateType, bool)
-	Transition() State
 }
 
 const (

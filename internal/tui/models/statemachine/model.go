@@ -4,11 +4,13 @@ import (
 	"errors"
 	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
+
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	discogs "github.com/dkaman/discogs-golang"
 	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
@@ -31,20 +33,22 @@ const (
 )
 
 type Model struct {
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
 	currentState     states.State
 	currentStateType states.StateType
 	allStates        map[states.StateType]states.State
-	layout           *layout.Div
 
-	logger *slog.Logger
+	width, height int
 }
 
-func New(s *services.ShelfService, t *services.TrackService, p *services.PlaylistService, r *services.RecordService, c *config.Config, d *layout.Div, log *slog.Logger) (Model, error) {
+func New(svcs *services.AllServices, c *config.Config, log *slog.Logger) (Model, error) {
 	logGroup := log.WithGroup("statemachine")
 
 	m := Model{
-		layout: newStateMachineLayout(d),
-		logger: logGroup,
+		logger:   logGroup,
+		handlers: getHandlers(),
 	}
 
 	discogsAPIKey := c.String(ConfDiscogsKey)
@@ -57,14 +61,14 @@ func New(s *services.ShelfService, t *services.TrackService, p *services.Playlis
 	}
 
 	m.allStates = map[states.StateType]states.State{
-		states.MainMenu:         mms.New(s, t, p, d, log),
-		states.CreateShelf:      css.New(s, d, log),
-		states.LoadedShelf:      lss.New(s, d, log),
-		states.LoadCollection:   lcs.New(s, d, log, discogsClient, discogsUsername),
-		states.LoadedBin:        lbs.New(s, d, log),
-		states.FetchFromDiscogs: ffd.New(s, d, log, discogsClient),
-		states.CreatePlaylist:   cps.New(s, t, p, d, log),
-		states.LoadedPlaylist:   lps.New(p, r, d, log),
+		states.MainMenu:         mms.New(svcs, log),
+		states.CreateShelf:      css.New(svcs, log),
+		states.LoadedShelf:      lss.New(svcs, log),
+		states.LoadCollection:   lcs.New(svcs, log, discogsClient, discogsUsername),
+		states.LoadedBin:        lbs.New(svcs, log),
+		states.FetchFromDiscogs: ffd.New(svcs, log, discogsClient),
+		states.CreatePlaylist:   cps.New(svcs, log),
+		states.LoadedPlaylist:   lps.New(svcs, log),
 	}
 
 	m.currentState = m.allStates[states.MainMenu]
@@ -83,42 +87,24 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	stateModel, stateCmds := m.currentState.Update(msg)
-	if stateCmds != nil {
-		cmds = append(cmds, stateCmds)
-	}
-
-	if s, ok := stateModel.(states.State); ok {
-		if next, wanted := s.Next(); wanted {
-			m.logger.Info("state transition",
-				slog.String("from", m.currentStateType.String()),
-				slog.String("to", next.String()),
-			)
-
-			s = s.Transition()
-
-			m.allStates[m.currentStateType] = s
-			m.currentState = m.allStates[next]
-			m.currentStateType = next
-
-			vp := m.layout.Find("viewport")
-			vp.ClearChildren()
-
-			cmds = append(cmds,
-				m.currentState.Init(),
-			)
-
-			return m, tea.Sequence(cmds...)
+	if handler, ok := m.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(m, msg)
+		if passthruMsg == nil {
+			return model, cmd
 		}
-
-		m.currentState = s
+		m = model.(Model)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	return m, tea.Batch(cmds...)
+	var stateCmds tea.Cmd
+	m.currentState, stateCmds = util.UpdateModel(m.currentState, msg)
+
+	return m, tea.Batch(stateCmds)
 }
 
 func (m Model) View() string {
-	return ""
+	return m.renderModel()
 }
 
 func (m Model) Help() string {

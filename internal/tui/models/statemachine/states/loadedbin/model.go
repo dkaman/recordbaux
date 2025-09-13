@@ -3,131 +3,92 @@ package loadedbin
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/v2/help"
+	"github.com/charmbracelet/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/models/record"
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
-
-	keyFmt "github.com/dkaman/recordbaux/internal/tui/key"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 )
 
-type refreshLoadedBinMsg struct{}
-
 type LoadedBinState struct {
-	shelfService *services.ShelfService
-	nextState    states.StateType
-	bin          bin.Model
-	keys         keyMap
-	layout       *layout.Div
-	logger       *slog.Logger
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
 
-	records table.Model
+	bin            bin.Model
+	records        table.Model
+	selectedRecord record.Model
+	cursorIndex    int
+
+	width, height int
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(s *services.ShelfService, l *layout.Div, log *slog.Logger) LoadedBinState {
+func New(svcs *services.AllServices, log *slog.Logger) LoadedBinState {
 	h := help.New()
 	h.Styles = style.DefaultHelpStyles()
 
 	t := table.New()
 
 	return LoadedBinState{
-		shelfService: s,
-		nextState:    states.Undefined,
-		keys:         defaultKeybinds(),
-		layout:       l,
-		logger:       log.WithGroup("loadedbin"),
-		records:      t,
+		svcs:     svcs,
+		keys:     defaultKeybinds(),
+		logger:   log.WithGroup("loadedbin"),
+		handlers: getHandlers(),
+
+		records: t,
 	}
 }
 
 func (s LoadedBinState) Init() tea.Cmd {
 	s.logger.Debug("loadedbin state init")
-	return func() tea.Msg {
-		return refreshLoadedBinMsg{}
-	}
+	return nil
 }
 
 func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case refreshLoadedBinMsg:
-		s.bin = bin.New(s.shelfService.CurrentBin, bin.Style{})
-
-		columns := []table.Column{
-			{Title: "catalog no.", Width: 15},
-			{Title: "release name", Width: 50},
-			{Title: "artist", Width: 30},
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
 		}
-
-		var rows []table.Row
-
-		for _, r := range s.bin.PhysicalBin().Records {
-			catno := r.CatalogNumber
-			name := r.Title
-			artist := r.Artists[0]
-			row := table.Row{catno, name, artist}
-			rows = append(rows, row)
-		}
-
-		s.records = table.New(
-			table.WithColumns(columns),
-			table.WithRows(rows),
-			table.WithFocused(true),
-			table.WithHeight(10),
-			table.WithStyles(style.DefaultTableStyles()),
-		)
-
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, s.keys.Back):
-			s.nextState = states.LoadedShelf
-			return s, tea.Batch(cmds...)
-		}
+		s = model.(LoadedBinState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
 	}
 
-	tableModel, tableUpdateCmds := s.records.Update(msg)
-	s.records = tableModel
-	cmds = append(cmds,
-		tableUpdateCmds,
-	)
+	oldIdx := s.records.Cursor()
+
+	var tableUpdateCmd tea.Cmd
+	s.records, tableUpdateCmd = s.records.Update(msg)
+	cmds = append(cmds, tableUpdateCmd)
 
 	idx := s.records.Cursor()
-
-	if b := s.bin.PhysicalBin(); b != nil {
-		r := s.bin.PhysicalBin().Records[idx]
-		s.logger.Debug("record chosen", slog.Any("record", r))
-		s.layout, _ = newLoadedBinLayout(s.layout, s.records, r)
+	if idx != oldIdx {
+		selectedPhysicalRecord := s.bin.PhysicalBin().Records[idx]
+		s.selectedRecord = record.New(selectedPhysicalRecord)
+		s.cursorIndex = idx
 	}
+
+	var recordCmd tea.Cmd
+	s.selectedRecord, recordCmd = util.UpdateModel(s.selectedRecord, msg)
+	cmds = append(cmds, recordCmd)
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedBinState) View() string {
-	return s.layout.Render()
+	return s.renderModel()
 }
 
 func (s LoadedBinState) Help() string {
-	return keyFmt.FmtKeymap(s.keys.ShortHelp())
-}
-
-func (s LoadedBinState) Next() (states.StateType, bool) {
-	if s.nextState != states.Undefined {
-		return s.nextState, true
-	}
-
-	return states.Undefined, false
-}
-
-func (s LoadedBinState) Transition() states.State {
-	s.nextState = states.Undefined
-	return s
+	return util.FmtKeymap(s.keys.ShortHelp())
 }

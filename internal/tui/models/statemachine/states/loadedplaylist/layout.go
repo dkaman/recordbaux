@@ -1,14 +1,20 @@
 package loadedplaylist
 
 import (
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
-func newPlaylistLoadedLayout(base *layout.Div, tracks table.Model) (*layout.Div, error) {
-	base.ClearChildren()
-	base.AddChild(&layout.TextNode{
-		Body: tracks.View(),
-	})
-	return base, nil
+func (s LoadedPlaylistState) renderModel() string {
+	canvas := lipgloss.NewCanvas()
+
+	s.trackTable.SetWidth(s.width)
+	s.trackTable.SetHeight(s.height)
+
+	tracks := lipgloss.NewLayer(s.trackTable.View())
+
+	canvas.AddLayers(tracks.
+		X(0).Y(0),
+	)
+
+	return canvas.Render()
 }

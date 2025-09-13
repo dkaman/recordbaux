@@ -1,28 +1,49 @@
 package mainmenu
 
 import (
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
+	"log/slog"
+
 	"github.com/dkaman/recordbaux/internal/tui/style"
-	"github.com/dkaman/recordbaux/internal/tui/style/layout"
+
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
-func newMainMenuLayout(base *layout.Div, shelves, playlists list.Model, focus focusedView) (*layout.Div, error) {
-	base.ClearChildren()
+func (s MainMenuState) renderModel() string {
+	canvas := lipgloss.NewCanvas()
 
-	if len(shelves.Items()) == 0 && len(playlists.Items()) == 0 {
-		base.AddChild(&layout.TextNode{
-			Body: "no shelves or playlists defined, 'o' to create shelf...",
-		})
-		return base, nil
+	if len(s.shelves.Items()) == 0 && len(s.playlists.Items()) == 0 {
+		empty := lipgloss.NewLayer(style.ActiveTextStyle.Render("no shelves or playlists defined, 'o' to create shelf..."))
+		canvas.AddLayers(empty)
+		return canvas.Render()
 	}
 
+	boxW := s.width / 2
+	boxH := s.height
+
 	// Create styles for focused and blurred list containers
-	focusedStyle := lipgloss.NewStyle().BorderForeground(style.LightGreen)
-	blurredStyle := lipgloss.NewStyle().BorderForeground(style.DarkWhite)
+	focusedStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(style.LightGreen).
+		Width(boxW).
+		Height(boxH)
+
+	blurredStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(style.DarkWhite).
+		Width(boxW).
+		Height(boxH)
+
+	s.shelves.SetSize(boxW-2, boxH-2)
+	s.playlists.SetSize(boxW-2, boxH-2)
+
+	s.logger.Debug("box dims",
+		slog.Any("width", s.width),
+		slog.Any("height", s.height),
+	)
 
 	var shelfBoxStyle, playlistBoxStyle lipgloss.Style
-	if focus == shelvesView {
+
+	if s.focus == shelvesView {
 		shelfBoxStyle = focusedStyle
 		playlistBoxStyle = blurredStyle
 	} else {
@@ -30,41 +51,16 @@ func newMainMenuLayout(base *layout.Div, shelves, playlists list.Model, focus fo
 		playlistBoxStyle = focusedStyle
 	}
 
-	// Create Divs for each list. The content will be added after we know the dimensions.
-	shelfBox, _ := layout.New(layout.Column, shelfBoxStyle,
-		layout.WithBorder(true),
+	shelfBox := lipgloss.NewLayer(shelfBoxStyle.Render(s.shelves.View()))
+	playlistBox := lipgloss.NewLayer(playlistBoxStyle.Render(s.playlists.View()))
+
+	canvas.AddLayers(shelfBox.
+		X(0).Y(0),
 	)
 
-	playlistBox, _ := layout.New(layout.Column, playlistBoxStyle,
-		layout.WithBorder(true),
+	canvas.AddLayers(playlistBox.
+		X(boxW).Y(0),
 	)
 
-	// Use a Row Div to contain them side-by-side.
-	listsContainer, _ := layout.New(layout.Row, lipgloss.NewStyle(),
-		layout.WithChild(shelfBox),
-		layout.WithChild(playlistBox),
-	)
-
-	base.AddChild(listsContainer)
-
-	base.Resize(base.Width(), base.Height())
-
-	// Now that the containers know their size, calculate the inner area for the lists.
-	// We subtract 2 to account for the container's top/bottom and left/right borders.
-	shelfListW := shelfBox.Width()
-	shelfListH := shelfBox.Height()
-	shelves.SetSize(shelfListW, shelfListH-2)
-
-	playlistListW := playlistBox.Width()
-	playlistListH := playlistBox.Height()
-	playlists.SetSize(playlistListW, playlistListH-2)
-
-	// With the lists correctly sized, render their views and place them in their containers.
-	shelfBox.ClearChildren()
-	shelfBox.AddChild(&layout.TextNode{Body: shelves.View()})
-
-	playlistBox.ClearChildren()
-	playlistBox.AddChild(&layout.TextNode{Body: playlists.View()})
-
-	return base, nil
+	return canvas.Render()
 }

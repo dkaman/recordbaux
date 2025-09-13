@@ -1,8 +1,8 @@
 package style
 
 import (
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/list"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
 var (
@@ -49,13 +49,11 @@ var (
 )
 
 func DefaultListStyles() list.Styles {
-	s := list.DefaultStyles()
+	s := list.DefaultStyles(true)
 
 	s.TitleBar = listTitleBarStyle
 	s.Title = listTitleStyle
 	s.Spinner = listSpinnerStyle
-	s.FilterPrompt = listFilterPromptStyle
-	s.FilterCursor = listFilterCursorStyle
 
 	s.DefaultFilterCharacterMatch = listDefaultFilterCharacterMatchStyle
 
@@ -78,7 +76,7 @@ func DefaultListStyles() list.Styles {
 }
 
 func DefaultItemStyles() list.DefaultItemStyles {
-	s := list.NewDefaultItemStyles()
+	s := list.NewDefaultItemStyles(true)
 
 	s.NormalTitle = listDelegateNormalTitleStyle
 	s.NormalDesc = listDelegateNormalDescStyle
