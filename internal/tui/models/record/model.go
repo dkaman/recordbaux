@@ -109,20 +109,20 @@ func (m Model) View() string {
 	m.tracklistTable.SetHeight(sectionHeight)
 	tracklistTable := m.tracklistTable.View()
 
-	// // --- Render Track Info Card ---
-	// trackInfoCard := m.renderTrackInfoCard(m.width, sectionHeight)
+	// --- Render Track Info Card ---
+	trackInfoCard := m.renderTrackInfoCard(m.width, sectionHeight)
 
 	recordCard := lipgloss.NewLayer(recordInfoCard)
 	tracklist := lipgloss.NewLayer(tracklistTable)
-	// trackInfo := lipgloss.NewLayer(trackInfoCard)
+	trackInfo := lipgloss.NewLayer(trackInfoCard)
 
 	canvas.AddLayers(
 		recordCard.
 			X(0).Y(0),
 		tracklist.
 			X(0).Y(sectionHeight),
-		// trackInfo.
-		// 	X(0).Y(2*sectionHeight),
+		trackInfo.
+			X(0).Y(2*sectionHeight),
 	)
 
 	return canvas.Render()

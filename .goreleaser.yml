@@ -1,0 +1,17 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: recordbaux
+    binary: recordbaux
+    dir: ./cmd
+    goos:
+      - linux
+      - freebsd
+      - darwin
+      - windows
+    goarch:
+      - amd64
