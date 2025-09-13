@@ -20,8 +20,6 @@ const (
 	// states
 	MainMenu StateType = iota
 	LoadedShelf
-	LoadCollection
-	FetchFromDiscogs
 	LoadedBin
 	SelectShelf
 	CreatePlaylist
@@ -34,8 +32,6 @@ func (s StateType) String() string {
 	return [...]string{
 		"MainMenu",
 		"LoadedShelf",
-		"LoadCollection",
-		"FetchFromDiscogs",
 		"LoadedBin",
 		"SelectShelf",
 		"CreatePlaylist",

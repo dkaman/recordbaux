@@ -1,9 +1,7 @@
-package loadcollection
+package loadedshelf
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea/v2"
 	huh "github.com/charmbracelet/huh/v2"
@@ -12,31 +10,13 @@ import (
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
-type shape int
-
-const (
-	Rect shape = iota
-	Irregular
-	NotDefined
-)
-
-type form struct {
+type loadCollectionForm struct {
 	Form   *huh.Form
 	folder string
 }
 
-func validateNum(s string) error {
-	if s == "" {
-		return fmt.Errorf("required")
-	}
-	if _, err := strconv.Atoi(s); err != nil {
-		return fmt.Errorf("must be a number")
-	}
-	return nil
-}
-
-func newFolderSelectForm(c *discogs.Client, u string) *form {
-	f := &form{}
+func newFolderSelectForm(c *discogs.Client, u string) *loadCollectionForm {
+	f := &loadCollectionForm{}
 
 	folders, _ := c.Collection.ListFolders(context.TODO(), u)
 
@@ -60,11 +40,11 @@ func newFolderSelectForm(c *discogs.Client, u string) *form {
 	return f
 }
 
-func (f *form) Init() tea.Cmd {
+func (f *loadCollectionForm) Init() tea.Cmd {
 	return f.Form.Init()
 }
 
-func (f *form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (f *loadCollectionForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mod, cmd := f.Form.Update(msg)
 	if frm, ok := mod.(*huh.Form); ok {
 		f.Form = frm
@@ -72,10 +52,10 @@ func (f *form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return f, cmd
 }
 
-func (f *form) View() string {
+func (f *loadCollectionForm) View() string {
 	return f.Form.View()
 }
 
-func (f *form) Folder() string {
+func (f *loadCollectionForm) Folder() string {
 	return f.folder
 }
