@@ -17,9 +17,20 @@ func (s LoadedShelfState) renderModel() string {
 	// Modal layer: load collection form
 	if s.loading {
 		formView := s.loadCollectionForm.View()
+		formW := lipgloss.Width(formView)
+		formH := lipgloss.Height(formView)
+
+		borderedForm := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			Width(formW).
+			Height(formH).
+			Render(formView)
+
+		formLayer := lipgloss.NewLayer(borderedForm)
+
 		formX := (s.width - lipgloss.Width(formView)) / 2
 		formY := (s.height - lipgloss.Height(formView)) / 2
-		formLayer := lipgloss.NewLayer(formView)
+
 		canvas.AddLayers(formLayer.X(formX).Y(formY).Z(1))
 	}
 
@@ -36,9 +47,19 @@ func (s LoadedShelfState) renderModel() string {
 			content = lipgloss.JoinVertical(lipgloss.Left, header, title, progress+percent)
 		}
 
+		formW := lipgloss.Width(content)
+		formH := lipgloss.Height(content)
+
+		borderedBox := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			Width(formW).
+			Height(formH).
+			Render(content)
+
+		progLayer := lipgloss.NewLayer(borderedBox)
+
 		progX := (s.width - lipgloss.Width(content)) / 2
 		progY := (s.height - lipgloss.Height(content)) / 2
-		progLayer := lipgloss.NewLayer(content)
 		canvas.AddLayers(progLayer.X(progX).Y(progY).Z(1))
 	}
 

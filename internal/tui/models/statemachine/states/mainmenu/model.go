@@ -46,7 +46,7 @@ func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
 
 	// Shelves List
-	shelfDelegate := shelfDelegate{}
+	shelfDelegate := shelfDelegate{dim: false}
 	shelfList := list.New([]list.Item{}, shelfDelegate, 0, 0)
 	shelfList.Title = "shelves"
 	shelfList.Styles = style.DefaultListStyles()
@@ -84,18 +84,6 @@ func (s MainMenuState) Init() tea.Cmd {
 func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// form updates go first so they can accep enter keys etc.
-	if s.creating {
-		var formCmd tea.Cmd
-		s.createShelfForm, formCmd = util.UpdateModel(s.createShelfForm, msg)
-		cmds = append(cmds, formCmd)
-		if s.createShelfForm.Form.State == huh.StateCompleted {
-			s.creating = false
-			cmds = append(cmds, formCmd, s.handleShelfCreation())
-		}
-		return s, tea.Batch(cmds...)
-	}
-
 	if handler, ok := s.handlers.GetHandler(msg); ok {
 		model, cmd, passthruMsg := handler(s, msg)
 		if passthruMsg == nil {
@@ -104,6 +92,22 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s = model.(MainMenuState)
 		msg = passthruMsg
 		cmds = append(cmds, cmd)
+	}
+
+	// form updates go first so they can accep enter keys etc.
+	if s.creating {
+		var formCmd tea.Cmd
+		s.createShelfForm, formCmd = util.UpdateModel(s.createShelfForm, msg)
+		cmds = append(cmds, formCmd)
+
+		if s.createShelfForm.Form.State == huh.StateCompleted {
+			s.creating = false
+			s.shelves.SetDelegate(shelfDelegate{dim: false})
+			s.playlists.SetDelegate(playlistDelegate{dim: false})
+			cmds = append(cmds, formCmd, s.handleShelfCreation())
+		}
+
+		return s, tea.Batch(cmds...)
 	}
 
 	var updateCmd tea.Cmd

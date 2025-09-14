@@ -33,6 +33,17 @@ func (s MainMenuState) renderModel() string {
 		Width(boxW).
 		Height(boxH)
 
+	if s.creating {
+		s.shelves.Styles = style.DefaultListStylesDimmed()
+		s.playlists.Styles = style.DefaultListStylesDimmed()
+
+		focusedStyle = focusedStyle.BorderForeground(style.LightGreenDimmed)
+		blurredStyle = blurredStyle.BorderForeground(style.DarkWhiteDimmed)
+	} else {
+		s.shelves.Styles = style.DefaultListStyles()
+		s.playlists.Styles = style.DefaultListStyles()
+	}
+
 	s.shelves.SetSize(boxW-2, boxH-2)
 	s.playlists.SetSize(boxW-2, boxH-2)
 
@@ -46,6 +57,7 @@ func (s MainMenuState) renderModel() string {
 	if s.focus == shelvesView {
 		shelfBoxStyle = focusedStyle
 		playlistBoxStyle = blurredStyle
+
 	} else {
 		shelfBoxStyle = blurredStyle
 		playlistBoxStyle = focusedStyle

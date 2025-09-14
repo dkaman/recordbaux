@@ -94,6 +94,16 @@ func (s LoadedShelfState) Init() tea.Cmd {
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(LoadedShelfState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
 	// If a modal is active, it captures all updates first.
 	if s.loading {
 		var formCmd tea.Cmd
@@ -110,16 +120,6 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.loading = false
 		}
 		return s, tea.Batch(cmds...)
-	}
-
-	if handler, ok := s.handlers.GetHandler(msg); ok {
-		model, cmd, passthruMsg := handler(s, msg)
-		if passthruMsg == nil {
-			return model, cmd
-		}
-		s = model.(LoadedShelfState)
-		msg = passthruMsg
-		cmds = append(cmds, cmd)
 	}
 
 	var shelfCmd tea.Cmd

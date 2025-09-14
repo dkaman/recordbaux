@@ -33,6 +33,10 @@ func handleTeaWindowSizeMsg(s MainMenuState, msg tea.WindowSizeMsg) (tea.Model, 
 }
 
 func handleTeaKeyPressMsg(s MainMenuState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if s.creating {
+		return s, nil, msg
+	}
+
 	switch {
 	case key.Matches(msg, s.keys.Quit):
 		return s, nil, nil
@@ -50,6 +54,9 @@ func handleTeaKeyPressMsg(s MainMenuState, msg tea.KeyPressMsg) (tea.Model, tea.
 		if s.focus == shelvesView {
 			s.logger.Debug("create shelf selected")
 			s.creating = true
+			s.shelves.SetDelegate(shelfDelegate{dim: true})
+			s.playlists.SetDelegate(playlistDelegate{dim: true})
+
 			s.createShelfForm = newCreateShelfForm()
 			return s, s.createShelfForm.Init(), nil
 		} else {
