@@ -34,8 +34,8 @@ type Model struct {
 	stateMachine  statemachine.Model
 	topBarText    string
 	statusBarText string
-
 	helpVisible   bool
+
 	width, height int
 }
 

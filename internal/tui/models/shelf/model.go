@@ -32,34 +32,54 @@ const (
 
 type topRightBottomLeft struct{ Top, Right, Bottom, Left int }
 
+type option func(Model) Model
+
 type Model struct {
-	id            uint
+	id     uint
+	logger *slog.Logger
+
 	selectedBin   int
 	physicalShelf *shelf.Entity
 	bins          []bin.Model
 
-	width  int
-	height int
-	logger *slog.Logger
+	width   int
+	height  int
+	focused bool
 }
 
-func New(p *shelf.Entity, log *slog.Logger) Model {
+func New(p *shelf.Entity, log *slog.Logger, opts ...option) Model {
 	logger := log.WithGroup("shelf")
 
 	m := Model{
 		id:            p.ID,
 		selectedBin:   0,
-		physicalShelf: p,
 		width:         0,
 		height:        0,
 		logger:        logger,
+		focused:       true,
 	}
 
 	if p != nil {
-		m = m.loadPhysicalShelf(p)
+		m.physicalShelf = p
+		m.loadPhysicalShelf()
+	}
+
+	for _, o := range opts {
+		m = o(m)
 	}
 
 	return m
+}
+
+func (m *Model) Focus() {
+	m.focused = true
+	m.loadPhysicalShelf()
+
+}
+
+func (m *Model) Blur() {
+	m.focused = false
+	m.loadPhysicalShelf()
 }
 
 func (m Model) Init() tea.Cmd {
@@ -79,7 +99,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 
 	case LoadShelfMsg:
-		m = m.loadPhysicalShelf(msg.Phy)
+		m.physicalShelf = msg.Phy
+		m.loadPhysicalShelf()
 	}
 
 	return m, tea.Batch(cmds...)
@@ -221,29 +242,41 @@ func (m Model) View() string {
 	return canvas.Render()
 }
 
-func (m Model) loadPhysicalShelf(s *shelf.Entity) Model {
-	m.physicalShelf = s
+func (m *Model) loadPhysicalShelf() {
+	s := m.physicalShelf
+	if s == nil {
+		return
+	}
 
 	m.bins = nil
 
-	alignedSelected := style.Centered.
-		Bold(true).
-		BorderStyle(lipgloss.NormalBorder()).
-		Foreground(style.LightGreen)
-
-	binStyles := bin.Style{
-		EmptySelected:   alignedSelected,
-		EmptyUnselected: style.Centered.BorderStyle(lipgloss.NormalBorder()),
-		FullSelected:    alignedSelected.Background(style.DarkBlue),
-		FullUnselected:  style.Centered.BorderStyle(lipgloss.NormalBorder()).Background(style.DarkBlue).Foreground(style.DarkBlack),
+	// Choose style set based on the `focused` flag
+	var binStyles bin.Style
+	if m.focused {
+		alignedSelected := style.Centered.
+			Bold(true).
+			BorderStyle(lipgloss.NormalBorder()).
+			Foreground(style.LightGreen)
+		binStyles = bin.Style{
+			EmptySelected:   alignedSelected,
+			EmptyUnselected: style.Centered.BorderStyle(lipgloss.NormalBorder()),
+			FullSelected:    alignedSelected.Background(style.DarkBlue),
+			FullUnselected:  style.Centered.BorderStyle(lipgloss.NormalBorder()).Background(style.DarkBlue).Foreground(style.DarkBlack),
+		}
+	} else { // Blurred styles
+		alignedSelected := style.Centered.Foreground(style.LightGreenDimmed)
+		binStyles = bin.Style{
+			EmptySelected:   alignedSelected,
+			EmptyUnselected: style.Centered.Foreground(style.DarkWhiteDimmed).BorderStyle(lipgloss.NormalBorder()),
+			FullSelected:    alignedSelected.Background(style.DarkBlueDimmed),
+			FullUnselected:  style.Centered.Foreground(style.DarkBlackDimmed).Background(style.DarkBlueDimmed).BorderStyle(lipgloss.NormalBorder()),
+		}
 	}
 
-	for _, pb := range m.physicalShelf.Bins {
+	for _, pb := range s.Bins {
 		b := bin.New(pb, binStyles)
 		m.bins = append(m.bins, b)
 	}
-
-	return m
 }
 
 func (m Model) SetSize(w, h int) Model {

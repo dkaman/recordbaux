@@ -79,16 +79,15 @@ func (s MainMenuState) renderModel() string {
 		formW := lipgloss.Width(formView)
 		formH := lipgloss.Height(formView)
 
-		borderedForm := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
+		modal := style.ModalStyle.
 			Width(formW).
 			Height(formH).
 			Render(formView)
 
-		formLayer := lipgloss.NewLayer(borderedForm)
+		formLayer := lipgloss.NewLayer(modal)
 
-		formX := (s.width - formW) / 2
-		formY := (s.height - formH) / 2
+		formX := (s.width - lipgloss.Width(modal)) / 2
+		formY := (s.height - lipgloss.Height(modal)) / 2
 
 		canvas.AddLayers(formLayer.
 			X(formX).Y(formY).Z(1),

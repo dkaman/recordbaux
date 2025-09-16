@@ -44,8 +44,12 @@ func handleTeaKeyPressMsg(s MainMenuState, msg tea.KeyPressMsg) (tea.Model, tea.
 	case key.Matches(msg, s.keys.SwitchFocus):
 		if s.focus == shelvesView {
 			s.focus = playlistsView
+			s.playlists = s.playlists.Focus()
+			s.shelves = s.shelves.Blur()
 		} else {
 			s.focus = shelvesView
+			s.shelves = s.shelves.Focus()
+			s.playlists = s.playlists.Blur()
 		}
 
 		return s, nil, nil
@@ -54,9 +58,8 @@ func handleTeaKeyPressMsg(s MainMenuState, msg tea.KeyPressMsg) (tea.Model, tea.
 		if s.focus == shelvesView {
 			s.logger.Debug("create shelf selected")
 			s.creating = true
-			s.shelves.SetDelegate(shelfDelegate{dim: true})
-			s.playlists.SetDelegate(playlistDelegate{dim: true})
-
+			s.shelves = s.shelves.Blur()
+			s.playlists = s.playlists.Blur()
 			s.createShelfForm = newCreateShelfForm()
 			return s, s.createShelfForm.Init(), nil
 		} else {

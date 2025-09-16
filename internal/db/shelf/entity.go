@@ -121,6 +121,14 @@ func (e *Entity) TableName() string {
 	return "shelves"
 }
 
+func (e *Entity) TotalRecords() int {
+	total := 0
+	for _, b := range e.Bins {
+		total += len(b.Records)
+	}
+	return total
+}
+
 // indexToLabel converts 0 -> "A", 25 -> "Z", 26 -> "AA", etc.
 func indexToLabel(i int) string {
 	label := ""

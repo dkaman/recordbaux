@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
 func (s LoadedShelfState) renderModel() string {
 	canvas := lipgloss.NewCanvas()
 
-	// Base layer: the shelf view
 	shelfView := s.shelf.View()
 	baseLayer := lipgloss.NewLayer(shelfView)
 	canvas.AddLayers(baseLayer.X(0).Y(0))
@@ -17,16 +18,16 @@ func (s LoadedShelfState) renderModel() string {
 	// Modal layer: load collection form
 	if s.loading {
 		formView := s.loadCollectionForm.View()
+
 		formW := lipgloss.Width(formView)
 		formH := lipgloss.Height(formView)
 
-		borderedForm := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
+		modal := style.ModalStyle.
 			Width(formW).
 			Height(formH).
 			Render(formView)
 
-		formLayer := lipgloss.NewLayer(borderedForm)
+		formLayer := lipgloss.NewLayer(modal)
 
 		formX := (s.width - lipgloss.Width(formView)) / 2
 		formY := (s.height - lipgloss.Height(formView)) / 2
@@ -50,16 +51,16 @@ func (s LoadedShelfState) renderModel() string {
 		formW := lipgloss.Width(content)
 		formH := lipgloss.Height(content)
 
-		borderedBox := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
+		modal := style.ModalStyle.
 			Width(formW).
 			Height(formH).
 			Render(content)
 
-		progLayer := lipgloss.NewLayer(borderedBox)
+		progLayer := lipgloss.NewLayer(modal)
 
 		progX := (s.width - lipgloss.Width(content)) / 2
 		progY := (s.height - lipgloss.Height(content)) / 2
+
 		canvas.AddLayers(progLayer.X(progX).Y(progY).Z(1))
 	}
 

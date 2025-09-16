@@ -12,6 +12,7 @@ import (
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/flist"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 )
@@ -31,8 +32,8 @@ type MainMenuState struct {
 	handlers *handlers.Registry
 
 	// main menu stuff
-	shelves   list.Model
-	playlists list.Model
+	shelves   flist.Model
+	playlists flist.Model
 	creating  bool
 
 	// create shelf stuff
@@ -46,14 +47,26 @@ func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
 
 	// Shelves List
-	shelfDelegate := shelfDelegate{dim: false}
-	shelfList := list.New([]list.Item{}, shelfDelegate, 0, 0)
+	shelfDelegate := newShelfDelegate(shelfDelegateStyles{
+		ItemStyle:            style.TextStyle,
+		ItemStyleBlurred:     style.TextStyleDimmed,
+		SelectedStyle:        style.ActiveTextStyle,
+		SelectedStyleBlurred: style.ActiveLabelStyleDimmed,
+	})
+
+	shelfList := flist.New([]list.Item{}, shelfDelegate)
 	shelfList.Title = "shelves"
 	shelfList.Styles = style.DefaultListStyles()
 
 	// Playlists List
-	playlistDelegate := playlistDelegate{}
-	playlistList := list.New([]list.Item{}, playlistDelegate, 0, 0)
+	playlistDelegate := newPlaylistDelegate(playlistDelegateStyles{
+		ItemStyle:            style.TextStyle,
+		ItemStyleBlurred:     style.TextStyleDimmed,
+		SelectedStyle:        style.ActiveTextStyle,
+		SelectedStyleBlurred: style.ActiveLabelStyleDimmed,
+	})
+
+	playlistList := flist.New([]list.Item{}, playlistDelegate)
 	playlistList.Title = "playlists"
 	playlistList.Styles = style.DefaultListStyles()
 
@@ -102,8 +115,12 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if s.createShelfForm.Form.State == huh.StateCompleted {
 			s.creating = false
-			s.shelves.SetDelegate(shelfDelegate{dim: false})
-			s.playlists.SetDelegate(playlistDelegate{dim: false})
+			if s.focus == shelvesView {
+				s.shelves = s.shelves.Focus()
+			} else {
+				s.playlists = s.playlists.Focus()
+			}
+
 			cmds = append(cmds, formCmd, s.handleShelfCreation())
 		}
 
@@ -112,9 +129,9 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var updateCmd tea.Cmd
 	if s.focus == shelvesView {
-		s.shelves, updateCmd = s.shelves.Update(msg)
+		s.shelves, updateCmd = util.UpdateModel(s.shelves, msg)
 	} else {
-		s.playlists, updateCmd = s.playlists.Update(msg)
+		s.playlists, updateCmd = util.UpdateModel(s.playlists, msg)
 	}
 
 	cmds = append(cmds, updateCmd)

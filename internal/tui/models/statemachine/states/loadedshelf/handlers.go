@@ -58,6 +58,7 @@ func handleTeaKeyPressMsg(s LoadedShelfState, msg tea.KeyPressMsg) (tea.Model, t
 
 	case key.Matches(msg, s.keys.Load):
 		s.loading = true
+		s.shelf.Blur()
 		s.loadCollectionForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
 		return s, s.loadCollectionForm.Init(), nil
 
@@ -105,6 +106,7 @@ func handleLoadNextMsg(s LoadedShelfState, msg loadNextMsg) (tea.Model, tea.Cmd,
 	if s.currentIndex >= s.totalReleases {
 		s.logger.Debug("finished processing all releases")
 		s.fetching = false
+		s.shelf.Focus()
 		// Reload the shelf from the DB to get all relationships correctly
 		return s, s.svcs.GetShelfCmd(s.shelf.ID()), nil
 	}

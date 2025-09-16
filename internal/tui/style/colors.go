@@ -2,6 +2,7 @@ package style
 
 import (
 	"image/color"
+	"math"
 
 	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
@@ -78,6 +79,11 @@ var (
 	Centered = lipgloss.NewStyle().
 			AlignVertical(lipgloss.Center).
 			AlignHorizontal(lipgloss.Center)
+
+	ModalStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(LightMagenta).
+		Padding(1, 2)
 )
 
 

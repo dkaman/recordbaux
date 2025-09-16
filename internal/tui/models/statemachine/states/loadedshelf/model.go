@@ -118,6 +118,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, s.spin.Tick, tcmds.RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder, s.logger))
 		} else if s.loadCollectionForm.Form.State == huh.StateAborted {
 			s.loading = false
+			s.shelf.Focus()
 		}
 		return s, tea.Batch(cmds...)
 	}
