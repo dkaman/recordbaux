@@ -1,8 +1,8 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/v2/key"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/util"
@@ -25,7 +25,6 @@ func handleTeaWindowSizeMsg(m Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd,
 	if !m.ready {
 		m.logger.Debug("ready")
 		m.ready = true
-		cmds = append(cmds, m.stateMachine.Init())
 	}
 
 	numBars := 2

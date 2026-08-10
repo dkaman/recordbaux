@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	discogs "github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/db/record"

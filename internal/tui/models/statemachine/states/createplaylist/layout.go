@@ -1,17 +1,20 @@
 package createplaylist
+
 import (
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
+
 func (s CreatePlaylistState) renderModel() string {
-	canvas := lipgloss.NewCanvas()
 	s.list.SetWidth(s.width)
 	s.list.SetHeight(s.height)
+
 	tracksLayer := lipgloss.NewLayer(s.list.View())
-	canvas.AddLayers(tracksLayer.
-		Width(s.width).
-		Height(s.height).
-		X(0).Y(0),
-	)
+
+	layers := []*lipgloss.Layer{
+		tracksLayer.X(0).Y(0),
+	}
+
+	comp := lipgloss.NewCompositor(layers...)
 
 	if s.namingPlaylist {
 		formView := s.nameForm.View()
@@ -29,10 +32,10 @@ func (s CreatePlaylistState) renderModel() string {
 		formX := (s.width - formW) / 2
 		formY := (s.height - formH) / 2
 
-		canvas.AddLayers(formLayer.
+		comp.AddLayers(formLayer.
 			X(formX).Y(formY).Z(1),
 		)
 	}
 
-	return canvas.Render()
+	return comp.Render()
 }

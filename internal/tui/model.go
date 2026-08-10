@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/help"
+	"charm.land/bubbles/v2/help"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
@@ -71,7 +71,7 @@ func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model,
 
 func (m Model) Init() tea.Cmd {
 	m.logger.Debug("root tui model init called")
-	return nil
+	return m.stateMachine.Init()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -99,7 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	return m.renderModel()
 }
 

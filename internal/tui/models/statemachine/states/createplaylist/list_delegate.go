@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/bubbles/v2/list"
+	"charm.land/bubbles/v2/list"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/models/track"
 	"github.com/dkaman/recordbaux/internal/tui/style"

@@ -1,9 +1,9 @@
 package style
 
 import (
-	"github.com/charmbracelet/bubbles/v2/help"
+	"charm.land/bubbles/v2/help"
 
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 var (

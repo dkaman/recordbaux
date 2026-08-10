@@ -1,21 +1,18 @@
 package statemachine
 
 import (
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
-func (m Model) renderModel() string {
-	canvas := lipgloss.NewCanvas()
+func (m Model) renderModel() tea.View {
+	currentState := m.currentState.View()
 
 	viewportStyle := lipgloss.NewStyle().
 		Width(m.width).
 		Height(m.height)
 
-	viewPort := lipgloss.NewLayer(viewportStyle.Render(m.currentState.View()))
+	content := viewportStyle.Render(currentState.Content)
 
-	canvas.AddLayers(viewPort.
-		X(0).Y(0),
-	)
-
-	return canvas.Render()
+	return tea.NewView(content)
 }

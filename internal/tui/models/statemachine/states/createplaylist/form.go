@@ -2,7 +2,7 @@ package createplaylist
 
 import (
 
-	huh "github.com/charmbracelet/huh/v2"
+	huh "charm.land/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
@@ -22,7 +22,7 @@ func newNameForm() *form {
 				Value(&f.name).
 				Validate(huh.ValidateNotEmpty()),
 		),
-	).WithTheme(style.DefaultFormStyles())
+	).WithTheme(huh.ThemeFunc(style.DefaultFormStyles))
 
 	return f
 }

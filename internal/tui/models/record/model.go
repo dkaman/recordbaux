@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/v2/table"
+	"charm.land/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/record"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "up":
 			// Move the track selection up
@@ -91,12 +91,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the model's UI.
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	if m.physicalRecord == nil {
-		return "No record loaded"
+		return tea.NewView("No record loaded")
 	}
-
-	canvas := lipgloss.NewCanvas()
 
 	// Calculate height for each section to divide the screen
 	sectionHeight := m.height / 3
@@ -112,20 +110,17 @@ func (m Model) View() string {
 	// --- Render Track Info Card ---
 	trackInfoCard := m.renderTrackInfoCard(m.width, sectionHeight)
 
-	recordCard := lipgloss.NewLayer(recordInfoCard)
-	tracklist := lipgloss.NewLayer(tracklistTable)
-	trackInfo := lipgloss.NewLayer(trackInfoCard)
+	// --- composite layers
 
-	canvas.AddLayers(
-		recordCard.
-			X(0).Y(0),
-		tracklist.
-			X(0).Y(sectionHeight),
-		trackInfo.
-			X(0).Y(2*sectionHeight),
-	)
+	layers := []*lipgloss.Layer{
+		lipgloss.NewLayer(recordInfoCard).X(0).Y(0),
+		lipgloss.NewLayer(tracklistTable).X(0).Y(sectionHeight),
+		lipgloss.NewLayer(trackInfoCard).X(0).Y(2*sectionHeight),
+	}
 
-	return canvas.Render()
+	comp := lipgloss.NewCompositor(layers...)
+
+	return tea.NewView(comp.Render())
 }
 
 // SetSize updates the model's dimensions.

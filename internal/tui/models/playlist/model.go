@@ -3,7 +3,7 @@ package playlist
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 )
@@ -31,8 +31,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // View is a no-op.
-func (m Model) View() string {
-	return ""
+func (m Model) View() tea.View {
+	return tea.NewView("")
 }
 
 // FilterValue implements the list.Item interface for filtering.

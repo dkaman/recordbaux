@@ -3,8 +3,8 @@ package loadedshelf
 import (
 	"context"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	huh "github.com/charmbracelet/huh/v2"
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
 
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -35,7 +35,7 @@ func newFolderSelectForm(c *discogs.Client, u string) *loadCollectionForm {
 				Options(folderOptions...).
 				Value(&f.folder),
 		),
-	).WithTheme(style.DefaultFormStyles())
+	).WithTheme(huh.ThemeFunc(style.DefaultFormStyles))
 
 	return f
 }
@@ -52,8 +52,8 @@ func (f *loadCollectionForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return f, cmd
 }
 
-func (f *loadCollectionForm) View() string {
-	return f.Form.View()
+func (f *loadCollectionForm) View() tea.View {
+	return tea.NewView(f.Form.View())
 }
 
 func (f *loadCollectionForm) Folder() string {

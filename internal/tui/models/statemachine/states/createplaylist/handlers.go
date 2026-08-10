@@ -3,10 +3,10 @@ package createplaylist
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/list"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"

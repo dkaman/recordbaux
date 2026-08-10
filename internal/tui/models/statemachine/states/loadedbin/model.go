@@ -3,10 +3,10 @@ package loadedbin
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/help"
-	"github.com/charmbracelet/bubbles/v2/table"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
@@ -85,8 +85,8 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, tea.Batch(cmds...)
 }
 
-func (s LoadedBinState) View() string {
-	return s.renderModel()
+func (s LoadedBinState) View() tea.View {
+	return tea.NewView(s.renderModel())
 }
 
 func (s LoadedBinState) Help() string {

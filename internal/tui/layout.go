@@ -1,20 +1,18 @@
 package tui
 
 import (
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
-func (m Model) renderModel() string {
+func (m Model) renderModel() tea.View {
 	if !m.ready {
-		return "\n initializing..."
+		return tea.NewView("\n initializing...")
 	}
 
-	canvas := lipgloss.NewCanvas()
-
 	numBars := 2
-
 	if m.helpVisible {
 		numBars = 3
 	}
@@ -30,30 +28,29 @@ func (m Model) renderModel() string {
 	viewportStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		Width(m.width).
-		Height(m.height-numBars)
+		Height(max(0, m.height-numBars))
 
-	topBar := lipgloss.NewLayer(barStyle.Render(m.topBarText))
-	helpBar := lipgloss.NewLayer(helpStyle.Render(m.Help()))
-	statusBar := lipgloss.NewLayer(barStyle.Render(m.statusBarText))
-	viewPort := lipgloss.NewLayer(viewportStyle.Render(m.stateMachine.View()))
+	topBar := barStyle.Render(m.topBarText)
+	statusBar := barStyle.Render(m.statusBarText)
+	viewPort := viewportStyle.Render(m.stateMachine.View().Content)
 
-	canvas.AddLayers(topBar.
-		X(0).Y(1),
-	)
-
-	canvas.AddLayers(viewPort.
-		X(0).Y(2),
-	)
+	var content string
 
 	if m.helpVisible {
-		canvas.AddLayers(helpBar.
-			X(0).Y(m.height-1),
+		helpBar := helpStyle.Render(m.Help())
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			topBar,
+			viewPort,
+			helpBar,
+			statusBar,
+		)
+	} else {
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			topBar,
+			viewPort,
+			statusBar,
 		)
 	}
 
-	canvas.AddLayers(statusBar.
-		X(0).Y(m.height),
-	)
-
-	return canvas.Render()
+	return tea.NewView(content)
 }

@@ -3,10 +3,10 @@ package loadedplaylist
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/table"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"

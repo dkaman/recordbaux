@@ -2,7 +2,8 @@ package util
 
 import (
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea/v2"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 func UpdateModel[T tea.Model](m T, msg tea.Msg) (T, tea.Cmd) {

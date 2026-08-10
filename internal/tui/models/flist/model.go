@@ -2,10 +2,10 @@
 package flist
 
 import (
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/list"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
@@ -57,14 +57,13 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	// Only handle inputs if focused. Always handle resize messages.
-	if !m.focused {
-		if _, ok := msg.(tea.WindowSizeMsg); !ok {
-			return m, nil
-		}
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.Model.SetSize(sizeMsg.Width, sizeMsg.Height)
+		return m, nil
 	}
 
 	// For key messages, prevent list filtering when not focused
-	if keyMsg, ok := msg.(tea.KeyMsg); ok && !m.focused {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok && !m.focused {
 		if key.Matches(keyMsg, m.KeyMap.Filter) {
 			return m, nil
 		}
@@ -74,6 +73,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() string {
-	return m.Model.View()
+func (m Model) View() tea.View {
+	return tea.NewView(m.Model.View())
 }

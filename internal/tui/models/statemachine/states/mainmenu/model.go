@@ -3,10 +3,10 @@ package mainmenu
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/list"
+	"charm.land/bubbles/v2/list"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	huh "github.com/charmbracelet/huh/v2"
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
@@ -128,6 +128,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var updateCmd tea.Cmd
+
 	if s.focus == shelvesView {
 		s.shelves, updateCmd = util.UpdateModel(s.shelves, msg)
 	} else {
@@ -139,7 +140,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, tea.Batch(cmds...)
 }
 
-func (s MainMenuState) View() string {
+func (s MainMenuState) View() tea.View {
 	return s.renderModel()
 }
 

@@ -3,8 +3,8 @@ package bin
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 )
@@ -45,7 +45,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	var out string
 
 	var style lipgloss.Style
@@ -71,7 +71,7 @@ func (m Model) View() string {
 		out = "no bin loaded"
 	}
 
-	return style.Width(m.width).Height(m.height).Render(out)
+	return tea.NewView(style.Width(m.width).Height(m.height).Render(out))
 }
 
 func (m Model) SetSize(w, h int) Model {

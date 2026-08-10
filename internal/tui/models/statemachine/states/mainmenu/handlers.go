@@ -1,16 +1,19 @@
 package mainmenu
 
 import (
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/list"
+	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
@@ -28,8 +31,41 @@ func getHandlers() *handlers.Registry {
 }
 
 func handleTeaWindowSizeMsg(s MainMenuState, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	var cmds []tea.Cmd
+
 	s.width, s.height = msg.Width, msg.Height
-	return s, nil, nil
+
+	halfWidth := s.width / 2
+	otherWidth := s.width - halfWidth
+
+	var shelfUpdateCmds tea.Cmd
+
+	shelfSizeMsg := tea.WindowSizeMsg{
+		Width: halfWidth,
+		Height: s.height,
+	}
+
+	s.shelves, shelfUpdateCmds = util.UpdateModel(s.shelves, shelfSizeMsg)
+	cmds = append(cmds, shelfUpdateCmds)
+
+	var playlistUpdateCmds tea.Cmd
+
+	playlistSizeMsg := tea.WindowSizeMsg{
+		Width: otherWidth,
+		Height: s.height,
+	}
+
+	s.playlists, playlistUpdateCmds = util.UpdateModel(s.playlists, playlistSizeMsg)
+	cmds = append(cmds, playlistUpdateCmds)
+
+	s.logger.Debug("window sizes for child models",
+		slog.Any("shelf width", s.shelves.Width()),
+		slog.Any("shelf height", s.shelves.Height()),
+		slog.Any("playlist width", s.playlists.Width()),
+		slog.Any("playlist height", s.playlists.Height()),
+	)
+
+	return s, tea.Batch(cmds...), nil
 }
 
 func handleTeaKeyPressMsg(s MainMenuState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {

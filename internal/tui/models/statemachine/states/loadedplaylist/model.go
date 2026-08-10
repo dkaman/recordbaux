@@ -3,9 +3,9 @@ package loadedplaylist
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/table"
+	"charm.land/bubbles/v2/table"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
@@ -69,8 +69,8 @@ func (s LoadedPlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, tea.Batch(cmds...)
 }
 
-func (s LoadedPlaylistState) View() string {
-	return s.renderModel()
+func (s LoadedPlaylistState) View() tea.View {
+	return tea.NewView(s.renderModel())
 }
 
 func (s LoadedPlaylistState) Help() string {

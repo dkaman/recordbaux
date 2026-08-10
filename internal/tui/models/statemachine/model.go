@@ -4,7 +4,7 @@ import (
 	"errors"
 	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
@@ -97,7 +97,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(stateCmds)
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	return m.renderModel()
 }
 

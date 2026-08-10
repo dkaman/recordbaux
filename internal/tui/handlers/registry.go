@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 )
 
 type Handler func(tea.Model, tea.Msg) (tea.Model, tea.Cmd, tea.Msg)

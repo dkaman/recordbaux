@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/bubbles/v2/list"
-	"github.com/charmbracelet/bubbles/v2/progress"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/progress"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/models/flist"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
@@ -32,7 +32,7 @@ type shelfDelegate struct {
 }
 
 func newShelfDelegate(s shelfDelegateStyles) shelfDelegate {
-	prg := progress.New(progress.WithDefaultGradient())
+	prg := progress.New(progress.WithDefaultBlend())
 
 	return shelfDelegate{
 		focused: true,

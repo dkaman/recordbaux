@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"math"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
@@ -106,23 +106,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	if m.id == 0 {
-		return ""
+		return tea.NewView("")
 	}
 
 	availableWidth := m.width
 	availableHeight := m.height
 	// if no physical shelf return message (likely won't happen)
 	if m.physicalShelf == nil {
-		return "no shelves loaded"
+		return tea.NewView("no shelves loaded")
 	}
 	// don't render if no space is available
 	if availableWidth <= 0 || availableHeight <= 0 {
-		return ""
+		return tea.NewView("")
 	}
 	if len(m.physicalShelf.Bins) == 0 {
-		return "shelf has no bins to display"
+		return tea.NewView("shelf has no bins to display")
 	}
 
 	// Local layout values, previously stored in the struct for the old layout system.
@@ -162,13 +162,13 @@ func (m Model) View() string {
 		m.logger.Error("error getting shape from entity",
 			slog.Any("error", err),
 		)
-		return "error: could not read shelf shape"
+		return tea.NewView("error: could not read shelf shape")
 	}
 
 	cols := s.X
 	rows := s.Y
 	if cols <= 0 || rows <= 0 {
-		return "shelf shape has invalid dimensions or insufficient space"
+		return tea.NewView("shelf shape has invalid dimensions or insufficient space")
 	}
 
 	// Now calculate the effective available space for the *bin content, padding, and border*
@@ -200,46 +200,48 @@ func (m Model) View() string {
 		finalBinHeight = 0
 	}
 
-	// --- New Rendering Logic using lipgloss.Canvas ---
+	marginStyle := lipgloss.NewStyle().
+		MarginTop(binDivMargin.Top).
+		MarginRight(binDivMargin.Right).
+		MarginBottom(binDivMargin.Bottom).
+		MarginLeft(binDivMargin.Left)
 
-	// Calculate total grid dimensions for centering
-	totalGridWidth := cols * (finalBinWidth + totalHorizontalMarginPerBin)
-	totalGridHeight := rows * (finalBinHeight + totalVerticalMarginPerBin)
-
-	// Calculate offsets to center the entire grid of bins
-	offsetX := (m.width - totalGridWidth) / 2
-	if offsetX < 0 {
-		offsetX = 0
-	}
-	offsetY := (m.height - totalGridHeight) / 2
-	if offsetY < 0 {
-		offsetY = 0
-	}
-
-	// Create a canvas to draw on.
-	canvas := lipgloss.NewCanvas()
-
+	var gridRows []string
 	binIndex := 0
-	for r := 0; r < rows; r++ {
-		for c := 0; c < cols; c++ {
-			if binIndex < len(m.bins) {
-				// Calculate the top-left position for the current bin's layer
-				xPos := offsetX + c*(finalBinWidth+totalHorizontalMarginPerBin)
-				yPos := offsetY + r*(finalBinHeight+totalVerticalMarginPerBin)
 
+	// Build the grid row by row
+	for r := 0; r < rows; r++ {
+		var rowBins []string
+		for c := 0; c < cols; c++ {
+			var renderedBin string
+
+			if binIndex < len(m.bins) {
 				// Get the rendered view string from the bin model
 				b := m.bins[binIndex].SetSize(finalBinWidth, finalBinHeight)
-				binView := b.View()
-
-				// Create a new layer with the bin's content and place it on the canvas
-				binLayer := lipgloss.NewLayer(binView)
-				canvas.AddLayers(binLayer.X(xPos).Y(yPos))
+				renderedBin = b.View().Content
+			} else {
+				// If the shelf isn't completely full, render an empty box to preserve grid shape
+				renderedBin = lipgloss.NewStyle().
+					Width(finalBinWidth).
+					Height(finalBinHeight).
+					Render("")
 			}
+
+			// Wrap the bin string in the margin style and add to the current row
+			rowBins = append(rowBins, marginStyle.Render(renderedBin))
 			binIndex++
 		}
+
+		// Join all bins in this row horizontally
+		rowStr := lipgloss.JoinHorizontal(lipgloss.Top, rowBins...)
+		gridRows = append(gridRows, rowStr)
 	}
 
-	return canvas.Render()
+	// Join all rows vertically
+	grid := lipgloss.JoinVertical(lipgloss.Left, gridRows...)
+
+	// 4. Place the completed grid in the absolute center of the available terminal space
+	return tea.NewView(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, grid))
 }
 
 func (m *Model) loadPhysicalShelf() {
@@ -256,20 +258,21 @@ func (m *Model) loadPhysicalShelf() {
 		alignedSelected := style.Centered.
 			Bold(true).
 			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(style.LightWhite).
 			Foreground(style.LightGreen)
 		binStyles = bin.Style{
 			EmptySelected:   alignedSelected,
-			EmptyUnselected: style.Centered.BorderStyle(lipgloss.NormalBorder()),
+			EmptyUnselected: style.Centered.BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhite),
 			FullSelected:    alignedSelected.Background(style.DarkBlue),
-			FullUnselected:  style.Centered.BorderStyle(lipgloss.NormalBorder()).Background(style.DarkBlue).Foreground(style.DarkBlack),
+			FullUnselected:  style.Centered.BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhite).Background(style.DarkBlue).Foreground(style.DarkBlack),
 		}
 	} else { // Blurred styles
-		alignedSelected := style.Centered.Foreground(style.LightGreenDimmed)
+		alignedSelected := style.Centered.Foreground(style.LightGreenDimmed).BorderForeground(style.LightWhiteDimmed)
 		binStyles = bin.Style{
 			EmptySelected:   alignedSelected,
-			EmptyUnselected: style.Centered.Foreground(style.DarkWhiteDimmed).BorderStyle(lipgloss.NormalBorder()),
+			EmptyUnselected: style.Centered.Foreground(style.DarkWhiteDimmed).BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhiteDimmed),
 			FullSelected:    alignedSelected.Background(style.DarkBlueDimmed),
-			FullUnselected:  style.Centered.Foreground(style.DarkBlackDimmed).Background(style.DarkBlueDimmed).BorderStyle(lipgloss.NormalBorder()),
+			FullUnselected:  style.Centered.Foreground(style.DarkBlackDimmed).Background(style.DarkBlueDimmed).BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhiteDimmed),
 		}
 	}
 

@@ -1,20 +1,18 @@
 package loadedplaylist
 
 import (
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 func (s LoadedPlaylistState) renderModel() string {
-	canvas := lipgloss.NewCanvas()
-
 	s.trackTable.SetWidth(s.width)
 	s.trackTable.SetHeight(s.height)
 
-	tracks := lipgloss.NewLayer(s.trackTable.View())
+	layers := []*lipgloss.Layer{
+		lipgloss.NewLayer(s.trackTable.View()).X(0).Y(0),
+	}
 
-	canvas.AddLayers(tracks.
-		X(0).Y(0),
-	)
+	comp := lipgloss.NewCompositor(layers...)
 
-	return canvas.Render()
+	return comp.Render()
 }

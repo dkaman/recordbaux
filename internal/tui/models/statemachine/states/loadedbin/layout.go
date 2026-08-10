@@ -1,12 +1,10 @@
 package loadedbin
 
 import (
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 func (s LoadedBinState) renderModel() string {
-	canvas := lipgloss.NewCanvas()
-
 	boxW := s.width/2
 	boxH := s.height
 
@@ -20,15 +18,14 @@ func (s LoadedBinState) renderModel() string {
 	s.selectedRecord = s.selectedRecord.SetSize(boxW-2, boxH-2)
 
 	left := lipgloss.NewLayer(boxStyle.Render(s.records.View()))
-	right := lipgloss.NewLayer(boxStyle.Render(s.selectedRecord.View()))
+	right := lipgloss.NewLayer(boxStyle.Render(s.selectedRecord.View().Content))
 
-	canvas.AddLayers(left.
-		X(0).Y(0),
-	)
+	layers := []*lipgloss.Layer{
+		left.X(0).Y(0),
+		right.X(boxW).Y(0),
+	}
 
-	canvas.AddLayers(right.
-		X(boxW).Y(0),
-	)
+	comp := lipgloss.NewCompositor(layers...)
 
-	return canvas.Render()
+	return comp.Render()
 }

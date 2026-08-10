@@ -3,7 +3,7 @@ package statemachine
 import (
 	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/util"
@@ -21,6 +21,8 @@ func getHandlers() *handlers.Registry {
 }
 
 func handleTeaWindowSizeMsg(m Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	// this ensures child states see the full viewport window as available
+	// real estate
 	m.width, m.height = msg.Width, msg.Height
 	return m, nil, msg
 }

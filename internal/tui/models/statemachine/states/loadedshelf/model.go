@@ -3,12 +3,12 @@ package loadedshelf
 import (
 	"log/slog"
 
-	"github.com/charmbracelet/bubbles/v2/progress"
-	"github.com/charmbracelet/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	lipgloss "github.com/charmbracelet/lipgloss/v2"
-	huh "github.com/charmbracelet/huh/v2"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+	huh "charm.land/huh/v2"
 
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/db/record"
@@ -67,7 +67,7 @@ func New(svcs *services.AllServices, log *slog.Logger, c *discogs.Client, u stri
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(style.LightMagenta)
 
-	prg := progress.New(progress.WithDefaultGradient())
+	prg := progress.New(progress.WithDefaultBlend())
 
 	return LoadedShelfState{
 		svcs:     svcs,
@@ -130,7 +130,7 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, tea.Batch(cmds...)
 }
 
-func (s LoadedShelfState) View() string {
+func (s LoadedShelfState) View() tea.View {
 	return s.renderModel()
 }
 

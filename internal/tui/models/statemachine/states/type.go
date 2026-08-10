@@ -1,7 +1,7 @@
 package states
 
 import (
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 )
 
 type StateType int
@@ -12,7 +12,7 @@ type helper interface{
 
 type State interface {
 	tea.Model
-	tea.ViewModel
+	tea.Model
 	helper
 }
 

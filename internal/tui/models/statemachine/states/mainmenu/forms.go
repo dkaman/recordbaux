@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
-	huh "github.com/charmbracelet/huh/v2"
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/style"
 )
@@ -106,7 +106,7 @@ func newCreateShelfForm() *createShelfForm {
 		).WithHideFunc(func() bool {
 			return f.shape != "irregular"
 		}),
-	).WithTheme(style.DefaultFormStyles())
+	).WithTheme(huh.ThemeFunc(style.DefaultFormStyles))
 
 	return f
 }
@@ -123,8 +123,8 @@ func (f *createShelfForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return f, cmd
 }
 
-func (f *createShelfForm) View() string {
-	return f.Form.View()
+func (f *createShelfForm) View() tea.View {
+	return tea.NewView(f.Form.View())
 }
 
 func (f *createShelfForm) Name() string {
