@@ -5,15 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	"charm.land/bubbles/v2/help"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
-	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 )
 
@@ -45,9 +42,6 @@ func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model,
 	if log == nil {
 		return m, LoggerIsNilErr
 	}
-
-	h := help.New()
-	h.Styles = style.DefaultHelpStyles()
 
 	sm, err := statemachine.New(svcs, c, log)
 	if err != nil {

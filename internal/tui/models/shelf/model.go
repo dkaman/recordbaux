@@ -113,31 +113,35 @@ func (m Model) View() tea.View {
 
 	availableWidth := m.width
 	availableHeight := m.height
+
 	// if no physical shelf return message (likely won't happen)
 	if m.physicalShelf == nil {
 		return tea.NewView("no shelves loaded")
 	}
+
 	// don't render if no space is available
 	if availableWidth <= 0 || availableHeight <= 0 {
 		return tea.NewView("")
 	}
+
 	if len(m.physicalShelf.Bins) == 0 {
 		return tea.NewView("shelf has no bins to display")
 	}
 
-	// Local layout values, previously stored in the struct for the old layout system.
 	binDivMargin := topRightBottomLeft{
 		Top:    defaultBinDivMarginVertical,
 		Right:  defaultBinDivMarginHorizontal,
 		Bottom: defaultBinDivMarginVertical,
 		Left:   defaultBinDivMarginHorizontal,
 	}
+
 	binDivPadding := topRightBottomLeft{
 		Top:    defaultBinDivPaddingVertical,
 		Right:  defaultBinDivPaddingHorizontal,
 		Bottom: defaultBinDivPaddingVertical,
 		Left:   defaultBinDivPaddingHorizontal,
 	}
+
 	binDivBorder := defaultBinDivBorder
 
 	// Calculate the combined horizontal space consumed by padding and border for a single bin div
@@ -145,15 +149,19 @@ func (m Model) View() tea.View {
 	if binDivBorder {
 		binInternalHorizontalPaddingAndBorder += 2 // 1 char for left border, 1 for right
 	}
+
 	// Calculate the combined vertical space consumed by padding and border for a single bin div
 	binInternalVerticalPaddingAndBorder := (binDivPadding.Top + binDivPadding.Bottom)
 	if binDivBorder {
 		binInternalVerticalPaddingAndBorder += 2 // 1 char for top border, 1 for bottom
 	}
+
 	// Calculate the total horizontal margin consumed by *one* bin div (left + right)
 	totalHorizontalMarginPerBin := (binDivMargin.Left + binDivMargin.Right)
+
 	// Calculate the total vertical margin consumed by *one* bin div (top + bottom)
 	totalVerticalMarginPerBin := (binDivMargin.Top + binDivMargin.Bottom)
+
 	// Minimum height a bin div must have to show content + padding + border
 	minBinDivTotalHeight := minBinContentHeight + binInternalVerticalPaddingAndBorder
 
@@ -167,6 +175,7 @@ func (m Model) View() tea.View {
 
 	cols := s.X
 	rows := s.Y
+
 	if cols <= 0 || rows <= 0 {
 		return tea.NewView("shelf shape has invalid dimensions or insufficient space")
 	}
@@ -175,27 +184,34 @@ func (m Model) View() tea.View {
 	// considering the determined `cols` and `rows` and all margins.
 	effectiveAvailableWidthForBinsContentArea := availableWidth - (totalHorizontalMarginPerBin * cols)
 	effectiveAvailableHeightForBinsContentArea := availableHeight - (totalVerticalMarginPerBin * rows)
+
 	// Ensure these effective available dimensions are not negative
 	if effectiveAvailableWidthForBinsContentArea < 0 {
 		effectiveAvailableWidthForBinsContentArea = 0
 	}
+
 	if effectiveAvailableHeightForBinsContentArea < 0 {
 		effectiveAvailableHeightForBinsContentArea = 0
 	}
+
 	// Calculate the "candidate" width and height for each bin div's *total area*
 	// (including its own padding and border but not outer margins).
 	candidateBinWidth := effectiveAvailableWidthForBinsContentArea / cols
 	candidateBinHeight := effectiveAvailableHeightForBinsContentArea / rows
+
 	// Adjust final bin height to maintain aspect ratio (3:1 assumed for content area)
 	// and to respect the minimum total height for the div (content + padding + border).
 	finalBinHeight := int(math.Min(float64(candidateBinHeight), float64(candidateBinWidth)/3.0))
 	if finalBinHeight < minBinDivTotalHeight {
 		finalBinHeight = minBinDivTotalHeight
 	}
+
 	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio
+
 	if finalBinWidth < 0 {
 		finalBinWidth = 0
 	}
+
 	if finalBinHeight < 0 {
 		finalBinHeight = 0
 	}

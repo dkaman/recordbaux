@@ -3,45 +3,32 @@ package loadedplaylist
 import (
 	"log/slog"
 
-	"charm.land/bubbles/v2/table"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/handlers"
-	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 )
 
 type LoadedPlaylistState struct {
-	svcs *services.AllServices
-	keys            keyMap
-	logger          *slog.Logger
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
 	handlers *handlers.Registry
 
-	trackTable      table.Model
+	playlist   playlist.Model
 
-	width, height   int
+	width, height int
 }
 
 func New(svcs *services.AllServices, log *slog.Logger) LoadedPlaylistState {
-	columns := []table.Column{
-		{Title: "Position", Width: 10},
-		{Title: "Title", Width: 50},
-		{Title: "Duration", Width: 10},
-		{Title: "Key", Width: 8},
-		{Title: "BPM", Width: 8},
-	}
-	tbl := table.New(table.WithColumns(columns), table.WithFocused(true))
-	tbl.SetStyles(style.DefaultTableStyles())
-
 	return LoadedPlaylistState{
-		svcs: svcs,
-		keys:            defaultKeybinds(),
-		logger:          log.WithGroup("playlistloaded"),
+		svcs:     svcs,
+		keys:     defaultKeybinds(),
+		logger:   log.WithGroup("playlistloaded"),
 		handlers: getHandlers(),
-
-		trackTable:      tbl,
+		playlist: playlist.New(),
 	}
 }
 
@@ -62,15 +49,15 @@ func (s LoadedPlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
-	var tableCmd tea.Cmd
-	s.trackTable, tableCmd = s.trackTable.Update(msg)
-	cmds = append(cmds, tableCmd)
+	var playlistCmd tea.Cmd
+	s.playlist, playlistCmd = s.playlist.Update(msg)
+	cmds = append(cmds, playlistCmd)
 
 	return s, tea.Batch(cmds...)
 }
 
 func (s LoadedPlaylistState) View() tea.View {
-	return tea.NewView(s.renderModel())
+	return s.renderModel()
 }
 
 func (s LoadedPlaylistState) Help() string {

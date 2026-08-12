@@ -3,60 +3,107 @@ package playlist
 import (
 	"fmt"
 
+	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 )
 
-// Model is a wrapper for a playlist entity for use in the TUI.
 type Model struct {
-	physicalPlaylist *playlist.Entity
+	width, height int
+	entity        *playlist.Entity
+	trackTable    table.Model
 }
 
-// New creates a new playlist model.
-func New(p *playlist.Entity) Model {
+func New() Model {
+	columns := []table.Column{
+		{Title: "Position", Width: 8},
+		{Title: "Title", Width: 50},
+		{Title: "Duration", Width: 8},
+		{Title: "Key", Width: 3},
+		{Title: "BPM", Width: 3},
+	}
+
+	tbl := table.New(table.WithColumns(columns), table.WithFocused(true))
+	tbl.SetStyles(style.DefaultTableStyles())
+
 	return Model{
-		physicalPlaylist: p,
+		trackTable: tbl,
 	}
 }
 
-// Init is a no-op.
 func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-// Update is a no-op.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	return m, nil
+	var cmds []tea.Cmd
+
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = sizeMsg.Width, sizeMsg.Height
+		return m, nil
+	}
+
+	var tableCmd tea.Cmd
+	m.trackTable, tableCmd = m.trackTable.Update(msg)
+	cmds = append(cmds, tableCmd)
+
+	return m, tea.Batch(cmds...)
 }
 
-// View is a no-op.
 func (m Model) View() tea.View {
-	return tea.NewView("")
+	if m.entity == nil {
+		return tea.NewView("no playlist is loaded yet...")
+	}
+
+	m.trackTable.SetWidth(m.width)
+	m.trackTable.SetHeight(m.height)
+	tableContent := m.trackTable.View()
+
+	return tea.NewView(tableContent)
 }
 
 // FilterValue implements the list.Item interface for filtering.
 func (m Model) FilterValue() string {
-	if m.physicalPlaylist == nil {
+	if m.entity == nil {
 		return ""
 	}
-	return m.physicalPlaylist.Name
+	return m.entity.Name
 }
 
-// Title returns the playlist's name.
 func (m Model) Title() string {
 	return m.FilterValue()
 }
 
-// Description returns a summary of the playlist's contents.
 func (m Model) Description() string {
-	if m.physicalPlaylist == nil {
+	if m.entity == nil {
 		return ""
 	}
-	return fmt.Sprintf("%d tracks", len(m.physicalPlaylist.Tracks))
+	return fmt.Sprintf("%d tracks", len(m.entity.Tracks))
 }
 
-// PhysicalPlaylist returns the underlying playlist entity.
 func (m Model) PhysicalPlaylist() *playlist.Entity {
-	return m.physicalPlaylist
+	return m.entity
+}
+
+// this is ugly i want to get rid of this eventually
+func (m *Model) SetEntity(p *playlist.Entity) {
+	m.entity = p
+
+	var rows []table.Row
+
+	if p != nil {
+		for _, t := range p.Tracks {
+			rows = append(rows, table.Row{
+				t.Position,
+				t.Title,
+				t.Duration,
+				t.Key,
+				fmt.Sprintf("%d", t.BPM),
+			})
+		}
+	}
+
+	m.trackTable.SetRows(rows)
 }

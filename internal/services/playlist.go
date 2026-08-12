@@ -28,9 +28,6 @@ type PlaylistSavedMsg struct {
 type PlaylistDeletedMsg struct {
 	Err error
 }
-type PlaylistCheckedOutMsg struct {
-	Err error
-}
 
 func NewPlaylistService(repo playlistDB, log *slog.Logger) *PlaylistService {
 	log.WithGroup("playlistservice")
@@ -78,36 +75,3 @@ func (s *PlaylistService) DeletePlaylistCmd(id uint) tea.Cmd {
 		return PlaylistDeletedMsg{Err: err}
 	}
 }
-
-// func CheckoutPlaylistCmd(repo recordDB, p *playlist.Entity, logger *slog.Logger) tea.Cmd {
-// 	// l := logger.WithGroup("checkoutplaylistcmd")
-// 	return func() tea.Msg {
-// 		if p == nil || len(p.Tracks) == 0 {
-// 			return PlaylistCheckedOutMsg{Err: fmt.Errorf("playlist has no tracks to check out")}
-// 		}
-
-// 		// Collect all unique record IDs from the playlist's tracks
-// 		recordIDs := make(map[uint]struct{})
-// 		for _, track := range p.Tracks {
-// 			if track.RecordID != 0 {
-// 				recordIDs[track.RecordID] = struct{}{}
-// 			}
-// 		}
-
-// 		for id := range recordIDs {
-// 			rec, err := repo.Get(id)
-// 			if err != nil {
-// 				return PlaylistCheckedOutMsg{Err: err}
-// 			}
-
-// 			rec.CheckedOut = true
-// 			err = repo.Save(rec)
-// 			if err != nil {
-// 				return PlaylistCheckedOutMsg{Err: err}
-// 			}
-
-// 		}
-
-// 		return PlaylistCheckedOutMsg{Err: nil}
-// 	}
-// }

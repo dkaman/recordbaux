@@ -153,7 +153,9 @@ func handlePlaylistsLoadedMsg(s MainMenuState, msg services.PlaylistsLoadedMsg) 
 	playlistItems := make([]list.Item, len(playlists))
 
 	for i, p := range playlists {
-		playlistItems[i] = tplaylist.New(p)
+		play := tplaylist.New()
+		play.SetEntity(p)
+		playlistItems[i] = play
 	}
 
 	s.playlists.SetItems(playlistItems)
