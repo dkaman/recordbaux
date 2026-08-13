@@ -54,6 +54,11 @@ func handleLoadBinMsg(s LoadedBinState, msg bin.LoadBinMsg) (tea.Model, tea.Cmd,
 		catno := r.CatalogNumber
 		name := r.Title
 		artist := r.Artists[0]
+
+		if r.CheckedOut {
+			name = "[OUT] " + name
+		}
+
 		row := table.Row{catno, name, artist}
 		rows = append(rows, row)
 	}

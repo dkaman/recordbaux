@@ -5,6 +5,7 @@ import "charm.land/bubbles/v2/key"
 type keyMap struct {
 	Back     key.Binding
 	Checkout key.Binding
+	Checkin  key.Binding
 }
 
 func defaultKeybinds() keyMap {
@@ -17,13 +18,17 @@ func defaultKeybinds() keyMap {
 			key.WithKeys("c"),
 			key.WithHelp("c", "checkout"),
 		),
+		Checkin: key.NewBinding(
+			key.WithKeys("C"),
+			key.WithHelp("C", "check in"),
+		),
 	}
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Back, k.Checkout}
+	return []key.Binding{k.Back, k.Checkout, k.Checkin}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Back, k.Checkout}}
+	return [][]key.Binding{{k.Back, k.Checkout, k.Checkin}}
 }

@@ -139,6 +139,13 @@ func (m Model) renderRecordInfoCard(w, h int) string {
 	s.WriteString(fmt.Sprintf("Catalog Number: %s\n", m.physicalRecord.CatalogNumber))
 	s.WriteString(fmt.Sprintf("physical location: %s\n", m.physicalRecord.Coordinate))
 
+	status := "checked in"
+	if m.physicalRecord.CheckedOut {
+		status = style.ActiveTextStyleDimmed.Render("checked out")
+	}
+
+	s.WriteString(fmt.Sprintf("Status: %s\n", status))
+
 	sty := lipgloss.NewStyle().
 		Width(w).
 		Height(h).

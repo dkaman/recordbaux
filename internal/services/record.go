@@ -17,8 +17,9 @@ type RecordService struct {
 	records recordDB
 }
 
-type PlaylistCheckedOutMsg struct {
+type PlaylistCheckoutMsg struct {
 	Err error
+	Status bool
 }
 
 func NewRecordService(repo recordDB, log *slog.Logger) *RecordService {
@@ -42,10 +43,10 @@ func (s *RecordService) UpdateCheckedOutStatus(records []*record.Entity, status 
 	return nil
 }
 
-func (s *RecordService) CheckoutPlaylistCmd(p *playlist.Entity) tea.Cmd {
+func (s *RecordService) SetCheckoutCmd(p *playlist.Entity, c bool) tea.Cmd {
 	return func() tea.Msg {
 		if p == nil || len(p.Tracks) == 0 {
-			return PlaylistCheckedOutMsg{Err: fmt.Errorf("playlist has no tracks to check out")}
+			return PlaylistCheckoutMsg{Err: fmt.Errorf("playlist has no tracks to check in or out")}
 		}
 
 		recordIDs := make(map[uint]struct{})
@@ -55,27 +56,26 @@ func (s *RecordService) CheckoutPlaylistCmd(p *playlist.Entity) tea.Cmd {
 			}
 		}
 
-		var recordsToCheckout []*record.Entity
+		var records []*record.Entity
 
 		for id := range recordIDs {
 			rec, err := s.records.Get(id)
 			if err != nil {
-				return PlaylistCheckedOutMsg{Err: fmt.Errorf("failed to fetch record %d: %w", id, err)}
+				return PlaylistCheckoutMsg{Err: fmt.Errorf("failed to fetch record %d: %w", id, err)}
 			}
-			if rec.CheckedOut {
-				return PlaylistCheckedOutMsg{Err: fmt.Errorf("cannot checkout playlist: record '%s' is already checked out", rec.Title)}
+			if c && rec.CheckedOut {
+				return PlaylistCheckoutMsg{Err: fmt.Errorf("cannot check out playlist: record '%s' is already checked out", rec.Title)}
 			}
-			recordsToCheckout = append(recordsToCheckout, rec)
+			records = append(records, rec)
 		}
 
-		// Execution Pass: Mark them all as checked out and save
-		for _, rec := range recordsToCheckout {
-			rec.CheckedOut = true
+		for _, rec := range records {
+			rec.CheckedOut = c
 			if err := s.records.Save(rec); err != nil {
-				return PlaylistCheckedOutMsg{Err: fmt.Errorf("failed to save record %d: %w", rec.ID, err)}
+				return PlaylistCheckoutMsg{Err: fmt.Errorf("failed to save record %d: %w", rec.ID, err)}
 			}
 		}
 
-		return PlaylistCheckedOutMsg{Err: nil}
+		return PlaylistCheckoutMsg{Err: nil, Status: c}
 	}
 }
