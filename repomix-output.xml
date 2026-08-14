@@ -1,0 +1,6214 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: .git/**
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.github/
+  workflows/
+    release.yml
+cmd/
+  main.go
+internal/
+  config/
+    env.go
+    file.go
+    types.go
+  db/
+    bin/
+      entity.go
+      gorm.go
+      options.go
+      sort.go
+    infra/
+      config.go
+      factory.go
+      postgres.go
+      sqlite.go
+    playlist/
+      entity.go
+      gorm.go
+    record/
+      gorm.go
+      string_array.go
+      value.go
+    shelf/
+      entity.go
+      gorm.go
+      memory.go
+      options.go
+      sort.go
+    track/
+      entity.go
+      gorm.go
+    repository.go
+  services/
+    all.go
+    playlist.go
+    record.go
+    shelf.go
+    track.go
+  tui/
+    cmds/
+      discogs.go
+      statemachine.go
+    handlers/
+      registry.go
+    models/
+      bin/
+        cmds.go
+        model.go
+      flist/
+        model.go
+      playlist/
+        cmds.go
+        model.go
+      record/
+        model.go
+      shelf/
+        cmds.go
+        model.go
+      statemachine/
+        states/
+          createplaylist/
+            form.go
+            handlers.go
+            keymap.go
+            layout.go
+            list_delegate.go
+            model.go
+          loadedbin/
+            handlers.go
+            keymap.go
+            layout.go
+            model.go
+          loadedplaylist/
+            handlers.go
+            keymap.go
+            layout.go
+            model.go
+          loadedshelf/
+            form.go
+            handlers.go
+            keymap.go
+            layout.go
+            model.go
+          mainmenu/
+            forms.go
+            handlers.go
+            keymap.go
+            layout.go
+            list_delegate.go
+            model.go
+          type.go
+        handlers.go
+        layout.go
+        model.go
+      track/
+        model.go
+    style/
+      bars.go
+      bins.go
+      colors.go
+      forms.go
+      helps.go
+      lists.go
+      progress.go
+      shelves.go
+      statemachines.go
+      tables.go
+      viewports.go
+    util/
+      keys.go
+      model.go
+    handlers.go
+    keymap.go
+    layout.go
+    model.go
+.goreleaser.yml
+go.mod
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".github/workflows/release.yml">
+name: goreleaser
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          # either 'goreleaser' (default) or 'goreleaser-pro'
+          distribution: goreleaser
+          # 'latest', 'nightly', or a semver
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+</file>
+
+<file path="internal/db/bin/gorm.go">
+package bin
+
+import (
+	"gorm.io/gorm"
+)
+
+type Repo struct {
+	db *gorm.DB
+}
+
+func NewRepo(db *gorm.DB) (*Repo, error) {
+	return &Repo{db: db}, nil
+}
+
+func (r *Repo) All() ([]*Entity, error) {
+	var es []*Entity
+	err := r.db.
+		Preload("Records", func(db *gorm.DB) *gorm.DB {
+			return db.Order("coordinate ASC")
+		}).
+		Preload("Records.Tracklist").
+		Find(&es).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return es, nil
+}
+
+func (r *Repo) Get(id uint) (*Entity, error) {
+	var e Entity
+	err := r.db.
+		First(&e, "id = ?", id).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &e, nil
+}
+
+func (r *Repo) Save(e *Entity) error {
+	return r.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(e).Error
+}
+
+func (r *Repo) Delete(id uint) error {
+	return r.db.Delete(&Entity{}, "id = ?", id).Error
+}
+</file>
+
+<file path="internal/db/bin/options.go">
+package bin
+
+type option func(*Entity) error
+</file>
+
+<file path="internal/db/infra/config.go">
+package infra
+
+const (
+	DriverPostgres = "postgres"
+	DriverSQLite = "sqlite"
+)
+
+type Config struct {
+	Driver   string         `koanf:"driver"`
+	Postgres PostgresConfig `koanf:"postgres"`
+	SQLite   SQLiteConfig   `koanf:"sqlite"`
+}
+</file>
+
+<file path="internal/db/infra/factory.go">
+package infra
+
+import (
+	"fmt"
+
+	"gorm.io/gorm"
+
+	"github.com/dkaman/recordbaux/internal/db/bin"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/db/track"
+)
+
+func New(conf Config) (*gorm.DB, error) {
+	var db *gorm.DB
+	var err error
+
+	// Select the appropriate driver based on the configuration
+	switch conf.Driver {
+	case DriverPostgres:
+		pgConf := conf.Postgres
+		db, err = NewPostgresConnection(pgConf.Host, pgConf.Port, pgConf.User, pgConf.Password, pgConf.DBName)
+	case DriverSQLite:
+		db, err = NewSQLiteConnection(conf.SQLite.Path)
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", conf.Driver)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Centralized AutoMigrate for all supported databases
+	err = db.AutoMigrate(
+		&shelf.Entity{},
+		&bin.Entity{},
+		&record.Entity{},
+		&track.Entity{},
+		&playlist.Entity{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("auto-migrate failed: %w", err)
+	}
+
+	return db, nil
+}
+</file>
+
+<file path="internal/db/infra/sqlite.go">
+package infra
+
+import (
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
+	// "github.com/dkaman/recordbaux/internal/db/bin"
+	// "github.com/dkaman/recordbaux/internal/db/playlist"
+	// "github.com/dkaman/recordbaux/internal/db/record"
+	// "github.com/dkaman/recordbaux/internal/db/shelf"
+	// "github.com/dkaman/recordbaux/internal/db/track"
+)
+
+type SQLiteConfig struct {
+	Path string `koanf:"path"`
+}
+
+func NewSQLiteConnection(path string) (*gorm.DB, error) {
+	return gorm.Open(sqlite.Open(path))
+}
+</file>
+
+<file path="internal/db/playlist/entity.go">
+package playlist
+
+import "github.com/dkaman/recordbaux/internal/db/track"
+
+type Entity struct {
+	ID     uint `gorm:"primaryKey"`
+	Name   string
+	Tracks []*track.Entity `gorm:"many2many:playlist_tracks;"`
+}
+
+// TableName overrides the default table name to be `playlists`.
+func (e *Entity) TableName() string {
+	return "playlists"
+}
+</file>
+
+<file path="internal/db/playlist/gorm.go">
+package playlist
+
+import (
+	"gorm.io/gorm"
+)
+
+type Repo struct {
+	db *gorm.DB
+}
+
+func NewRepo(db *gorm.DB) (*Repo, error) {
+	return &Repo{db: db}, nil
+}
+
+func (r *Repo) All() ([]*Entity, error) {
+	var es []*Entity
+	err := r.db.
+		Preload("Tracks").
+		Find(&es).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return es, nil
+}
+
+func (r *Repo) Get(id uint) (*Entity, error) {
+	var e Entity
+	err := r.db.
+		First(&e, "id = ?", id).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &e, nil
+}
+
+func (r *Repo) Save(e *Entity) error {
+	return r.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(e).Error
+}
+
+func (r *Repo) Delete(id uint) error {
+	return r.db.Delete(&Entity{}, "id = ?", id).Error
+}
+</file>
+
+<file path="internal/db/record/gorm.go">
+package record
+
+import (
+	"gorm.io/gorm"
+)
+
+type Repo struct {
+	db *gorm.DB
+}
+
+func NewRepo(db *gorm.DB) (*Repo, error) {
+	return &Repo{db: db}, nil
+}
+
+func (r *Repo) All() ([]*Entity, error) {
+	var records []*Entity
+	err := r.db.
+		Preload("Tracklist").
+		Find(&records).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *Repo) Get(id uint) (*Entity, error) {
+	var e Entity
+	err := r.db.
+		Preload("Tracklist").
+		First(&e, "id = ?", id).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &e, nil
+}
+
+func (r *Repo) Save(e *Entity) error {
+	return r.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(e).Error
+}
+
+func (r *Repo) Delete(id uint) error {
+	return r.db.Delete(&Entity{}, "id = ?", id).Error
+}
+</file>
+
+<file path="internal/db/record/string_array.go">
+package record
+
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+)
+
+type StringArray []string
+
+func (sa StringArray) Value() (driver.Value, error) {
+	if sa == nil {
+		return nil, nil
+	}
+	j, err := json.Marshal(sa)
+	return driver.Value(j), err
+}
+
+func (sa *StringArray) Scan(src interface{}) error {
+	if src == nil {
+		*sa = StringArray{}
+		return nil
+	}
+	var source []byte
+	switch src := src.(type) {
+	case string:
+		source = []byte(src)
+	case []byte:
+		source = src
+	default:
+		return errors.New("incompatible type for StringArray")
+	}
+	return json.Unmarshal(source, sa)
+}
+</file>
+
+<file path="internal/db/shelf/gorm.go">
+package shelf
+
+import (
+	"gorm.io/gorm"
+)
+
+type Repo struct {
+	db *gorm.DB
+}
+
+// NewPostgresRepo opens a connection and migrates the schema based on your Entity definitions.
+func NewRepo(db *gorm.DB) (*Repo, error) {
+	return &Repo{db: db}, nil
+}
+
+// All returns every shelf.Entity stored in the database.
+func (r *Repo) All() ([]*Entity, error) {
+	var shelves []*Entity
+	err := r.db.
+		Preload("Bins").
+		Preload("Bins.Records", func(db *gorm.DB) *gorm.DB {
+			return db.Order("coordinate ASC")
+		}).
+		Preload("Bins.Records.Tracklist").
+		Find(&shelves).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return shelves, nil
+}
+
+// Get looks up a shelf.Entity by its ID.
+func (r *Repo) Get(id uint) (*Entity, error) {
+	var s Entity
+	err := r.db.
+		Preload("Bins").
+		Preload("Bins.Records", func(db *gorm.DB) *gorm.DB {
+			return db.Order("coordinate ASC")
+		}).
+		Preload("Bins.Records.Tracklist").
+		First(&s, "id = ?", id).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
+// Save creates or updates a shelf.Entity and its nested bins.
+func (r *Repo) Save(e *Entity) error {
+	// FullSaveAssociations handles nested bin slices
+	return r.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(e).Error
+}
+
+// Delete removes a shelf.Entity by ID.
+func (r *Repo) Delete(id uint) error {
+	return r.db.Delete(&Entity{}, "id = ?", id).Error
+}
+</file>
+
+<file path="internal/services/all.go">
+package services
+
+import "log/slog"
+
+type AllServices struct {
+	*ShelfService
+	*RecordService
+	*PlaylistService
+	*TrackService
+}
+
+func New(log *slog.Logger, s shelfDB, r recordDB, p playlistDB, t trackDB) *AllServices {
+	return &AllServices{
+		NewShelfService(s, log),
+		NewRecordService(r, log),
+		NewPlaylistService(p, log),
+		NewTrackService(t, log),
+	}
+}
+</file>
+
+<file path="internal/tui/style/shelves.go">
+package style
+</file>
+
+<file path="internal/tui/style/statemachines.go">
+package style
+</file>
+
+<file path="internal/config/env.go">
+package config
+
+import (
+	"strings"
+
+	"github.com/knadh/koanf/v2"
+
+	env "github.com/knadh/koanf/providers/env/v2"
+)
+
+func normalizeEnvPath(s string, prefix string) string {
+	return strings.Replace(strings.ToLower(strings.TrimPrefix(s, prefix)), "_", ".", -1)
+}
+
+func WithEnv(prefix string) ConfigOption {
+	return func(k *koanf.Koanf) error {
+		pre := strings.ToUpper(prefix + "_")
+
+		k.Load(env.Provider(".", env.Opt{
+			Prefix: pre,
+			TransformFunc: func(k, v string) (string, any) {
+				k = strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(k, pre)), "_", ".")
+				if strings.Contains(v, " ") {
+					return k, strings.Split(v, " ")
+				}
+				return k, v
+			},
+		}), nil)
+
+		return nil
+	}
+}
+</file>
+
+<file path="internal/config/file.go">
+package config
+
+import (
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
+)
+
+func WithFile(path string) ConfigOption {
+	return func(k *koanf.Koanf) error {
+		if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+</file>
+
+<file path="internal/db/bin/sort.go">
+package bin
+
+import (
+	"github.com/dkaman/recordbaux/internal/db/record"
+)
+
+var (
+	SortAlphaByArtist = "alpha_by_artist"
+)
+
+type sortFunc func(i, j *record.Entity) bool
+
+var sortRegistry = map[string]sortFunc {
+	SortAlphaByArtist: AlphaByArtist,
+}
+
+func AlphaByArtist(i, j *record.Entity) bool {
+	return i.Artists[0] < j.Artists[0]
+}
+</file>
+
+<file path="internal/db/infra/postgres.go">
+package infra
+
+import (
+	"fmt"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+)
+
+type PostgresConfig struct {
+	Host     string `koanf:"host"`
+	Port     int    `koanf:"port"`
+	User     string `koanf:"user"`
+	Password string `koanf:"password"`
+	DBName   string `koanf:"dbname"`
+}
+
+// NewPostgresRepo opens a connection and migrates the schema based on your Entity definitions.
+func NewPostgresConnection(host string, port int, user string, password string, dbName string) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s",
+		host, port, user, password, dbName,
+	)
+
+	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to postgres: %w", err)
+	}
+
+	return gormDB, nil
+}
+</file>
+
+<file path="internal/db/shelf/memory.go">
+package shelf
+
+import (
+	"fmt"
+	"slices"
+	"sync"
+	"sync/atomic"
+)
+
+type MemoryRepo struct {
+	mu      sync.Mutex
+	shelves []*Entity
+	nextID  uint32
+}
+
+func NewMemoryRepo() *MemoryRepo {
+	s := make([]*Entity, 0)
+	return &MemoryRepo{
+		shelves: s,
+		nextID: 1,
+	}
+}
+
+func (r *MemoryRepo) All() ([]*Entity, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	out := make([]*Entity, len(r.shelves))
+	copy(out, r.shelves)
+	return out, nil
+}
+
+func (r *MemoryRepo) Get(id uint) (*Entity, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, s := range r.shelves {
+		if s.ID == id {
+			return s, nil
+		}
+	}
+
+	return &Entity{}, fmt.Errorf("shelf '%s' not found", id)
+}
+
+func (r *MemoryRepo) Save(shelf *Entity) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if shelf.ID == 0 {
+		shelf.ID = uint(atomic.AddUint32(&r.nextID, 1))
+		r.shelves = append(r.shelves, shelf)
+		return nil
+	}
+
+	for i, s := range r.shelves {
+		if s.ID == shelf.ID {
+			r.shelves[i] = shelf
+			return nil
+		}
+	}
+
+	return fmt.Errorf("error updating or inserting shelf '%d'", shelf.ID)
+}
+
+func (r *MemoryRepo) Delete(id uint) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i, s := range r.shelves {
+		if s.ID == id {
+			r.shelves = slices.Delete(r.shelves, i, i+1)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("shelf '%s' not found to delete", id)
+
+}
+</file>
+
+<file path="internal/db/shelf/options.go">
+package shelf
+
+import (
+	"errors"
+)
+
+var (
+	InvalidShapeDimensionsErr = errors.New("a shape cannot have negative dimension")
+)
+
+type option func(*Entity) error
+
+func WithShapeRect(x, y, size int, sort string) option {
+	return func(e *Entity) error {
+		if x < 0 || y < 0 {
+			return InvalidShapeDimensionsErr
+		}
+
+		s := Shape{
+			X: x,
+			Y: y,
+		}
+
+		err := e.SetShape(s)
+		if err != nil {
+			return err
+		}
+
+		e.AddBins(x * y, size, sort)
+
+		return nil
+	}
+}
+</file>
+
+<file path="internal/db/shelf/sort.go">
+package shelf
+
+import (
+	"github.com/dkaman/recordbaux/internal/db/record"
+)
+
+type sortFunc func(i, j *record.Entity) bool
+
+var sortRegistry = map[string]sortFunc {
+	"alpha_by_artist": AlphaByArtist,
+}
+
+func AlphaByArtist(i, j *record.Entity) bool {
+	return i.Artists[0] < j.Artists[0]
+}
+</file>
+
+<file path="internal/db/track/entity.go">
+package track
+
+import (
+	discogs "github.com/dkaman/discogs-golang"
+)
+
+type Entity struct {
+	ID uint `gorm:"primaryKey"`
+
+	RecordID uint `gorm:"index"`
+
+	Duration string
+	Position string
+	Title    string
+	Key      string
+	BPM      int
+}
+
+func New(t discogs.Track) (*Entity, error) {
+	return &Entity{
+		Title:    t.Title,
+		Duration: t.Duration,
+		Position: t.Position,
+	}, nil
+}
+
+// implementing the tabler interface to change default name so it's not
+// entitites
+func (e *Entity) TableName() string {
+	return "tracks"
+}
+</file>
+
+<file path="internal/db/track/gorm.go">
+package track
+
+import (
+	"gorm.io/gorm"
+)
+
+type Repo struct {
+	db *gorm.DB
+}
+
+// NewPostgresRepo opens a connection and migrates the schema based on your Entity definitions.
+func NewRepo(db *gorm.DB) (*Repo, error) {
+	return &Repo{db: db}, nil
+}
+
+// All returns every shelf.Entity stored in the database.
+func (r *Repo) All() ([]*Entity, error) {
+	var tracks []*Entity
+	err := r.db.
+		Find(&tracks).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return tracks, nil
+}
+
+// Get looks up a shelf.Entity by its ID.
+func (r *Repo) Get(id uint) (*Entity, error) {
+	var t Entity
+	err := r.db.
+		First(&t, "id = ?", id).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
+// Save creates or updates a shelf.Entity and its nested bins.
+func (r *Repo) Save(e *Entity) error {
+	return r.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(e).Error
+}
+
+// Delete removes a shelf.Entity by ID.
+func (r *Repo) Delete(id uint) error {
+	return r.db.Delete(&Entity{}, "id = ?", id).Error
+}
+</file>
+
+<file path="internal/db/repository.go">
+package db
+
+type Repository[T any] interface {
+	All() ([]T, error)
+	Get(uint) (T, error)
+	Save(entity T) error
+	Delete(uint) error
+}
+</file>
+
+<file path="internal/tui/handlers/registry.go">
+package handlers
+
+import (
+	"fmt"
+	"reflect"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+type Handler func(tea.Model, tea.Msg) (tea.Model, tea.Cmd, tea.Msg)
+
+type Registry struct {
+	handlers map[reflect.Type]Handler
+}
+
+func NewRegistry() *Registry {
+	return &Registry{
+		handlers: make(map[reflect.Type]Handler),
+	}
+}
+
+func Register[T tea.Model, U tea.Msg](r *Registry, handler func(T, U) (tea.Model, tea.Cmd, tea.Msg)) {
+	// Get the reflect.Type of the message. We use a pointer and then
+	// .Elem() to correctly get the type for both value and pointer
+	// receivers.
+	msgType := reflect.TypeOf((*U)(nil)).Elem()
+
+	// Create a closure that wraps the strongly-typed handler. This wrapper
+	// is what gets stored in the map.
+	wrapper := func(m tea.Model, msg tea.Msg) (tea.Model, tea.Cmd, tea.Msg) {
+		// Inside the wrapper, perform type assertions. We know the
+		// concrete types T and U because they were captured by the
+		// closure.
+		concreteModel, ok := m.(T)
+		if !ok {
+			// This is a programming error. The model passed to
+			// Update was not the type this handler expected.
+			panic(fmt.Sprintf("handler registration mismatch: model is %T, but expected %T", m, *new(T)))
+		}
+
+		concreteMsg := msg.(U) // We know this will succeed because we look up by msg type.
+
+		// Call the original, strongly-typed handler function.
+		return handler(concreteModel, concreteMsg)
+	}
+
+	r.handlers[msgType] = wrapper
+}
+
+func (r *Registry) GetHandler(msg tea.Msg) (Handler, bool) {
+	h, ok := r.handlers[reflect.TypeOf(msg)]
+	return h, ok
+}
+</file>
+
+<file path="internal/tui/models/bin/cmds.go">
+package bin
+
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/dkaman/recordbaux/internal/db/bin"
+)
+
+type LoadBinMsg struct {
+	Phy *bin.Entity
+}
+
+func WithPhysicalBin(p *bin.Entity) tea.Cmd {
+	return func() tea.Msg { return LoadBinMsg{Phy: p} }
+}
+</file>
+
+<file path="internal/tui/models/flist/model.go">
+// flist = focusable list, small wrapper around bubble's list model
+package flist
+
+import (
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+type FocusableDelegate interface {
+	list.ItemDelegate
+	Focus() FocusableDelegate
+	Blur() FocusableDelegate
+}
+
+type Model struct {
+	list.Model
+
+	focused  bool
+	delegate FocusableDelegate
+}
+
+func New(items []list.Item, delegate FocusableDelegate) Model {
+	l := list.New(items, delegate, 0, 0)
+	l.Styles = style.DefaultListStyles()
+	return Model{
+		Model:    l,
+		focused:  false,
+		delegate: delegate,
+	}
+}
+
+func (m Model) Focus() Model {
+	m.focused = true
+	m.Styles = style.DefaultListStyles()
+	m.delegate = m.delegate.Focus()
+	m.Model.SetDelegate(m.delegate)
+	return m
+}
+
+func (m Model) Blur() Model {
+	m.focused = false
+	m.Styles = style.DefaultListStylesDimmed()
+	m.delegate = m.delegate.Blur()
+	m.Model.SetDelegate(m.delegate)
+	return m
+}
+
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+// Update only processes messages if the list is focused.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	// Only handle inputs if focused. Always handle resize messages.
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.Model.SetSize(sizeMsg.Width, sizeMsg.Height)
+		return m, nil
+	}
+
+	// For key messages, prevent list filtering when not focused
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok && !m.focused {
+		if key.Matches(keyMsg, m.KeyMap.Filter) {
+			return m, nil
+		}
+	}
+
+	m.Model, cmd = m.Model.Update(msg)
+	return m, cmd
+}
+
+func (m Model) View() tea.View {
+	return tea.NewView(m.Model.View())
+}
+</file>
+
+<file path="internal/tui/models/playlist/cmds.go">
+package playlist
+
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+)
+
+type LoadPlaylistMsg struct {
+	Phy *playlist.Entity
+}
+
+func WithPhysicalPlaylist(p *playlist.Entity) tea.Cmd {
+	return func() tea.Msg { return LoadPlaylistMsg{Phy: p} }
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/createplaylist/handlers.go">
+package createplaylist
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	ttrack "github.com/dkaman/recordbaux/internal/tui/models/track"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleAllTracksLoadedMsg)
+	handlers.Register(r, handleTeaKeyPressMsg)
+
+	return r
+}
+
+func handleTeaWindowSizeMsg(s CreatePlaylistState, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.width, s.height = msg.Width, msg.Height
+	return s, nil, nil
+}
+
+func handleAllTracksLoadedMsg(s CreatePlaylistState, msg services.AllTracksLoadedMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.logger.Debug("refreshing tracks from service")
+	tracks := msg.Tracks
+	items := make([]list.Item, len(tracks))
+
+	for i, t := range tracks {
+		items[i] = ttrack.New(t)
+	}
+
+	s.list.SetItems(items)
+	return s, nil, nil
+}
+
+func handleTeaKeyPressMsg(s CreatePlaylistState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	switch {
+	case key.Matches(msg, s.keys.Back):
+		return s, tcmds.Transition(states.MainMenu, nil, nil), nil
+
+	case key.Matches(msg, s.keys.Select):
+		if i, ok := s.list.SelectedItem().(ttrack.Model); ok {
+			s.logger.Debug("track selected", slog.Any("track", i))
+			i.Selected = !i.Selected
+			cmd := s.list.SetItem(s.list.Index(), i)
+			return s, cmd, nil
+		}
+		return s, nil, nil
+
+	case key.Matches(msg, s.keys.Create):
+		var selectedCount int
+
+		for _, item := range s.list.Items() {
+			if trackModel, ok := item.(ttrack.Model); ok && trackModel.Selected {
+				selectedCount++
+			}
+		}
+
+		if selectedCount > 0 {
+			s.namingPlaylist = true
+			s.nameForm = newNameForm()
+			return s, s.nameForm.Init(), nil
+		}
+	}
+
+	return s, nil, msg
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/createplaylist/list_delegate.go">
+package createplaylist
+
+import (
+	"fmt"
+	"io"
+
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/models/track"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+var (
+	boldStyle = lipgloss.NewStyle().
+		Bold(true)
+
+	dimStyle = lipgloss.NewStyle().
+		Foreground(style.LightGrey)
+)
+
+type trackDelegate struct{}
+
+func (d trackDelegate) Height() int                             { return 2 }
+func (d trackDelegate) Spacing() int                            { return 1 }
+func (d trackDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d trackDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	trackM, ok := listItem.(track.Model)
+	if !ok {
+		return
+	}
+
+	selectedMarker := "[ ] "
+	if trackM.Selected {
+		selectedMarker = "[" + boldStyle.Render("*") + "] "
+	}
+
+	pTrack := trackM.PhysicalTrack()
+
+	titleLine := fmt.Sprintf("%s - %s", boldStyle.Render(pTrack.Title), pTrack.Duration)
+	descLine := fmt.Sprintf("key: '%s' bpm: %d", pTrack.Key, pTrack.BPM)
+	prefix := "  "
+	if m.Index() == index {
+		prefix = "> "
+	}
+
+	lines := lipgloss.JoinVertical(lipgloss.Left, titleLine, dimStyle.Render(descLine))
+	display := lipgloss.JoinHorizontal(lipgloss.Top, prefix, selectedMarker, lines)
+
+	sty := style.TextStyle
+	if m.Index() == index {
+		sty = style.ActiveTextStyle
+	}
+
+	fmt.Fprint(w, sty.Render(display))
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedshelf/form.go">
+package loadedshelf
+
+import (
+	"context"
+
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
+
+	"github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+type loadCollectionForm struct {
+	Form   *huh.Form
+	folder string
+}
+
+func newFolderSelectForm(c *discogs.Client, u string) *loadCollectionForm {
+	f := &loadCollectionForm{}
+
+	folders, _ := c.Collection.ListFolders(context.TODO(), u)
+
+	var folderOptions []huh.Option[string]
+
+	for _, fol := range folders {
+		name := fol.Name
+		o := huh.NewOption(name, name)
+		folderOptions = append(folderOptions, o)
+	}
+
+	f.Form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("discogs folder select").
+				Options(folderOptions...).
+				Value(&f.folder),
+		),
+	).WithTheme(huh.ThemeFunc(style.DefaultFormStyles))
+
+	return f
+}
+
+func (f *loadCollectionForm) Init() tea.Cmd {
+	return f.Form.Init()
+}
+
+func (f *loadCollectionForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	mod, cmd := f.Form.Update(msg)
+	if frm, ok := mod.(*huh.Form); ok {
+		f.Form = frm
+	}
+	return f, cmd
+}
+
+func (f *loadCollectionForm) View() tea.View {
+	return tea.NewView(f.Form.View())
+}
+
+func (f *loadCollectionForm) Folder() string {
+	return f.folder
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/mainmenu/forms.go">
+package mainmenu
+
+import (
+	"fmt"
+	"strconv"
+
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+type shape int
+
+const (
+	Rect shape = iota
+	Irregular
+	NotDefined
+)
+
+type createShelfForm struct {
+	Form   *huh.Form
+	name  string
+	shape string
+
+	// square/rect shape
+	dimX        string
+	dimY        string
+	binSizeRect string
+
+	// irregular shape
+	numBins    string
+	binSizeIrr string
+}
+
+func validateNum(s string) error {
+	if s == "" {
+		return fmt.Errorf("required")
+	}
+	if _, err := strconv.Atoi(s); err != nil {
+		return fmt.Errorf("must be a number")
+	}
+	return nil
+}
+
+func newCreateShelfForm() *createShelfForm {
+	f := &createShelfForm{}
+
+	f.Form = huh.NewForm(
+		// Page 1: name + shape
+		huh.NewGroup(
+			huh.NewInput().
+				Key("name").
+				Title("shelf name").
+				Placeholder("newshelf").
+				Value(&f.name).
+				Validate(huh.ValidateNotEmpty()),
+			huh.NewSelect[string]().
+				Key("shape").
+				Title("shelf shape").
+				Options(
+					huh.NewOption("square/rect", "rect"),
+					huh.NewOption("irregular", "irregular"),
+				).
+				Value(&f.shape),
+		),
+
+		// Page 2: square dims, only when shape == "square/rect"
+		huh.NewGroup(
+			huh.NewInput().
+				Key("bin_dim_x").
+				Title("Bin Dimension X").
+				Placeholder("3").
+				Value(&f.dimX).
+				Validate(validateNum),
+			huh.NewInput().
+				Key("bin_dim_y").
+				Title("Bin Dimension Y").
+				Placeholder("4").
+				Value(&f.dimY).
+				Validate(validateNum),
+			huh.NewInput().
+				Key("bin_size").
+				Title("Bin Size").
+				Placeholder("50").
+				Value(&f.binSizeRect).
+				Validate(validateNum),
+		).WithHideFunc(func() bool {
+			return f.shape != "rect"
+		}),
+
+		// Page 3: irregular bins, only when shape == "irregular"
+		huh.NewGroup(
+			huh.NewInput().
+				Key("num_bins").
+				Title("Number of Bins").
+				Placeholder("12").
+				Value(&f.numBins).
+				Validate(validateNum),
+			huh.NewInput().
+				Key("bin_size").
+				Title("Bin Size").
+				Placeholder("50").
+				Value(&f.binSizeIrr).
+				Validate(validateNum),
+		).WithHideFunc(func() bool {
+			return f.shape != "irregular"
+		}),
+	).WithTheme(huh.ThemeFunc(style.DefaultFormStyles))
+
+	return f
+}
+
+func (f *createShelfForm) Init() tea.Cmd {
+	return f.Form.Init()
+}
+
+func (f *createShelfForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	mod, cmd := f.Form.Update(msg)
+	if frm, ok := mod.(*huh.Form); ok {
+		f.Form = frm
+	}
+	return f, cmd
+}
+
+func (f *createShelfForm) View() tea.View {
+	return tea.NewView(f.Form.View())
+}
+
+func (f *createShelfForm) Name() string {
+	return f.name
+}
+
+func (f *createShelfForm) Shape() shape {
+	if f.shape == "rect" {
+		return Rect
+	} else if f.shape == "irregular" {
+		return Irregular
+
+	}
+
+	return NotDefined
+}
+
+func (f *createShelfForm) DimX() int {
+	x, _ := strconv.Atoi(f.dimX)
+	return x
+}
+
+func (f *createShelfForm) DimY() int {
+	y, _ := strconv.Atoi(f.dimY)
+	return y
+}
+
+func (f *createShelfForm) BinSize() int {
+	if f.Shape() == Rect {
+		n, _ := strconv.Atoi(f.binSizeRect)
+		return n
+	}
+	m, _ := strconv.Atoi(f.binSizeIrr)
+	return m
+}
+
+func (f *createShelfForm) NumBins() int {
+	nb, _ := strconv.Atoi(f.numBins)
+	return nb
+}
+</file>
+
+<file path="internal/tui/models/statemachine/handlers.go">
+package statemachine
+
+import (
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleStateTransitionMsg)
+
+	return r
+}
+
+func handleTeaWindowSizeMsg(m Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	// this ensures child states see the full viewport window as available
+	// real estate
+	m.width, m.height = msg.Width, msg.Height
+	return m, nil, msg
+}
+
+func handleStateTransitionMsg(m Model, msg tcmds.StateTransitionMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	next := msg.Transition.Next
+
+	nextState := m.allStates[next]
+
+	sizeMsg := tea.WindowSizeMsg{
+		Width: m.width,
+		Height: m.height,
+	}
+
+	resizedNextState, sizeUpdateCmd := util.UpdateModel(nextState, sizeMsg)
+
+	m.logger.Info("state transition",
+		slog.String("from", m.currentStateType.String()),
+		slog.String("to", next.String()),
+	)
+
+	m.allStates[m.currentStateType] = m.currentState
+	m.currentState = resizedNextState
+	m.currentStateType = next
+	m.allStates[next] = resizedNextState
+
+	// new state will be initialized and then post-transition commands will
+	// run
+	return m, tea.Sequence(
+		m.currentState.Init(),
+		sizeUpdateCmd,
+		tea.Batch(msg.Transition.PostCmds...),
+	), nil
+}
+</file>
+
+<file path="internal/tui/util/keys.go">
+package util
+
+import (
+	"strings"
+
+	"charm.land/bubbles/v2/key"
+)
+
+func FmtKeymap(bindings []key.Binding) string {
+	var entries []string
+
+	for _, binding := range bindings {
+		keys, help := binding.Keys(), binding.Help().Desc
+		k := strings.Join(keys, "/")
+		entry := k + " : "  + help
+		entries = append(entries, entry)
+	}
+
+	return strings.Join(entries, " | ")
+}
+</file>
+
+<file path="internal/tui/util/model.go">
+package util
+
+import (
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+func UpdateModel[T tea.Model](m T, msg tea.Msg) (T, tea.Cmd) {
+	updatedModel, cmd := m.Update(msg)
+
+	concreteModel, ok := updatedModel.(T)
+	if !ok {
+		// A model's Update method should ALWAYS return a model of its
+		// own type. If it doesn't, it's a critical programming error.
+		panic(fmt.Sprintf("model update returned wrong type: expected %T but got %T", m, updatedModel))
+	}
+
+	return concreteModel, cmd
+}
+</file>
+
+<file path="internal/tui/handlers.go">
+package tui
+
+import (
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleTeaKeyPressMsg)
+
+	return r
+}
+
+func handleTeaWindowSizeMsg(m Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	var cmds []tea.Cmd
+
+	m.width, m.height = msg.Width, msg.Height
+
+	if !m.ready {
+		m.logger.Debug("ready")
+		m.ready = true
+	}
+
+	numBars := 2
+	if m.helpVisible {
+		numBars = 3
+	}
+
+	smWidth := m.width - 2
+	smHeight := m.height - numBars - 2
+
+	sizeMsg := tea.WindowSizeMsg{
+		Width:  smWidth,
+		Height: smHeight,
+	}
+
+	return m, tea.Batch(cmds...), sizeMsg
+}
+
+func handleTeaKeyPressMsg(m Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		return m, tea.Quit, nil
+
+	case key.Matches(msg, m.keys.ToggleHelp):
+		m.helpVisible = !m.helpVisible
+
+		numBars := 2
+		if m.helpVisible {
+			numBars = 3
+		}
+
+		smWidth := m.width - 2
+		smHeight := m.height - numBars - 2
+		sizeMsg := tea.WindowSizeMsg{Width: smWidth, Height: smHeight}
+
+		var sizeCmd tea.Cmd
+		m.stateMachine, sizeCmd = util.UpdateModel(m.stateMachine, sizeMsg)
+
+		return m, sizeCmd, nil
+	}
+
+	return m, nil, msg
+}
+</file>
+
+<file path=".goreleaser.yml">
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: recordbaux
+    binary: recordbaux
+    dir: ./cmd
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+</file>
+
+<file path="internal/config/types.go">
+package config
+
+import (
+	"github.com/knadh/koanf/v2"
+)
+
+type ConfigOption func(*koanf.Koanf) error
+
+type Config struct {
+	*koanf.Koanf
+}
+
+func New(opts ...ConfigOption) (*Config, error) {
+	c := koanf.New(".")
+
+	for _, o := range opts {
+		err := o(c)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Config{c}, nil
+}
+</file>
+
+<file path="internal/db/bin/entity.go">
+package bin
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+
+	"github.com/dkaman/recordbaux/internal/db/record"
+)
+
+var (
+	LabelIsEmptyErr = errors.New("bin label cannot be empty")
+)
+
+type Entity struct {
+	ID       uint `gorm:"primaryKey"`
+	ShelfID  uint `gorm:"index"`
+	Label    string
+	Size     int
+	Records  []*record.Entity `gorm:"foreignKey:BinID;references:ID"`
+	SortType string
+}
+
+func New(l string, s int, sort string, opts ...option) (*Entity, error) {
+	if l == "" {
+		return nil, LabelIsEmptyErr
+	}
+
+	if s < 0 {
+		return nil, fmt.Errorf("size '%d' for bin is invalid", s)
+	}
+
+	if _, ok := sortRegistry[sort]; !ok {
+		return nil, fmt.Errorf("sort type '%s' not found in registry", sort)
+	}
+
+	e := &Entity{
+		Label:    l,
+		Size:     s,
+		SortType: sort,
+		Records:  make([]*record.Entity, 0),
+	}
+
+	for _, o := range opts {
+		err := o(e)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return e, nil
+}
+
+func (e *Entity) Insert(r *record.Entity) *record.Entity {
+	e.Records = append(e.Records, r)
+
+	sort.Sort(e)
+
+	var bumped *record.Entity
+
+	if len(e.Records) > e.Size {
+		bumped = e.Records[e.Size]
+		e.Records = e.Records[:e.Size]
+	}
+
+	for i, rec := range e.Records {
+		coord := fmt.Sprintf("%s%d", e.Label, i)
+		rec.Coordinate = coord
+	}
+
+	if bumped != nil {
+		bumped.BinID = 0
+		bumped.Coordinate = ""
+	}
+
+	return bumped
+}
+
+// implementing the tabler interface to change default name so it's not
+// entitites
+func (e *Entity) TableName() string {
+	return "bins"
+}
+
+// sort interface defs
+func (e *Entity) Len() int { return len(e.Records) }
+func (e *Entity) Less(i, j int) bool {
+	// we check this during construction so we can be confident it exists
+	f := sortRegistry[e.SortType]
+	return f(e.Records[i], e.Records[j])
+}
+func (e *Entity) Swap(i, j int) { e.Records[i], e.Records[j] = e.Records[j], e.Records[i] }
+</file>
+
+<file path="internal/db/shelf/entity.go">
+package shelf
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/dkaman/recordbaux/internal/db/bin"
+	"github.com/dkaman/recordbaux/internal/db/record"
+)
+
+var (
+	NameIsEmptyErr  = errors.New("shelf name cannot be empty")
+	ShelfIsFullErr  = errors.New("cannot insert more records, shelf is full")
+	ShapeIsEmptyErr = errors.New("get shape was called before the shape was initialized, i don't think this can happen")
+)
+
+type Shape struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+type Entity struct {
+	Shape []byte `gorm:"type:jsonb"`
+
+	ID      uint `gorm:"primaryKey"`
+	Name    string
+	BinSize int
+	Bins    []*bin.Entity `gorm:"foreignKey:ShelfID;references:ID"`
+}
+
+func New(name string, binSize int, opts ...option) (*Entity, error) {
+	if name == "" {
+		return nil, NameIsEmptyErr
+	}
+
+	if binSize < 0 {
+		return nil, fmt.Errorf("bin size '%d' is not allowed", binSize)
+	}
+
+	e := &Entity{
+		Name:    name,
+		BinSize: binSize,
+		Bins:    []*bin.Entity{},
+	}
+
+	for _, o := range opts {
+		err := o(e)
+		if err != nil {
+			return nil, fmt.Errorf("error in shelf constructor option: %w", err)
+		}
+	}
+
+	return e, nil
+}
+
+func (e *Entity) nextIndex() int {
+	return len(e.Bins)
+}
+
+func (e *Entity) SetShape(s Shape) error {
+	d, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("error marshalling shape to json: %w", err)
+	}
+	e.Shape = d
+	return nil
+}
+
+func (e *Entity) GetShape() (Shape, error) {
+	var s Shape
+
+	if len(e.Shape) == 0 {
+		return s, ShapeIsEmptyErr
+	}
+
+	err := json.Unmarshal(e.Shape, &s)
+	if err != nil {
+		return s, fmt.Errorf("error unmarshalling shape data: %w", err)
+	}
+
+	return s, nil
+}
+
+func (e *Entity) AddBin(size int, sort string) *Entity {
+	next := e.nextIndex()
+	b, _ := bin.New(indexToLabel(next), size, sort)
+	e.Bins = append(e.Bins, b)
+	return e
+}
+
+func (e *Entity) AddBins(n, size int, sort string) *Entity {
+	for range n {
+		e.AddBin(size, sort)
+	}
+	return e
+}
+
+func (e *Entity) Insert(r *record.Entity) (*record.Entity, error) {
+	next := r
+
+	for _, bin := range e.Bins {
+		bumped := bin.Insert(next)
+		if bumped == nil {
+			next = nil
+			break
+		}
+		next = bumped
+	}
+
+	if next != nil {
+		return next, ShelfIsFullErr
+	}
+
+	return nil, nil
+}
+
+// implementing the tabler interface to change default name so it's not
+// entitites
+func (e *Entity) TableName() string {
+	return "shelves"
+}
+
+func (e *Entity) TotalRecords() int {
+	total := 0
+	for _, b := range e.Bins {
+		total += len(b.Records)
+	}
+	return total
+}
+
+// indexToLabel converts 0 -> "A", 25 -> "Z", 26 -> "AA", etc.
+func indexToLabel(i int) string {
+	label := ""
+	for i >= 0 {
+		rem := i % 26
+		label = string('A'+rem) + label
+		i = i/26 - 1
+	}
+	return label
+}
+</file>
+
+<file path="internal/services/shelf.go">
+package services
+
+import (
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+)
+
+type shelfDB db.Repository[*shelf.Entity]
+
+type ShelfService struct {
+	logger  *slog.Logger
+	shelves shelfDB
+}
+
+type ShelvesLoadedMsg struct {
+	Shelves []*shelf.Entity
+	Err     error
+}
+
+type ShelfLoadedMsg struct {
+	Shelf *shelf.Entity
+	Err   error
+}
+
+type ShelfSavedMsg struct {
+	Err error
+}
+
+type ShelfDeletedMsg struct {
+	Err error
+}
+
+func NewShelfService(repo shelfDB, log *slog.Logger) *ShelfService {
+	logger := log.WithGroup("shelfservice")
+	return &ShelfService{
+		logger:  logger,
+		shelves: repo,
+	}
+}
+
+func (s *ShelfService) GetAllShelvesCmd() tea.Cmd {
+	return func() tea.Msg {
+		ss, err := s.shelves.All()
+		if err != nil {
+			s.logger.Error("repo error",
+				slog.String("error", err.Error()),
+			)
+			return ShelvesLoadedMsg{Shelves: nil, Err: err}
+		}
+
+		return ShelvesLoadedMsg{Shelves: ss, Err: err}
+	}
+}
+
+func (s *ShelfService) GetShelfCmd(id uint) tea.Cmd {
+	return func() tea.Msg {
+		shlf, err := s.shelves.Get(id)
+		return ShelfLoadedMsg{Shelf: shlf, Err: err}
+	}
+}
+
+func (s *ShelfService) SaveShelfCmd(e *shelf.Entity) tea.Cmd {
+	return func() tea.Msg {
+		err := s.shelves.Save(e)
+		if err != nil {
+			s.logger.Error("error saving shelf to repo",
+				slog.String("error", err.Error()),
+			)
+		}
+
+		return ShelfSavedMsg{Err: err}
+	}
+}
+
+func (s *ShelfService) DeleteShelfCmd(id uint) tea.Cmd {
+	return func() tea.Msg {
+		err := s.shelves.Delete(id)
+		if err != nil {
+			s.logger.Error("error deleting shelf",
+				slog.String("error", err.Error()),
+				slog.Any("id", id),
+			)
+
+		}
+		return ShelfDeletedMsg{Err: err}
+	}
+}
+</file>
+
+<file path="internal/tui/cmds/discogs.go">
+package cmds
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	discogs "github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/db/track"
+)
+
+// LoadCollectionMsg carries a physical.Shelf pointer to the state.
+type LoadCollectionMsg struct {
+	Shelf *shelf.Entity
+}
+
+type NewDiscogsCollectionMsg struct {
+	Releases []*record.Entity
+	Err      error
+}
+
+type NewDiscogsEnrichRecordMsg struct {
+	Record *record.Entity
+	Err    error
+}
+
+// WithCollection constructs a Tea command that sends a LoadCollectionMsg.
+func RetrieveDiscogsCollection(c *discogs.Client, username string, folder string, log *slog.Logger) tea.Cmd {
+	l := log.WithGroup("retreivediscogscmd")
+	return func() tea.Msg {
+		var recs []*record.Entity
+		var msg NewDiscogsCollectionMsg
+
+		releaseInstances, err := c.Collection.GetReleasesByFolder(context.TODO(), username, 0)
+		if err != nil {
+			msg.Err = fmt.Errorf("error getting releases from discogs: %w" , err)
+			return msg
+		}
+
+		l.Debug("got releases from discogs",
+			slog.Int("count", len(releaseInstances)),
+		)
+
+		for _, ri := range releaseInstances {
+			l.Debug("processing release",
+				slog.Int("id", ri.ID),
+			)
+
+			r, err := record.New(ri)
+			if err != nil {
+				msg.Err = fmt.Errorf("error constructing record entity: %w", err)
+				return msg
+			}
+
+			recs = append(recs, r)
+		}
+
+		msg.Releases = recs
+		msg.Err = nil
+
+		return msg
+	}
+}
+
+func EnrichReleaseInstance(c *discogs.Client, rec *record.Entity) tea.Cmd {
+	return func() tea.Msg {
+		var msg NewDiscogsEnrichRecordMsg
+
+		rel, err := c.Database.GetRelease(context.TODO(), rec.ReleaseID)
+		if err != nil {
+			msg.Err = err
+			return msg
+		}
+
+		var tracks []*track.Entity
+		for _, trk := range rel.Tracklist {
+			t, err := track.New(trk)
+			if err != nil {
+				msg.Err = err
+				return msg
+			}
+
+			tracks = append(tracks, t)
+		}
+
+		rec.Tracklist = tracks
+
+		return NewDiscogsEnrichRecordMsg{
+			Record: rec,
+			Err:    nil,
+		}
+	}
+}
+</file>
+
+<file path="internal/tui/cmds/statemachine.go">
+package cmds
+
+import (
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+)
+
+type envelope struct {
+	Next     states.StateType
+	PostCmds []tea.Cmd
+}
+
+type StateTransitionMsg struct {
+	Transition envelope
+}
+
+func Transition(t states.StateType, before []tea.Cmd, after []tea.Cmd) tea.Cmd {
+	var pre tea.Cmd = nil
+
+	if len(before) > 0 {
+		pre = tea.Batch(before...)
+	}
+
+	// lambda command that emits the actual transition message so that we
+	// can sequence against the precmds before the current state is parked
+	swap := func() tea.Msg {
+		e := envelope{
+			Next: t,
+			PostCmds: after,
+		}
+
+		return StateTransitionMsg{
+			Transition:  e,
+		}
+	}
+
+	if pre != nil {
+		return tea.Sequence(pre, swap)
+	}
+
+	return swap
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/createplaylist/form.go">
+package createplaylist
+
+import (
+
+	huh "charm.land/huh/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+type form struct {
+	*huh.Form
+	name string
+}
+
+func newNameForm() *form {
+	f := &form{}
+
+	f.Form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Playlist Name").
+				Value(&f.name).
+				Validate(huh.ValidateNotEmpty()),
+		),
+	).WithTheme(huh.ThemeFunc(style.DefaultFormStyles))
+
+	return f
+}
+
+func (f *form) Name() string {
+	return f.name
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedbin/handlers.go">
+package loadedbin
+
+import (
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/table"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+	"github.com/dkaman/recordbaux/internal/tui/models/record"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleTeaKeyPressMsg)
+	handlers.Register(r, handleLoadBinMsg)
+
+	return r
+}
+
+func handleTeaWindowSizeMsg(s LoadedBinState, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.width, s.height = msg.Width, msg.Height
+	msg = tea.WindowSizeMsg{Width: s.width / 2, Height: s.height}
+	return s, nil, msg
+}
+
+func handleTeaKeyPressMsg(s LoadedBinState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	switch {
+	case key.Matches(msg, s.keys.Back):
+		return s, tcmds.Transition(states.LoadedShelf, nil, nil), nil
+	}
+	return s, nil, msg
+}
+
+func handleLoadBinMsg(s LoadedBinState, msg bin.LoadBinMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.bin = bin.New(msg.Phy, bin.Style{})
+
+	columns := []table.Column{
+		{Title: "catalog no.", Width: 15},
+		{Title: "release name", Width: 50},
+		{Title: "artist", Width: 30},
+	}
+
+	var rows []table.Row
+
+	for _, r := range s.bin.PhysicalBin().Records {
+		catno := r.CatalogNumber
+		name := r.Title
+		artist := r.Artists[0]
+
+		if r.CheckedOut {
+			name = "[OUT] " + name
+		}
+
+		row := table.Row{catno, name, artist}
+		rows = append(rows, row)
+	}
+
+	s.records = table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithStyles(style.DefaultTableStyles()),
+	)
+
+	s.cursorIndex = 0
+	if len(s.bin.PhysicalBin().Records) > 0 {
+		// Create the initial record model for the first item
+		initialRecord := s.bin.PhysicalBin().Records[s.cursorIndex]
+		s.selectedRecord = record.New(initialRecord)
+	}
+
+	return s, nil, nil
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedbin/keymap.go">
+package loadedbin
+
+import (
+	"charm.land/bubbles/v2/key"
+)
+
+type keyMap struct {
+	Back key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		Back: key.NewBinding(
+			key.WithKeys("q"),
+			key.WithHelp("q", "back"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Back,
+	}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Back},
+	}
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedshelf/keymap.go">
+package loadedshelf
+
+import (
+	"charm.land/bubbles/v2/key"
+)
+
+type keyMap struct {
+	Next key.Binding
+	Prev key.Binding
+	Back key.Binding
+	Load key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		Next: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "next bin"),
+		),
+		Prev: key.NewBinding(
+			key.WithKeys("N"),
+			key.WithHelp("N", "prev bin"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("q"),
+			key.WithHelp("q", "back"),
+		),
+		Load: key.NewBinding(
+			key.WithKeys("l"),
+			key.WithHelp("l", "load bin"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Next,
+		k.Prev,
+		k.Back,
+		k.Load,
+	}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Next, k.Prev, k.Back, k.Load},
+	}
+}
+</file>
+
+<file path="internal/tui/style/bars.go">
+package style
+
+import (
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	BarStyle = lipgloss.NewStyle().
+		Background(DarkBlue).
+		Foreground(DarkBlack).
+		Bold(true)
+
+	HelpBarStyle = lipgloss.NewStyle().
+		Background(LightGrey).
+		Foreground(LightBlack)
+)
+</file>
+
+<file path="internal/tui/style/helps.go">
+package style
+
+import (
+	"charm.land/bubbles/v2/help"
+
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	helpEllipsisStyle       = lipgloss.NewStyle().Bold(true)
+	helpShortKeyStyle       = lipgloss.NewStyle().Bold(true)
+	helpShortDescStyle      = lipgloss.NewStyle().Bold(true)
+	helpShortSeparatorStyle = lipgloss.NewStyle().Bold(true)
+	helpFullKeyStyle        = lipgloss.NewStyle().Bold(true)
+	helpFullDescStyle       = lipgloss.NewStyle().Bold(true)
+	helpFullSeparatorStyle  = lipgloss.NewStyle().Bold(true)
+)
+
+func DefaultHelpStyles() help.Styles {
+	return help.Styles{
+		Ellipsis:       helpEllipsisStyle,
+		ShortKey:       helpShortKeyStyle,
+		ShortDesc:      helpShortDescStyle,
+		ShortSeparator: helpShortSeparatorStyle,
+		FullKey:        helpFullKeyStyle,
+		FullDesc:       helpFullDescStyle,
+		FullSeparator:  helpFullSeparatorStyle,
+	}
+}
+</file>
+
+<file path="internal/tui/style/viewports.go">
+package style
+
+import (
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	viewportStyle = lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).
+			AlignVertical(lipgloss.Center)
+)
+</file>
+
+<file path="internal/db/record/value.go">
+package record
+
+import (
+	"github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/db/track"
+)
+
+// Entity represents a physical record we are going to place on the physical
+// shelf.
+type Entity struct {
+	// lol
+	ID         uint `gorm:"primaryKey"`
+	BinID      uint `gorm:"index"`
+	InstanceID int
+	ReleaseID  int
+	MasterID   int
+
+	Title         string
+	Artists       StringArray `gorm:"type:jsonb"`
+	CatalogNumber string
+	Coordinate    string `gorm:"index"`
+	CheckedOut    bool   `gorm:"default:false"`
+
+	Tracklist []*track.Entity `gorm:"foreignKey:RecordID;references:ID"`
+}
+
+func New(ri discogs.ReleaseInstance) (*Entity, error) {
+	var artists []string
+	for _, a := range ri.BasicInfo.Artists {
+		artists = append(artists, a.Name)
+	}
+
+	return &Entity{
+		InstanceID: ri.InstanceID,
+		ReleaseID:  ri.ID,
+		MasterID:   ri.BasicInfo.MasterID,
+
+		Title:         ri.BasicInfo.Title,
+		Artists:       artists,
+		CatalogNumber: ri.BasicInfo.Labels[0].CatNo,
+	}, nil
+}
+
+// implementing the tabler interface to change default name so it's not
+// entitites
+func (e *Entity) TableName() string {
+	return "records"
+}
+</file>
+
+<file path="internal/services/record.go">
+package services
+
+import (
+	"fmt"
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/record"
+)
+
+type recordDB db.Repository[*record.Entity]
+
+type RecordService struct {
+	logger  *slog.Logger
+	records recordDB
+}
+
+type PlaylistCheckoutMsg struct {
+	Err error
+	Status bool
+}
+
+func NewRecordService(repo recordDB, log *slog.Logger) *RecordService {
+	logger := log.WithGroup("recordservice")
+	return &RecordService{
+		logger:  logger,
+		records: repo,
+	}
+}
+
+func (s *RecordService) UpdateCheckedOutStatus(records []*record.Entity, status bool) error {
+	for _, r := range records {
+		r.CheckedOut = status
+
+		err := s.records.Save(r)
+		if err != nil {
+			return fmt.Errorf("error checking out record: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *RecordService) SetCheckoutCmd(p *playlist.Entity, c bool) tea.Cmd {
+	return func() tea.Msg {
+		if p == nil || len(p.Tracks) == 0 {
+			return PlaylistCheckoutMsg{Err: fmt.Errorf("playlist has no tracks to check in or out")}
+		}
+
+		recordIDs := make(map[uint]struct{})
+		for _, track := range p.Tracks {
+			if track.RecordID != 0 {
+				recordIDs[track.RecordID] = struct{}{}
+			}
+		}
+
+		var records []*record.Entity
+
+		for id := range recordIDs {
+			rec, err := s.records.Get(id)
+			if err != nil {
+				return PlaylistCheckoutMsg{Err: fmt.Errorf("failed to fetch record %d: %w", id, err)}
+			}
+			if c && rec.CheckedOut {
+				return PlaylistCheckoutMsg{Err: fmt.Errorf("cannot check out playlist: record '%s' is already checked out", rec.Title)}
+			}
+			records = append(records, rec)
+		}
+
+		for _, rec := range records {
+			rec.CheckedOut = c
+			if err := s.records.Save(rec); err != nil {
+				return PlaylistCheckoutMsg{Err: fmt.Errorf("failed to save record %d: %w", rec.ID, err)}
+			}
+		}
+
+		return PlaylistCheckoutMsg{Err: nil, Status: c}
+	}
+}
+</file>
+
+<file path="internal/services/track.go">
+package services
+
+import (
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/track"
+)
+
+type trackDB db.Repository[*track.Entity]
+
+type TrackService struct {
+	tracks trackDB
+	logger *slog.Logger
+}
+
+type AllTracksLoadedMsg struct {
+	Tracks []*track.Entity
+	Err    error
+}
+
+func NewTrackService(repo trackDB, log *slog.Logger) *TrackService {
+	logger := log.WithGroup("trackservice")
+	return &TrackService{
+		logger: logger,
+		tracks: repo,
+	}
+}
+
+func (s *TrackService) GetAllTracksCmd() tea.Cmd {
+	return func() tea.Msg {
+		ts, err := s.tracks.All()
+		if err != nil {
+			s.logger.Error("repo error", slog.String("error", err.Error()))
+			return AllTracksLoadedMsg{Tracks: nil, Err: err}
+		}
+		return AllTracksLoadedMsg{Tracks: ts, Err: nil}
+	}
+}
+</file>
+
+<file path="internal/tui/models/bin/model.go">
+package bin
+
+import (
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/bin"
+)
+
+type Style struct {
+	EmptySelected   lipgloss.Style
+	EmptyUnselected lipgloss.Style
+	FullSelected    lipgloss.Style
+	FullUnselected  lipgloss.Style
+}
+
+type Model struct {
+	physicalBin *bin.Entity
+
+	selected bool
+
+	sty Style
+
+	width, height   int
+	border          bool
+}
+
+func New(p *bin.Entity, s Style) Model {
+	m := Model{
+		physicalBin: p,
+		sty:         s,
+	}
+
+	return m
+}
+
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) View() tea.View {
+	var out string
+
+	var style lipgloss.Style
+
+	if m.physicalBin != nil {
+		name := m.physicalBin.Label
+		cur := len(m.physicalBin.Records)
+		sz := m.physicalBin.Size
+		out = fmt.Sprintf("%s\n%d/%d", name, cur, sz)
+
+		filled := cur > 0
+		switch {
+		case !filled && m.selected:
+			style = m.sty.EmptySelected
+		case !filled && !m.selected:
+			style = m.sty.EmptyUnselected
+		case filled && m.selected:
+			style = m.sty.FullSelected
+		case filled && !m.selected:
+			style = m.sty.FullUnselected
+		}
+	} else {
+		out = "no bin loaded"
+	}
+
+	return tea.NewView(style.Width(m.width).Height(m.height).Render(out))
+}
+
+func (m Model) SetSize(w, h int) Model {
+	m.width, m.height = w, h
+	return m
+}
+
+func (m Model) Unselect() Model {
+	m.selected = false
+	return m
+}
+
+func (m Model) Select() Model {
+	m.selected = true
+	return m
+}
+
+func (m Model) PhysicalBin() *bin.Entity {
+	return m.physicalBin
+}
+</file>
+
+<file path="internal/tui/models/playlist/model.go">
+package playlist
+
+import (
+	"fmt"
+
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+type Model struct {
+	width, height int
+	entity        *playlist.Entity
+	trackTable    table.Model
+}
+
+func New() Model {
+	columns := []table.Column{
+		{Title: "Position", Width: 8},
+		{Title: "Title", Width: 50},
+		{Title: "Duration", Width: 8},
+		{Title: "Key", Width: 3},
+		{Title: "BPM", Width: 3},
+	}
+
+	tbl := table.New(table.WithColumns(columns), table.WithFocused(true))
+	tbl.SetStyles(style.DefaultTableStyles())
+
+	return Model{
+		trackTable: tbl,
+	}
+}
+
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = sizeMsg.Width, sizeMsg.Height
+		return m, nil
+	}
+
+	var tableCmd tea.Cmd
+	m.trackTable, tableCmd = m.trackTable.Update(msg)
+	cmds = append(cmds, tableCmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) View() tea.View {
+	if m.entity == nil {
+		return tea.NewView("no playlist is loaded yet...")
+	}
+
+	m.trackTable.SetWidth(m.width)
+	m.trackTable.SetHeight(m.height)
+	tableContent := m.trackTable.View()
+
+	return tea.NewView(tableContent)
+}
+
+// FilterValue implements the list.Item interface for filtering.
+func (m Model) FilterValue() string {
+	if m.entity == nil {
+		return ""
+	}
+	return m.entity.Name
+}
+
+func (m Model) Title() string {
+	return m.FilterValue()
+}
+
+func (m Model) Description() string {
+	if m.entity == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d tracks", len(m.entity.Tracks))
+}
+
+func (m Model) PhysicalPlaylist() *playlist.Entity {
+	return m.entity
+}
+
+// this is ugly i want to get rid of this eventually
+func (m *Model) SetEntity(p *playlist.Entity) {
+	m.entity = p
+
+	var rows []table.Row
+
+	if p != nil {
+		for _, t := range p.Tracks {
+			rows = append(rows, table.Row{
+				t.Position,
+				t.Title,
+				t.Duration,
+				t.Key,
+				fmt.Sprintf("%d", t.BPM),
+			})
+		}
+	}
+
+	m.trackTable.SetRows(rows)
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/createplaylist/keymap.go">
+package createplaylist
+
+import (
+	"charm.land/bubbles/v2/key"
+)
+
+type keyMap struct {
+	Back   key.Binding
+	Select key.Binding
+	Create key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		Back: key.NewBinding(
+			key.WithKeys("q", "esc"),
+			key.WithHelp("q/esc", "back"),
+		),
+		Select: key.NewBinding(
+			key.WithKeys("space"), // spacebar
+			key.WithHelp("space", "toggle select"),
+		),
+		Create: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "create playlist"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Back,
+		k.Select,
+		k.Create,
+	}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Back, k.Select, k.Create},
+	}
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedplaylist/handlers.go">
+package loadedplaylist
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/key"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleTeaKeyPressMsg)
+	handlers.Register(r, handleLoadPlaylistMsg)
+	handlers.Register(r, handlePlaylistCheckoutMsg)
+
+	return r
+}
+
+func handleTeaWindowSizeMsg(s LoadedPlaylistState, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.width, s.height = msg.Width, msg.Height
+	return s, nil, msg
+}
+
+func handleTeaKeyPressMsg(s LoadedPlaylistState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	switch {
+	case key.Matches(msg, s.keys.Back):
+		return s, tcmds.Transition(states.MainMenu, nil, nil), nil
+	case key.Matches(msg, s.keys.Checkout):
+		return s, s.svcs.SetCheckoutCmd(s.playlist.PhysicalPlaylist(), true), nil
+	case key.Matches(msg, s.keys.Checkin):
+		return s , s.svcs.SetCheckoutCmd(s.playlist.PhysicalPlaylist(), false), nil
+	}
+
+	return s, nil, msg
+}
+
+func handleLoadPlaylistMsg(s LoadedPlaylistState, msg playlist.LoadPlaylistMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.logger.Debug("entity message received",
+		slog.Any("tracks", msg.Phy.Tracks),
+	)
+	s.playlist.SetEntity(msg.Phy)
+	return s, nil, nil
+}
+
+func handlePlaylistCheckoutMsg(s LoadedPlaylistState, msg services.PlaylistCheckoutMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if msg.Err != nil {
+		s.logger.Error("failed to check out playlist",
+			slog.String("error", msg.Err.Error()),
+		)
+	} else {
+		if msg.Status {
+			s.logger.Info("playlist checked out successfully")
+		} else {
+
+			s.logger.Info("playlist checked in successfully")
+		}
+	}
+
+	return s, nil, nil
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedplaylist/keymap.go">
+package loadedplaylist
+
+import "charm.land/bubbles/v2/key"
+
+type keyMap struct {
+	Back     key.Binding
+	Checkout key.Binding
+	Checkin  key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		Back: key.NewBinding(
+			key.WithKeys("q", "esc"),
+			key.WithHelp("q/esc", "back"),
+		),
+		Checkout: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "checkout"),
+		),
+		Checkin: key.NewBinding(
+			key.WithKeys("C"),
+			key.WithHelp("C", "check in"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Back, k.Checkout, k.Checkin}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{k.Back, k.Checkout, k.Checkin}}
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedshelf/handlers.go">
+package loadedshelf
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleTeaKeyPressMsg)
+	handlers.Register(r, handleLoadShelfMsg)
+	handlers.Register(r, handleNewDiscogsCollectionMsg)
+	handlers.Register(r, handleLoadNextMsg)
+	handlers.Register(r, handleNewDiscogsEnrichRecordMsg)
+	handlers.Register(r, handleShelfSavedMsg)
+	handlers.Register(r, handleTickMsg)
+	return r
+}
+
+func handleTeaWindowSizeMsg(s LoadedShelfState, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.width, s.height = msg.Width, msg.Height
+	return s, nil, nil
+}
+
+func handleTeaKeyPressMsg(s LoadedShelfState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	sh := s.shelf.PhysicalShelf()
+	if sh == nil {
+		return s, nil, nil
+	}
+
+	if s.loading || s.fetching {
+		return s, nil, msg
+	}
+
+	switch {
+	case key.Matches(msg, s.keys.Next):
+		s.shelf = s.shelf.SelectNextBin()
+
+	case key.Matches(msg, s.keys.Prev):
+		s.shelf = s.shelf.SelectPrevBin()
+
+	case key.Matches(msg, s.keys.Back):
+		return s, tcmds.Transition(states.MainMenu, nil, nil), nil
+
+	case key.Matches(msg, s.keys.Load):
+		s.loading = true
+		s.shelf.Blur()
+		s.loadCollectionForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
+		return s, s.loadCollectionForm.Init(), nil
+
+	case msg.String() == "enter":
+		b := s.shelf.GetSelectedBin().PhysicalBin()
+		return s, tcmds.Transition(
+			states.LoadedBin,
+			nil,
+			[]tea.Cmd{bin.WithPhysicalBin(b)},
+		), nil
+	}
+
+	return s, nil, msg
+}
+
+func handleLoadShelfMsg(s LoadedShelfState, msg shelf.LoadShelfMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	sh := msg.Phy
+
+	s.shelf = shelf.New(sh, s.logger).
+		SetSize(s.width, s.height).
+		SelectBin(0)
+
+	return s, nil, nil
+}
+
+func handleTickMsg(s LoadedShelfState, msg spinner.TickMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if s.fetching {
+		var cmd tea.Cmd
+		s.spin, cmd = s.spin.Update(msg)
+		return s, cmd, nil
+	}
+	return s, nil, msg
+}
+
+func handleNewDiscogsCollectionMsg(s LoadedShelfState, msg tcmds.NewDiscogsCollectionMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.releases = msg.Releases
+	s.totalReleases = len(msg.Releases)
+	s.currentIndex = 0
+	s.pct = 0.0
+	s.logger.Debug("new discogs collection to process", slog.Int("count", s.totalReleases))
+	return s, s.loadNextRecord(), nil
+}
+
+func handleLoadNextMsg(s LoadedShelfState, msg loadNextMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if s.currentIndex >= s.totalReleases {
+		s.logger.Debug("finished processing all releases")
+		s.fetching = false
+		s.shelf.Focus()
+		// Reload the shelf from the DB to get all relationships correctly
+		return s, s.svcs.GetShelfCmd(s.shelf.ID()), nil
+	}
+
+	s.logger.Debug("enriching next release", slog.Int("index", s.currentIndex))
+	rec := s.releases[s.currentIndex]
+	return s, tcmds.EnrichReleaseInstance(s.discogsClient, rec), nil
+}
+
+func handleNewDiscogsEnrichRecordMsg(s LoadedShelfState, msg tcmds.NewDiscogsEnrichRecordMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if msg.Err != nil {
+		s.logger.Error("failed to enrich record, skipping", slog.String("error", msg.Err.Error()))
+		s.currentIndex++
+		return s, s.loadNextRecord(), nil
+	}
+
+	if s.currentIndex < len(s.releases) {
+		s.currentTitle = msg.Record.Title
+	}
+
+	// This updates the in-memory representation
+	_, err := s.shelf.PhysicalShelf().Insert(msg.Record)
+	if err != nil {
+		s.logger.Error("failed to insert record into shelf model", slog.String("error", err.Error()))
+	}
+
+	// Persist the change to the database
+	return s, s.svcs.SaveShelfCmd(s.shelf.PhysicalShelf()), nil
+}
+
+func handleShelfSavedMsg(s LoadedShelfState, msg services.ShelfSavedMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if msg.Err != nil {
+		s.logger.Error("failed to save shelf", slog.String("error", msg.Err.Error()))
+	}
+	s.currentIndex++
+	s.pct = float64(s.currentIndex) / float64(s.totalReleases)
+	return s, tea.Batch(s.prog.SetPercent(s.pct), s.loadNextRecord()), nil
+}
+</file>
+
+<file path="internal/tui/models/statemachine/layout.go">
+package statemachine
+
+import (
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+func (m Model) renderModel() tea.View {
+	currentState := m.currentState.View()
+
+	viewportStyle := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height)
+
+	content := viewportStyle.Render(currentState.Content)
+
+	return tea.NewView(content)
+}
+</file>
+
+<file path="internal/tui/style/bins.go">
+package style
+
+import (
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	BaseBinStyle = lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			AlignVertical(lipgloss.Center)
+)
+</file>
+
+<file path="internal/tui/style/forms.go">
+package style
+
+import (
+	huh "charm.land/huh/v2"
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+func DefaultFormStyles(isDark bool) *huh.Styles {
+	t := huh.ThemeBase(true)
+
+	t.Focused.Base = t.Focused.Base.BorderForeground(LightGreen)
+	t.Focused.Card = t.Focused.Base
+	t.Focused.Title = t.Focused.Title.Foreground(LightBlue)
+	t.Focused.NoteTitle = t.Focused.NoteTitle.Foreground(LightBlue)
+	t.Focused.Description = t.Focused.Description.Foreground(LightGreen)
+	t.Focused.ErrorIndicator = t.Focused.ErrorIndicator.Foreground(LightRed)
+	t.Focused.Directory = t.Focused.Directory.Foreground(LightBlue)
+	t.Focused.File = t.Focused.File.Foreground(DarkWhite)
+	t.Focused.ErrorMessage = t.Focused.ErrorMessage.Foreground(LightRed)
+	t.Focused.SelectSelector = t.Focused.SelectSelector.Foreground(LightYellow)
+	t.Focused.NextIndicator = t.Focused.NextIndicator.Foreground(LightYellow)
+	t.Focused.PrevIndicator = t.Focused.PrevIndicator.Foreground(LightYellow)
+	t.Focused.Option = t.Focused.Option.Foreground(DarkWhite)
+	t.Focused.MultiSelectSelector = t.Focused.MultiSelectSelector.Foreground(LightYellow)
+	t.Focused.SelectedOption = t.Focused.SelectedOption.Foreground(LightGreen)
+	t.Focused.SelectedPrefix = t.Focused.SelectedPrefix.Foreground(LightGreen)
+	t.Focused.UnselectedOption = t.Focused.UnselectedOption.Foreground(DarkWhite)
+	t.Focused.UnselectedPrefix = t.Focused.UnselectedPrefix.Foreground(DarkWhite)
+	t.Focused.FocusedButton = t.Focused.FocusedButton.Foreground(LightYellow).Background(LightBlue).Bold(true)
+	t.Focused.BlurredButton = t.Focused.BlurredButton.Foreground(DarkWhite).Background(LightBlack)
+
+	t.Focused.TextInput.Cursor = t.Focused.TextInput.Cursor.Foreground(LightYellow)
+	t.Focused.TextInput.Placeholder = t.Focused.TextInput.Placeholder.Foreground(LightBlack)
+	t.Focused.TextInput.Prompt = t.Focused.TextInput.Prompt.Foreground(LightYellow)
+
+	t.Blurred = t.Focused
+	t.Blurred.Base = t.Blurred.Base.BorderStyle(lipgloss.HiddenBorder())
+	t.Blurred.Card = t.Blurred.Base
+	t.Blurred.NextIndicator = lipgloss.NewStyle()
+	t.Blurred.PrevIndicator = lipgloss.NewStyle()
+
+	t.Group.Title = t.Focused.Title
+	t.Group.Description = t.Focused.Description
+
+	return t
+}
+</file>
+
+<file path="internal/tui/style/progress.go">
+package style
+
+import (
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	ProgressStyle = lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).
+			AlignVertical(lipgloss.Center)
+)
+</file>
+
+<file path="internal/tui/style/tables.go">
+package style
+
+import (
+	"charm.land/bubbles/v2/table"
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	BaseTableStyle = lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center)
+
+	tableHeaderStyle = lipgloss.NewStyle().
+				Padding(0, 1).
+				Bold(true).
+				Foreground(LightCyan)
+
+	tableCellStyle = lipgloss.NewStyle().
+			Padding(0, 1)
+
+	tableSelectedStyle = lipgloss.NewStyle().
+				Bold(true)
+)
+
+func DefaultTableStyles() table.Styles {
+	return table.Styles{
+		Header:   tableHeaderStyle,
+		Cell:     tableCellStyle,
+		Selected: tableSelectedStyle,
+	}
+}
+</file>
+
+<file path="internal/tui/keymap.go">
+package tui
+
+import (
+	"charm.land/bubbles/v2/key"
+)
+
+type keyMap struct {
+	ToggleHelp key.Binding
+	Quit       key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		ToggleHelp: key.NewBinding(
+			key.WithKeys("H"),
+			key.WithHelp("H", "toggle help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("C-c", "quit"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.ToggleHelp,
+		k.Quit,
+	}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.ToggleHelp, k.Quit},
+	}
+}
+</file>
+
+<file path="internal/services/playlist.go">
+package services
+
+import (
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+)
+
+type playlistDB db.Repository[*playlist.Entity]
+
+type PlaylistService struct {
+	playlists playlistDB
+	logger    *slog.Logger
+}
+
+type PlaylistsLoadedMsg struct {
+	Playlists []*playlist.Entity
+	Err       error
+}
+
+type PlaylistSavedMsg struct {
+	Err error
+}
+
+type PlaylistDeletedMsg struct {
+	Err error
+}
+
+func NewPlaylistService(repo playlistDB, log *slog.Logger) *PlaylistService {
+	log.WithGroup("playlistservice")
+	return &PlaylistService{
+		playlists: repo,
+		logger:    log,
+	}
+}
+
+func (s *PlaylistService) GetAllPlaylistsCmd() tea.Cmd {
+	return func() tea.Msg {
+		ps, err := s.playlists.All()
+		if err != nil {
+			s.logger.Error("repo error",
+				slog.String("error", err.Error()),
+			)
+			return PlaylistsLoadedMsg{Playlists: nil, Err: err}
+		}
+
+		return PlaylistsLoadedMsg{Playlists: ps, Err: err}
+	}
+}
+
+func (s *PlaylistService) SavePlaylistCmd(p *playlist.Entity) tea.Cmd {
+	return func() tea.Msg {
+		err := s.playlists.Save(p)
+		if err != nil {
+			s.logger.Error("error saving playlist to repo",
+				slog.String("error", err.Error()),
+			)
+		}
+		return PlaylistSavedMsg{Err: err}
+	}
+}
+
+func (s *PlaylistService) DeletePlaylistCmd(id uint) tea.Cmd {
+	return func() tea.Msg {
+		err := s.playlists.Delete(id)
+		if err != nil {
+			s.logger.Error("error deleting playlist",
+				slog.String("error", err.Error()),
+				slog.Any("id", id),
+			)
+		}
+		return PlaylistDeletedMsg{Err: err}
+	}
+}
+</file>
+
+<file path="internal/tui/models/shelf/cmds.go">
+package shelf
+
+import (
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+)
+
+type LoadShelfMsg struct {
+	Phy *shelf.Entity
+}
+
+func WithPhysicalShelf(p *shelf.Entity) tea.Cmd {
+	return func() tea.Msg {
+		return LoadShelfMsg{
+			Phy: p,
+		}
+	}
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedplaylist/layout.go">
+package loadedplaylist
+
+import (
+	tea "charm.land/bubbletea/v2"
+	// lipgloss "charm.land/lipgloss/v2"
+)
+
+func (s LoadedPlaylistState) renderModel() tea.View {
+	return s.playlist.View()
+}
+</file>
+
+<file path="internal/tui/models/track/model.go">
+package track
+
+import (
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/track"
+)
+
+// Model is a wrapper for a track entity for use in the TUI.
+type Model struct {
+	physicalTrack *track.Entity
+	Selected      bool
+}
+
+// New creates a new track model.
+func New(t *track.Entity) Model {
+	return Model{
+		physicalTrack: t,
+		Selected:      false,
+	}
+}
+
+// Init is a no-op.
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+// Update is a no-op.
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	return m, nil
+}
+
+// View is a no-op.
+func (m Model) View() tea.View {
+	return tea.NewView("")
+}
+
+// FilterValue implements the list.Item interface for filtering.
+func (m Model) FilterValue() string {
+	if m.physicalTrack == nil {
+		return ""
+	}
+
+	title := m.physicalTrack.Title
+	bpm := m.physicalTrack.BPM
+	k := m.physicalTrack.Key
+
+	return fmt.Sprintf("%s bpm:%d key:%s", title, bpm, k)
+}
+
+// Title returns the track's name.
+func (m Model) Title() string {
+	return m.FilterValue()
+}
+
+// Description returns a summary of the track's details.
+func (m Model) Description() string {
+	if m.physicalTrack == nil {
+		return ""
+	}
+	return m.physicalTrack.Title
+}
+
+// PhysicalTrack returns the underlying track entity.
+func (m Model) PhysicalTrack() *track.Entity {
+	return m.physicalTrack
+}
+</file>
+
+<file path="internal/tui/style/lists.go">
+package style
+
+import (
+	"charm.land/bubbles/v2/list"
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+var (
+	listTitleBarStyle = lipgloss.NewStyle()
+
+	listTitleStyle = TextStyle.
+			Foreground(LightBlue).
+			Bold(true)
+
+
+	listSpinnerStyle                     = lipgloss.NewStyle().Foreground(LightBlue)
+	listFilterPromptStyle                = lipgloss.NewStyle().Foreground(LightGreen)
+	listFilterCursorStyle                = lipgloss.NewStyle().Foreground(LightGreen)
+	listDefaultFilterCharacterMatchStyle = lipgloss.NewStyle().Foreground(LightGreen)
+
+
+	listStatusBarStyle = lipgloss.NewStyle().
+				Foreground(DarkBlue).
+				Margin(0, 0, 1, 0)
+
+	listStatusEmptyStyle           = lipgloss.NewStyle().Foreground(LightGreen)
+	listStatusBarActiveFilterStyle = lipgloss.NewStyle().Foreground(LightGreen)
+	listStatusBarFilterCountStyle  = lipgloss.NewStyle().Foreground(LightGreen)
+	listNoItemsStyle               = lipgloss.NewStyle().Foreground(LightGreen)
+	listPaginationStyleStyle       = lipgloss.NewStyle().Foreground(LightGreen)
+	listHelpStyleStyle             = lipgloss.NewStyle().Foreground(LightGreen)
+	listActivePaginationDotStyle   = lipgloss.NewStyle().Foreground(LightGreen)
+	listInactivePaginationDotStyle = lipgloss.NewStyle().Foreground(LightGreen)
+	listArabicPaginationStyle      = lipgloss.NewStyle().Foreground(LightGreen)
+	listDividerDotStyle            = lipgloss.NewStyle().Foreground(LightGreen)
+
+
+	listDelegateNormalTitleStyle = TextStyle
+	listDelegateNormalDescStyle  = TextStyle
+
+	listDelegateSelectedlTitleStyle = lipgloss.NewStyle().
+					Foreground(LightGreen).
+					Bold(true)
+
+	listDelegateSelectedDescStyle = lipgloss.NewStyle().
+		Foreground(LightGreen)
+
+	listDelegateDimmedTitleStyle = lipgloss.NewStyle().Foreground(LightBlack)
+	listDelegateDimmedDescStyle  = lipgloss.NewStyle().Foreground(LightBlack)
+
+	listDelegateFilterMatchStyle = lipgloss.NewStyle().Foreground(LightGreen)
+
+	// dimmed styles
+
+	listTitleStyleDimmed = TextStyle.
+		Foreground(LightBlueDimmed).
+		Bold(true)
+
+	listSpinnerStyleDimmed                     = lipgloss.NewStyle().Foreground(LightBlueDimmed)
+	listFilterPromptStyleDimmed                = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listFilterCursorStyleDimmed                = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listDefaultFilterCharacterMatchStyleDimmed = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+
+	listStatusBarStyleDimmed = lipgloss.NewStyle().
+		Foreground(DarkBlueDimmed).
+		Margin(0, 0, 1, 0)
+
+	listStatusEmptyStyleDimmed           = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listStatusBarActiveFilterStyleDimmed = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listStatusBarFilterCountStyleDimmed  = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listNoItemsStyleDimmed               = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listPaginationStyleStyleDimmed       = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listHelpStyleStyleDimmed             = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listActivePaginationDotStyleDimmed   = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listInactivePaginationDotStyleDimmed = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listArabicPaginationStyleDimmed      = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+	listDividerDotStyleDimmed            = lipgloss.NewStyle().Foreground(LightGreenDimmed)
+
+
+	listDelegateNormalTitleStyleDimmed = TextStyleDimmed
+	listDelegateNormalDescStyleDimmed  = TextStyleDimmed
+
+	listDelegateSelectedlTitleStyleDimmed = lipgloss.NewStyle().
+		Foreground(LightGreenDimmed).
+		Bold(true)
+
+	listDelegateSelectedDescStyleDimmed = lipgloss.NewStyle().
+		Foreground(LightGreenDimmed)
+
+	listDelegateFilterMatchStyleDimmed = lipgloss.NewStyle().Foreground(LightGreen)
+
+)
+
+func DefaultListStyles() list.Styles {
+	s := list.DefaultStyles(true)
+
+	s.TitleBar = listTitleBarStyle
+	s.Title = listTitleStyle
+	s.Spinner = listSpinnerStyle
+
+	s.DefaultFilterCharacterMatch = listDefaultFilterCharacterMatchStyle
+
+	s.StatusBar = listStatusBarStyle
+	s.StatusEmpty = listStatusEmptyStyle
+	s.StatusBarActiveFilter = listStatusBarActiveFilterStyle
+	s.StatusBarFilterCount = listStatusBarFilterCountStyle
+
+	s.NoItems = listNoItemsStyle
+
+	s.PaginationStyle = listPaginationStyleStyle
+	s.HelpStyle = listHelpStyleStyle
+
+	s.ActivePaginationDot = listActivePaginationDotStyle
+	s.InactivePaginationDot = listInactivePaginationDotStyle
+	s.ArabicPagination = listArabicPaginationStyle
+	s.DividerDot = listDividerDotStyle
+
+	return s
+}
+
+func DefaultItemStyles() list.DefaultItemStyles {
+	s := list.NewDefaultItemStyles(true)
+
+	s.NormalTitle = listDelegateNormalTitleStyle
+	s.NormalDesc = listDelegateNormalDescStyle
+
+	s.SelectedTitle = listDelegateSelectedlTitleStyle
+	s.SelectedDesc = listDelegateSelectedDescStyle
+
+	s.DimmedTitle = listDelegateDimmedTitleStyle
+	s.DimmedDesc = listDelegateDimmedDescStyle
+
+	s.FilterMatch = listDelegateFilterMatchStyle
+
+	return s
+}
+
+func DefaultListStylesDimmed() list.Styles {
+	s := list.DefaultStyles(true)
+
+	s.TitleBar = listTitleBarStyle
+	s.Title = listTitleStyleDimmed
+	s.Spinner = listSpinnerStyleDimmed
+
+	s.DefaultFilterCharacterMatch = listDefaultFilterCharacterMatchStyleDimmed
+
+	s.StatusBar = listStatusBarStyleDimmed
+	s.StatusEmpty = listStatusEmptyStyleDimmed
+	s.StatusBarActiveFilter = listStatusBarActiveFilterStyleDimmed
+	s.StatusBarFilterCount = listStatusBarFilterCountStyleDimmed
+
+	s.NoItems = listNoItemsStyleDimmed
+
+	s.PaginationStyle = listPaginationStyleStyleDimmed
+	s.HelpStyle = listHelpStyleStyleDimmed
+
+	s.ActivePaginationDot = listActivePaginationDotStyleDimmed
+	s.InactivePaginationDot = listInactivePaginationDotStyleDimmed
+	s.ArabicPagination = listArabicPaginationStyleDimmed
+	s.DividerDot = listDividerDotStyleDimmed
+
+	return s
+}
+
+
+func DefaultItemStylesDimmed() list.DefaultItemStyles {
+	s := list.NewDefaultItemStyles(true)
+
+	s.NormalTitle = listDelegateNormalTitleStyleDimmed
+	s.NormalDesc = listDelegateNormalDescStyleDimmed
+
+	s.SelectedTitle = listDelegateSelectedlTitleStyleDimmed
+	s.SelectedDesc = listDelegateSelectedDescStyleDimmed
+
+	s.DimmedTitle = listDelegateDimmedTitleStyle
+	s.DimmedDesc = listDelegateDimmedDescStyle
+
+	s.FilterMatch = listDelegateFilterMatchStyleDimmed
+
+	return s
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/createplaylist/layout.go">
+package createplaylist
+
+import (
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+func (s CreatePlaylistState) renderModel() string {
+	s.list.SetWidth(s.width)
+	s.list.SetHeight(s.height)
+
+	tracksLayer := lipgloss.NewLayer(s.list.View())
+
+	layers := []*lipgloss.Layer{
+		tracksLayer.X(0).Y(0),
+	}
+
+	comp := lipgloss.NewCompositor(layers...)
+
+	if s.namingPlaylist {
+		formView := s.nameForm.View()
+
+		formW := s.width / 8
+		formH := 5
+
+		formStyle := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			Width(formW).
+			Height(formH)
+
+		formLayer := lipgloss.NewLayer(formStyle.Render(formView))
+
+		formX := (s.width - formW) / 2
+		formY := (s.height - formH) / 2
+
+		comp.AddLayers(formLayer.
+			X(formX).Y(formY).Z(1),
+		)
+	}
+
+	return comp.Render()
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/mainmenu/handlers.go">
+package mainmenu
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
+)
+
+func getHandlers() *handlers.Registry {
+	r := handlers.NewRegistry()
+
+	handlers.Register(r, handleTeaWindowSizeMsg)
+	handlers.Register(r, handleTeaKeyPressMsg)
+	handlers.Register(r, handleShelvesLoadedMsg)
+	handlers.Register(r, handlePlaylistsLoadedMsg)
+
+	return r
+}
+
+func handleTeaWindowSizeMsg(s MainMenuState, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	var cmds []tea.Cmd
+
+	s.width, s.height = msg.Width, msg.Height
+
+	halfWidth := s.width / 2
+	otherWidth := s.width - halfWidth
+
+	var shelfUpdateCmds tea.Cmd
+
+	shelfSizeMsg := tea.WindowSizeMsg{
+		Width: halfWidth,
+		Height: s.height,
+	}
+
+	s.shelves, shelfUpdateCmds = util.UpdateModel(s.shelves, shelfSizeMsg)
+	cmds = append(cmds, shelfUpdateCmds)
+
+	var playlistUpdateCmds tea.Cmd
+
+	playlistSizeMsg := tea.WindowSizeMsg{
+		Width: otherWidth,
+		Height: s.height,
+	}
+
+	s.playlists, playlistUpdateCmds = util.UpdateModel(s.playlists, playlistSizeMsg)
+	cmds = append(cmds, playlistUpdateCmds)
+
+	s.logger.Debug("window sizes for child models",
+		slog.Any("shelf width", s.shelves.Width()),
+		slog.Any("shelf height", s.shelves.Height()),
+		slog.Any("playlist width", s.playlists.Width()),
+		slog.Any("playlist height", s.playlists.Height()),
+	)
+
+	return s, tea.Batch(cmds...), nil
+}
+
+func handleTeaKeyPressMsg(s MainMenuState, msg tea.KeyPressMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	if s.creating {
+		return s, nil, msg
+	}
+
+	switch {
+	case key.Matches(msg, s.keys.Quit):
+		return s, nil, nil
+
+	case key.Matches(msg, s.keys.SwitchFocus):
+		if s.focus == shelvesView {
+			s.focus = playlistsView
+			s.playlists = s.playlists.Focus()
+			s.shelves = s.shelves.Blur()
+		} else {
+			s.focus = shelvesView
+			s.shelves = s.shelves.Focus()
+			s.playlists = s.playlists.Blur()
+		}
+
+		return s, nil, nil
+
+	case key.Matches(msg, s.keys.NewShelf):
+		if s.focus == shelvesView {
+			s.logger.Debug("create shelf selected")
+			s.creating = true
+			s.shelves = s.shelves.Blur()
+			s.playlists = s.playlists.Blur()
+			s.createShelfForm = newCreateShelfForm()
+			return s, s.createShelfForm.Init(), nil
+		} else {
+			s.logger.Debug("create playlist selected")
+			return s, tcmds.Transition(
+				states.CreatePlaylist,
+				nil,
+				[]tea.Cmd{s.svcs.GetAllTracksCmd()},
+			), nil
+		}
+
+	case key.Matches(msg, s.keys.Select):
+		if s.focus == shelvesView {
+			if sel, ok := s.shelves.SelectedItem().(shelf.Model); ok {
+				return s, tcmds.Transition(
+					states.LoadedShelf,
+					nil,
+					[]tea.Cmd{shelf.WithPhysicalShelf(sel.PhysicalShelf())},
+				), nil
+			}
+		} else {
+			if sel, ok := s.playlists.SelectedItem().(tplaylist.Model); ok {
+				return s, tcmds.Transition(
+					states.LoadedPlaylist,
+					nil,
+					[]tea.Cmd{playlist.WithPhysicalPlaylist(sel.PhysicalPlaylist())},
+				), nil
+			}
+		}
+	}
+
+	// pass key message through if we aren't handling it
+	return s, nil, msg
+}
+
+func handleShelvesLoadedMsg(s MainMenuState, msg services.ShelvesLoadedMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.logger.Debug("refreshing shelves from service")
+
+	shlvs := msg.Shelves
+	items := make([]list.Item, len(shlvs))
+
+	for i, sh := range shlvs {
+		items[i] = shelf.New(sh, s.logger)
+	}
+
+	s.shelves.SetItems(items)
+
+	return s, nil, nil
+}
+
+func handlePlaylistsLoadedMsg(s MainMenuState, msg services.PlaylistsLoadedMsg) (tea.Model, tea.Cmd, tea.Msg) {
+	s.logger.Debug("refreshing playlists from service")
+
+	playlists := msg.Playlists
+	playlistItems := make([]list.Item, len(playlists))
+
+	for i, p := range playlists {
+		play := tplaylist.New()
+		play.SetEntity(p)
+		playlistItems[i] = play
+	}
+
+	s.playlists.SetItems(playlistItems)
+
+	return s, nil, nil
+}
+</file>
+
+<file path="internal/tui/models/record/model.go">
+package record
+
+import (
+	"fmt"
+	"strings"
+
+	"charm.land/bubbles/v2/table"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+// Model represents the record view, displaying detailed information about a single record.
+type Model struct {
+	physicalRecord *record.Entity
+	width, height  int
+	tracklistTable table.Model // The table for the tracklist
+	trackIndex     int         // The currently selected track index
+}
+
+// New creates a new Model for a specific record.
+func New(r *record.Entity) Model {
+	columns := []table.Column{
+		{Title: "position", Width: 10},
+		{Title: "title", Width: 40},
+		{Title: "duration", Width: 10},
+	}
+
+	// Create the rows from the record's tracklist.
+	rows := make([]table.Row, len(r.Tracklist))
+	for i, t := range r.Tracklist {
+		rows[i] = table.Row{t.Position, t.Title, t.Duration}
+	}
+
+	// Create a new table model and populate it with the rows.
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows), // Set the rows here!
+	)
+
+	// Set the table styles
+	t.SetStyles(style.DefaultTableStyles())
+
+	return Model{
+		physicalRecord: r,
+		tracklistTable: t,
+		trackIndex:     0, // Initialize the selected track to the first one
+	}
+}
+
+// Init initializes the model.
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles incoming messages for the model.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "up":
+			// Move the track selection up
+			if m.tracklistTable.Cursor() > 0 {
+				m.tracklistTable.MoveUp(1)
+			}
+		case "down":
+			// Move the track selection down
+			if m.tracklistTable.Cursor() < len(m.physicalRecord.Tracklist)-1 {
+				m.tracklistTable.MoveDown(1)
+			}
+		}
+		// Sync the track index with the table cursor
+		m.trackIndex = m.tracklistTable.Cursor()
+	}
+
+	// Pass the message to the table model
+	m.tracklistTable, cmd = m.tracklistTable.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+// View renders the model's UI.
+func (m Model) View() tea.View {
+	if m.physicalRecord == nil {
+		return tea.NewView("No record loaded")
+	}
+
+	// Calculate height for each section to divide the screen
+	sectionHeight := m.height / 3
+
+	// --- Render Record Info Card ---
+	recordInfoCard := m.renderRecordInfoCard(m.width, sectionHeight)
+
+	// --- Render Tracklist Table ---
+	m.tracklistTable.SetWidth(m.width)
+	m.tracklistTable.SetHeight(sectionHeight)
+	tracklistTable := m.tracklistTable.View()
+
+	// --- Render Track Info Card ---
+	trackInfoCard := m.renderTrackInfoCard(m.width, sectionHeight)
+
+	// --- composite layers
+
+	layers := []*lipgloss.Layer{
+		lipgloss.NewLayer(recordInfoCard).X(0).Y(0),
+		lipgloss.NewLayer(tracklistTable).X(0).Y(sectionHeight),
+		lipgloss.NewLayer(trackInfoCard).X(0).Y(2*sectionHeight),
+	}
+
+	comp := lipgloss.NewCompositor(layers...)
+
+	return tea.NewView(comp.Render())
+}
+
+// SetSize updates the model's dimensions.
+func (m Model) SetSize(w, h int) Model {
+	m.width = w
+	m.height = h
+	return m
+}
+
+// renderRecordInfoCard formats the record data into a string for the UI.
+func (m Model) renderRecordInfoCard(w, h int) string {
+	var s strings.Builder
+	s.WriteString("Record Card\n\n") // Add a title
+	s.WriteString(fmt.Sprintf("Title: %s\n", m.physicalRecord.Title))
+	s.WriteString(fmt.Sprintf("Artists: %s\n", strings.Join(m.physicalRecord.Artists, ", ")))
+	s.WriteString(fmt.Sprintf("Catalog Number: %s\n", m.physicalRecord.CatalogNumber))
+	s.WriteString(fmt.Sprintf("physical location: %s\n", m.physicalRecord.Coordinate))
+
+	status := "checked in"
+	if m.physicalRecord.CheckedOut {
+		status = style.ActiveTextStyleDimmed.Render("checked out")
+	}
+
+	s.WriteString(fmt.Sprintf("Status: %s\n", status))
+
+	sty := lipgloss.NewStyle().
+		Width(w).
+		Height(h).
+		Align(lipgloss.Center)
+
+	return sty.Render(s.String())
+}
+
+// renderTrackInfoCard formats a single track's data for the UI.
+func (m Model) renderTrackInfoCard(w, h int) string {
+	if len(m.physicalRecord.Tracklist) == 0 {
+		return "No track info available."
+	}
+	t := m.physicalRecord.Tracklist[m.tracklistTable.Cursor()]
+
+	card := fmt.Sprintf("Track Info Card\n\nTitle: %s\nArtist: %s\nDuration: %s", t.Title, m.physicalRecord.Artists[0], t.Duration)
+
+	sty := lipgloss.NewStyle().
+		Width(w).
+		Height(h).
+		Align(lipgloss.Center)
+
+	return sty.Render(card)
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/createplaylist/model.go">
+package createplaylist
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/track"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	ttrack "github.com/dkaman/recordbaux/internal/tui/models/track"
+)
+
+type CreatePlaylistState struct {
+	svcs     *services.AllServices
+	logger   *slog.Logger
+	keys     keyMap
+	handlers *handlers.Registry
+
+	list           list.Model
+	namingPlaylist bool
+	nameForm       *form
+	playlistName   string
+
+	width, height int
+}
+
+func New(svcs *services.AllServices, log *slog.Logger) CreatePlaylistState {
+	logger := log.WithGroup("createplayliststate")
+
+	delegate := trackDelegate{}
+	trackList := list.New([]list.Item{}, delegate, 0, 0)
+	trackList.Styles = style.DefaultListStyles()
+	trackList.Title = "select tracks for new playlist"
+
+	return CreatePlaylistState{
+		svcs:   svcs,
+		logger: logger,
+		handlers: getHandlers(),
+		list:   trackList,
+		keys:   defaultKeybinds(),
+		namingPlaylist: false,
+	}
+}
+
+func (s CreatePlaylistState) Init() tea.Cmd {
+	return nil
+}
+
+func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	if s.namingPlaylist {
+		s.logger.Debug("begin naming playlist")
+		fModel, formUpdatesCmds := s.nameForm.Update(msg)
+		if f, ok := fModel.(*form); ok {
+			s.nameForm = f
+		}
+		cmds = append(cmds, formUpdatesCmds)
+
+		if s.nameForm.State == huh.StateCompleted {
+			s.logger.Debug("end naming playlist")
+			name := s.nameForm.Name()
+			newPlaylist := &playlist.Entity{
+				Name:   name,
+				Tracks: make([]*track.Entity, 0),
+			}
+
+			for _, item := range s.list.Items() {
+				if trackModel, ok := item.(ttrack.Model); ok && trackModel.Selected {
+					newPlaylist.Tracks = append(newPlaylist.Tracks, trackModel.PhysicalTrack())
+				}
+			}
+			cmds = append(cmds, s.svcs.SavePlaylistCmd(newPlaylist))
+
+			items := s.list.Items()
+			for i, item := range items {
+				if trackModel, ok := item.(ttrack.Model); ok && trackModel.Selected {
+					trackModel.Selected = false
+					items[i] = trackModel
+				}
+			}
+
+			s.list.SetItems(items)
+			s.namingPlaylist = false
+			s.nameForm = newNameForm()
+
+			return s, tcmds.Transition(
+				states.MainMenu, cmds, nil,
+			)
+		}
+
+		return s, tea.Batch(cmds...)
+	}
+
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(CreatePlaylistState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	var listCmd tea.Cmd
+	s.list, listCmd = s.list.Update(msg)
+	cmds = append(cmds, listCmd)
+	return s, tea.Batch(cmds...)
+}
+
+func (s CreatePlaylistState) View() tea.View {
+	return tea.NewView(s.renderModel())
+}
+
+func (s CreatePlaylistState) Title() string {
+	return "create playlist"
+}
+
+func (s CreatePlaylistState) State() states.StateType {
+	return states.CreatePlaylist
+}
+
+func (s CreatePlaylistState) Help() string {
+	return "create a playlist"
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/mainmenu/list_delegate.go">
+package mainmenu
+
+import (
+	"fmt"
+	"io"
+
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/progress"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/models/flist"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
+
+	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
+)
+
+type shelfDelegateStyles struct {
+	ItemStyle            lipgloss.Style
+	ItemStyleBlurred     lipgloss.Style
+	SelectedStyle        lipgloss.Style
+	SelectedStyleBlurred lipgloss.Style
+}
+
+// shelfDelegate implements Bubble Tea's list.ItemDelegate for shelves
+type shelfDelegate struct {
+	focused bool
+	prog    progress.Model
+
+	Styles shelfDelegateStyles
+}
+
+func newShelfDelegate(s shelfDelegateStyles) shelfDelegate {
+	prg := progress.New(progress.WithDefaultBlend())
+
+	return shelfDelegate{
+		focused: true,
+		prog:    prg,
+		Styles:  s,
+	}
+}
+
+func (d shelfDelegate) Height() int {
+	return 2
+}
+
+func (d shelfDelegate) Spacing() int {
+	return 1
+}
+
+func (d shelfDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	shM, ok := listItem.(shelf.Model)
+	if !ok {
+		return
+	}
+
+	shPhy := shM.PhysicalShelf()
+
+	pct := float64(shPhy.TotalRecords()) / float64((shPhy.BinSize * len(shPhy.Bins)))
+
+	display := fmt.Sprintf("%s (%d bins × size %d)\n%s", shPhy.Name, len(shPhy.Bins), shPhy.BinSize, d.prog.ViewAs(pct))
+
+	var sty lipgloss.Style
+	if d.focused {
+		sty = d.Styles.ItemStyle
+	} else {
+		sty = d.Styles.ItemStyleBlurred
+	}
+
+	if m.Index() == index {
+		if d.focused {
+			sty = d.Styles.SelectedStyle
+		} else {
+			sty = d.Styles.SelectedStyleBlurred
+		}
+	}
+
+	prefix := "  "
+	if m.Index() == index {
+		prefix = "> "
+	}
+
+	w.Write([]byte(sty.Render(prefix + display)))
+}
+func (d shelfDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d shelfDelegate) Focus() flist.FocusableDelegate {
+	d.focused = true
+	return d
+}
+
+func (d shelfDelegate) Blur() flist.FocusableDelegate {
+	d.focused = false
+	return d
+}
+
+type playlistDelegateStyles struct {
+	ItemStyle            lipgloss.Style
+	ItemStyleBlurred     lipgloss.Style
+	SelectedStyle        lipgloss.Style
+	SelectedStyleBlurred lipgloss.Style
+}
+
+// playlistDelegate implements Bubble Tea's list.ItemDelegate for playlists
+type playlistDelegate struct {
+	focused bool
+	Styles  playlistDelegateStyles
+}
+
+func newPlaylistDelegate(s playlistDelegateStyles) playlistDelegate {
+	return playlistDelegate{
+		focused: true,
+		Styles:  s,
+	}
+}
+
+func (d playlistDelegate) Height() int { return 1 }
+
+func (d playlistDelegate) Spacing() int { return 0 }
+
+func (d playlistDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	plM, ok := listItem.(tplaylist.Model)
+	if !ok {
+		return
+	}
+
+	display := fmt.Sprintf("%s (%s)", plM.Title(), plM.Description())
+
+	var sty lipgloss.Style
+	if d.focused {
+		sty = d.Styles.ItemStyle
+	} else {
+		sty = d.Styles.ItemStyleBlurred
+	}
+
+	if m.Index() == index {
+		if d.focused {
+			sty = d.Styles.SelectedStyle
+		} else {
+			sty = d.Styles.SelectedStyleBlurred
+		}
+	}
+
+	prefix := "  "
+	if m.Index() == index {
+		prefix = "> "
+	}
+
+	w.Write([]byte(sty.Render(prefix + display)))
+}
+
+func (d playlistDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d playlistDelegate) Focus() flist.FocusableDelegate {
+	d.focused = true
+	return d
+}
+
+func (d playlistDelegate) Blur() flist.FocusableDelegate {
+	d.focused = false
+	return d
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedplaylist/model.go">
+package loadedplaylist
+
+import (
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+)
+
+type LoadedPlaylistState struct {
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
+	playlist   playlist.Model
+
+	width, height int
+}
+
+func New(svcs *services.AllServices, log *slog.Logger) LoadedPlaylistState {
+	return LoadedPlaylistState{
+		svcs:     svcs,
+		keys:     defaultKeybinds(),
+		logger:   log.WithGroup("playlistloaded"),
+		handlers: getHandlers(),
+		playlist: playlist.New(),
+	}
+}
+
+func (s LoadedPlaylistState) Init() tea.Cmd {
+	return nil
+}
+
+func (s LoadedPlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(LoadedPlaylistState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	var playlistCmd tea.Cmd
+	s.playlist, playlistCmd = s.playlist.Update(msg)
+	cmds = append(cmds, playlistCmd)
+
+	return s, tea.Batch(cmds...)
+}
+
+func (s LoadedPlaylistState) View() tea.View {
+	return s.renderModel()
+}
+
+func (s LoadedPlaylistState) Help() string {
+	return util.FmtKeymap(s.keys.ShortHelp())
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/mainmenu/keymap.go">
+package mainmenu
+
+import (
+	"charm.land/bubbles/v2/key"
+)
+
+type keyMap struct {
+	Select      key.Binding
+	NewShelf    key.Binding
+	SwitchFocus key.Binding
+	Edit        key.Binding
+	Delete      key.Binding
+	Quit        key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		Select: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "select"),
+		),
+		NewShelf: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "new shelf"),
+		),
+		SwitchFocus: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "switch focus"),
+		),
+		Edit: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("q"),
+			key.WithHelp("q", "nop"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Select,
+		k.NewShelf,
+		k.SwitchFocus,
+		k.Edit,
+		k.Delete,
+		k.Quit,
+	}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Select, k.NewShelf, k.SwitchFocus, k.Edit, k.Delete, k.Quit},
+	}
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedshelf/layout.go">
+package loadedshelf
+
+import (
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+func (s LoadedShelfState) renderModel() tea.View {
+	// 1. Modal State: Load Collection Form
+	if s.loading {
+		formView := s.loadCollectionForm.View().Content
+		modal := style.ModalStyle.Render(formView)
+
+		// Place the rendered modal in the absolute center of the terminal window
+		return tea.NewView(lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, modal))
+	}
+
+	// 2. Modal State: Fetching Progress
+	if s.fetching {
+		var content string
+		if s.totalReleases == 0 {
+			content = fmt.Sprintf("%s fetching collection from Discogs...", s.spin.View())
+		} else {
+			header := "✔ collection loaded, enriching records...\n\n"
+			title := fmt.Sprintf("loading: %s\n\n", s.currentTitle)
+			progress := s.prog.ViewAs(s.pct)
+			percent := fmt.Sprintf(" %d/%d", s.currentIndex, s.totalReleases)
+
+			content = lipgloss.JoinVertical(lipgloss.Left, header, title, progress+percent)
+		}
+
+		modal := style.ModalStyle.Render(content)
+
+		// Place the rendered progress box in the absolute center
+		return tea.NewView(lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, modal))
+	}
+
+	// 3. Base State: Standard Shelf View
+	// Anchor the shelf view to the top-left, guaranteeing it claims the full terminal dimensions
+	shelfContent := s.shelf.View().Content
+	return tea.NewView(lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, shelfContent))
+}
+
+// func (s LoadedShelfState) renderModel() string {
+// 	var comp *lipgloss.Compositor
+
+// 	shelfView := s.shelf.View()
+// 	baseLayer := lipgloss.NewLayer(shelfView.Content)
+
+// 	comp = lipgloss.NewCompositor(baseLayer)
+
+// 	// Modal layer: load collection form
+// 	if s.loading {
+// 		formView := s.loadCollectionForm.View().Content
+
+// 		formW := lipgloss.Width(formView)
+// 		formH := lipgloss.Height(formView)
+
+// 		modal := style.ModalStyle.
+// 			Width(formW).
+// 			Height(formH).
+// 			Render(formView)
+
+// 		formLayer := lipgloss.NewLayer(modal)
+
+// 		formX := (s.width - lipgloss.Width(formView)) / 2
+// 		formY := (s.height - lipgloss.Height(formView)) / 2
+
+// 		comp.AddLayers(formLayer.X(formX).Y(formY).Z(1))
+// 	}
+
+// 	// Modal layer: fetching progress
+// 	if s.fetching {
+// 		var content string
+// 		if s.totalReleases == 0 {
+// 			content = fmt.Sprintf("%s fetching collection from Discogs...", s.spin.View())
+// 		} else {
+// 			header := "✔ collection loaded, enriching records...\n\n"
+// 			title := fmt.Sprintf("loading: %s\n\n", s.currentTitle)
+// 			progress := s.prog.ViewAs(s.pct)
+// 			percent := fmt.Sprintf(" %d/%d", s.currentIndex, s.totalReleases)
+// 			content = lipgloss.JoinVertical(lipgloss.Left, header, title, progress+percent)
+// 		}
+
+// 		formW := lipgloss.Width(content)
+// 		formH := lipgloss.Height(content)
+
+// 		modal := style.ModalStyle.
+// 			Width(formW).
+// 			Height(formH).
+// 			Render(content)
+
+// 		progLayer := lipgloss.NewLayer(modal)
+
+// 		progX := (s.width - lipgloss.Width(content)) / 2
+// 		progY := (s.height - lipgloss.Height(content)) / 2
+
+// 		comp.AddLayers(progLayer.X(progX).Y(progY).Z(1))
+// 	}
+
+// 	return comp.Render()
+// }
+</file>
+
+<file path="internal/tui/models/statemachine/states/type.go">
+package states
+
+import (
+	tea "charm.land/bubbletea/v2"
+)
+
+type StateType int
+
+type helper interface{
+	Help() string
+}
+
+type State interface {
+	tea.Model
+	tea.Model
+	helper
+}
+
+const (
+	// states
+	MainMenu StateType = iota
+	LoadedShelf
+	LoadedBin
+	SelectShelf
+	CreatePlaylist
+	LoadedPlaylist
+	Quit
+	Undefined
+)
+
+func (s StateType) String() string {
+	return [...]string{
+		"MainMenu",
+		"LoadedShelf",
+		"LoadedBin",
+		"SelectShelf",
+		"CreatePlaylist",
+		"LoadedPlaylist",
+		"Quit",
+		"Undefined",
+	}[s]
+}
+</file>
+
+<file path="internal/tui/style/colors.go">
+package style
+
+import (
+	"image/color"
+
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+const (
+	Bullet   = "•"
+	Ellipsis = "…"
+
+	DarkenFactor = 0.5
+)
+
+var (
+	LightGrey    = lipgloss.Color("#AAAAAA")
+	DarkBlack    = lipgloss.Color("0")
+	DarkRed      = lipgloss.Color("1")
+	DarkGreen    = lipgloss.Color("2")
+	DarkYellow   = lipgloss.Color("3")
+	DarkBlue     = lipgloss.Color("4")
+	DarkMagenta  = lipgloss.Color("5")
+	DarkCyan     = lipgloss.Color("6")
+	DarkWhite    = lipgloss.Color("7")
+	LightBlack   = lipgloss.Color("8")
+	LightRed     = lipgloss.Color("9")
+	LightGreen   = lipgloss.Color("10")
+	LightYellow  = lipgloss.Color("11")
+	LightBlue    = lipgloss.Color("12")
+	LightMagenta = lipgloss.Color("13")
+	LightCyan    = lipgloss.Color("14")
+	LightWhite   = lipgloss.Color("15")
+
+	LightGreyDimmed    = Darken(LightGrey, DarkenFactor)
+	DarkBlackDimmed    = Darken(DarkBlack, DarkenFactor)
+	DarkRedDimmed      = Darken(DarkRed, DarkenFactor)
+	DarkGreenDimmed    = Darken(DarkGreen, DarkenFactor)
+	DarkYellowDimmed   = Darken(DarkYellow, DarkenFactor)
+	DarkBlueDimmed     = Darken(DarkBlue, DarkenFactor)
+	DarkMagentaDimmed  = Darken(DarkMagenta, DarkenFactor)
+	DarkCyanDimmed     = Darken(DarkCyan, DarkenFactor)
+	DarkWhiteDimmed    = Darken(DarkWhite, DarkenFactor)
+	LightBlackDimmed   = Darken(LightBlack, DarkenFactor)
+	LightRedDimmed     = Darken(LightRed, DarkenFactor)
+	LightGreenDimmed   = Darken(LightGreen, DarkenFactor)
+	LightYellowDimmed  = Darken(LightYellow, DarkenFactor)
+	LightBlueDimmed    = Darken(LightBlue, DarkenFactor)
+	LightMagentaDimmed = Darken(LightMagenta, DarkenFactor)
+	LightCyanDimmed    = Darken(LightCyan, DarkenFactor)
+	LightWhiteDimmed   = Darken(LightWhite, DarkenFactor)
+)
+
+var (
+	BackgroundColor = lipgloss.NewStyle().
+			Foreground(DarkBlack)
+
+	TextStyle = lipgloss.NewStyle().
+			Foreground(DarkWhite)
+
+	TextStyleDimmed = lipgloss.NewStyle().
+			Foreground(DarkWhiteDimmed)
+
+	ActiveTextStyle = lipgloss.NewStyle().
+			Foreground(DarkWhite).
+			Bold(true)
+
+	ActiveTextStyleDimmed = lipgloss.NewStyle().
+				Foreground(DarkWhiteDimmed).
+				Bold(true)
+
+	LabelStyle       = TextStyle
+	LabelStyleDimmed = TextStyleDimmed
+
+	ActiveLabelStyle       = ActiveTextStyle
+	ActiveLabelStyleDimmed = ActiveTextStyleDimmed
+
+	Centered = lipgloss.NewStyle().
+			AlignVertical(lipgloss.Center).
+			AlignHorizontal(lipgloss.Center)
+
+	ModalStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(LightMagenta).
+		Padding(1, 2)
+)
+
+
+// ---------- Darkening helpers ----------
+
+// clamp01 clamps [0,1]
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
+func Darken(c color.Color, factor float64) color.Color {
+	f := clamp01(factor)
+	// Convert to straight (non-premultiplied) NRGBA first.
+	n := color.NRGBAModel.Convert(c).(color.NRGBA)
+	if n.A == 0 {
+		// palette/ANSI may report A=0; treat as opaque UI color
+		n.A = 0xFF
+	}
+	n.R = uint8(float64(n.R)*f + 0.5)
+	n.G = uint8(float64(n.G)*f + 0.5)
+	n.B = uint8(float64(n.B)*f + 0.5)
+	return n
+}
+</file>
+
+<file path="internal/tui/layout.go">
+package tui
+
+import (
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+func (m Model) renderModel() tea.View {
+	if !m.ready {
+		return tea.NewView("\n initializing...")
+	}
+
+	numBars := 2
+	if m.helpVisible {
+		numBars = 3
+	}
+
+	barStyle := style.BarStyle.
+		Width(m.width).
+		Height(1)
+
+	helpStyle := style.HelpBarStyle.
+		Width(m.width).
+		Height(1)
+
+	viewportStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		Width(m.width).
+		Height(max(0, m.height-numBars))
+
+	topBar := barStyle.Render(m.topBarText)
+	statusBar := barStyle.Render(m.statusBarText)
+	viewPort := viewportStyle.Render(m.stateMachine.View().Content)
+
+	var content string
+
+	if m.helpVisible {
+		helpBar := helpStyle.Render(m.Help())
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			topBar,
+			viewPort,
+			helpBar,
+			statusBar,
+		)
+	} else {
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			topBar,
+			viewPort,
+			statusBar,
+		)
+	}
+
+	return tea.NewView(content)
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedbin/layout.go">
+package loadedbin
+
+import (
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+func (s LoadedBinState) renderModel() string {
+	boxW := s.width/2
+	boxH := s.height
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Width(boxW).
+		Height(boxH)
+
+	s.records.SetWidth(boxW-2)
+	s.records.SetHeight(boxH-2)
+	s.selectedRecord = s.selectedRecord.SetSize(boxW-2, boxH-2)
+
+	left := lipgloss.NewLayer(boxStyle.Render(s.records.View()))
+	right := lipgloss.NewLayer(boxStyle.Render(s.selectedRecord.View().Content))
+
+	layers := []*lipgloss.Layer{
+		left.X(0).Y(0),
+		right.X(boxW).Y(0),
+	}
+
+	comp := lipgloss.NewCompositor(layers...)
+
+	return comp.Render()
+}
+</file>
+
+<file path="go.mod">
+module github.com/dkaman/recordbaux
+
+go 1.25.8
+
+require (
+	charm.land/bubbles/v2 v2.1.1
+	charm.land/bubbletea/v2 v2.0.8
+	charm.land/huh/v2 v2.0.3
+	charm.land/lipgloss/v2 v2.0.5
+	github.com/dkaman/discogs-golang v0.0.0-20250913031915-ba2599c90d13
+	github.com/knadh/koanf/parsers/yaml v1.0.0
+	github.com/knadh/koanf/providers/env/v2 v2.0.0
+	github.com/knadh/koanf/providers/file v1.2.0
+	github.com/knadh/koanf/v2 v2.2.0
+	gorm.io/driver/postgres v1.6.2
+	gorm.io/driver/sqlite v1.6.0
+	gorm.io/gorm v1.31.2
+)
+
+require (
+	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/catppuccin/go v0.3.0 // indirect
+	github.com/charmbracelet/colorprofile v0.4.3 // indirect
+	github.com/charmbracelet/harmonica v0.2.0 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
+	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
+	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
+	github.com/charmbracelet/x/termios v0.1.1 // indirect
+	github.com/charmbracelet/x/windows v0.2.2 // indirect
+	github.com/clipperhouse/displaywidth v0.11.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.10.0 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/knadh/koanf/maps v0.1.2 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
+	github.com/mattn/go-runewidth v0.0.24 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
+	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/sahilm/fuzzy v0.1.3 // indirect
+	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
+</file>
+
+<file path="internal/tui/models/statemachine/states/mainmenu/layout.go">
+package mainmenu
+
+import (
+	"github.com/dkaman/recordbaux/internal/tui/style"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+)
+
+func (s MainMenuState) renderModel() tea.View {
+	var background string
+
+	if len(s.shelves.Items()) == 0 && len(s.playlists.Items()) == 0 {
+		emptyText := style.ActiveTextStyle.Render("no shelves or playlists defined, 'o' to create shelf...")
+		background = lipgloss.Place(
+			s.width, s.height,
+			lipgloss.Center, lipgloss.Center,
+			emptyText,
+		)
+	} else {
+		shelfW := s.shelves.Width()
+		shelfH := s.shelves.Height()
+		left := lipgloss.NewStyle().
+			Width(shelfW).
+			Height(shelfH).
+			Render(s.shelves.View().Content)
+
+		playlistW := s.playlists.Width()
+		playlistH := s.playlists.Height()
+		right := lipgloss.NewStyle().
+			Width(playlistW).
+			Height(playlistH).
+			Render(s.playlists.View().Content)
+
+		background = lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+
+		background = lipgloss.Place(
+			s.width, s.height,
+			lipgloss.Left, lipgloss.Top,
+			background,
+		)
+	}
+
+	if s.creating {
+		formView := s.createShelfForm.View().Content
+		modal := style.ModalStyle.Render(formView)
+		return tea.NewView(lipgloss.Place(
+			s.width, s.height,
+			lipgloss.Center, lipgloss.Center,
+			modal,
+		))
+	}
+
+	return tea.NewView(background)
+}
+</file>
+
+<file path="internal/tui/models/shelf/model.go">
+package shelf
+
+import (
+	"fmt"
+	"log/slog"
+	"math"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+)
+
+// Define constants for bin styling
+const (
+	// Minimum height for bin content (e.g., for "ID\n0/0" label)
+	minBinContentHeight = 3 // ID (1) + count/size (1) + extra buffer (1) for internal text node
+
+	// Default internal padding for each bin's content
+	defaultBinDivPaddingHorizontal = 0
+	defaultBinDivPaddingVertical   = 0
+
+	// Default margin around each bin div
+	defaultBinDivMarginHorizontal = 0
+	defaultBinDivMarginVertical   = 0
+
+	// Default border setting for each bin div
+	defaultBinDivBorder = true
+)
+
+type topRightBottomLeft struct{ Top, Right, Bottom, Left int }
+
+type option func(Model) Model
+
+type Model struct {
+	id     uint
+	logger *slog.Logger
+
+	selectedBin   int
+	physicalShelf *shelf.Entity
+	bins          []bin.Model
+
+	width   int
+	height  int
+	focused bool
+}
+
+func New(p *shelf.Entity, log *slog.Logger, opts ...option) Model {
+	logger := log.WithGroup("shelf")
+
+	m := Model{
+		id:            p.ID,
+		selectedBin:   0,
+		width:         0,
+		height:        0,
+		logger:        logger,
+		focused:       true,
+	}
+
+	if p != nil {
+		m.physicalShelf = p
+		m.loadPhysicalShelf()
+	}
+
+	for _, o := range opts {
+		m = o(m)
+	}
+
+	return m
+}
+
+func (m *Model) Focus() {
+	m.focused = true
+	m.loadPhysicalShelf()
+
+}
+
+func (m *Model) Blur() {
+	m.focused = false
+	m.loadPhysicalShelf()
+}
+
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// update was called on a non-initialized model
+	if m.id == 0 {
+		return m, nil
+	}
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+
+	case LoadShelfMsg:
+		m.physicalShelf = msg.Phy
+		m.loadPhysicalShelf()
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) View() tea.View {
+	if m.id == 0 {
+		return tea.NewView("")
+	}
+
+	availableWidth := m.width
+	availableHeight := m.height
+
+	// if no physical shelf return message (likely won't happen)
+	if m.physicalShelf == nil {
+		return tea.NewView("no shelves loaded")
+	}
+
+	// don't render if no space is available
+	if availableWidth <= 0 || availableHeight <= 0 {
+		return tea.NewView("")
+	}
+
+	if len(m.physicalShelf.Bins) == 0 {
+		return tea.NewView("shelf has no bins to display")
+	}
+
+	binDivMargin := topRightBottomLeft{
+		Top:    defaultBinDivMarginVertical,
+		Right:  defaultBinDivMarginHorizontal,
+		Bottom: defaultBinDivMarginVertical,
+		Left:   defaultBinDivMarginHorizontal,
+	}
+
+	binDivPadding := topRightBottomLeft{
+		Top:    defaultBinDivPaddingVertical,
+		Right:  defaultBinDivPaddingHorizontal,
+		Bottom: defaultBinDivPaddingVertical,
+		Left:   defaultBinDivPaddingHorizontal,
+	}
+
+	binDivBorder := defaultBinDivBorder
+
+	// Calculate the combined horizontal space consumed by padding and border for a single bin div
+	binInternalHorizontalPaddingAndBorder := (binDivPadding.Left + binDivPadding.Right)
+	if binDivBorder {
+		binInternalHorizontalPaddingAndBorder += 2 // 1 char for left border, 1 for right
+	}
+
+	// Calculate the combined vertical space consumed by padding and border for a single bin div
+	binInternalVerticalPaddingAndBorder := (binDivPadding.Top + binDivPadding.Bottom)
+	if binDivBorder {
+		binInternalVerticalPaddingAndBorder += 2 // 1 char for top border, 1 for bottom
+	}
+
+	// Calculate the total horizontal margin consumed by *one* bin div (left + right)
+	totalHorizontalMarginPerBin := (binDivMargin.Left + binDivMargin.Right)
+
+	// Calculate the total vertical margin consumed by *one* bin div (top + bottom)
+	totalVerticalMarginPerBin := (binDivMargin.Top + binDivMargin.Bottom)
+
+	// Minimum height a bin div must have to show content + padding + border
+	minBinDivTotalHeight := minBinContentHeight + binInternalVerticalPaddingAndBorder
+
+	s, err := m.physicalShelf.GetShape()
+	if err != nil {
+		m.logger.Error("error getting shape from entity",
+			slog.Any("error", err),
+		)
+		return tea.NewView("error: could not read shelf shape")
+	}
+
+	cols := s.X
+	rows := s.Y
+
+	if cols <= 0 || rows <= 0 {
+		return tea.NewView("shelf shape has invalid dimensions or insufficient space")
+	}
+
+	// Now calculate the effective available space for the *bin content, padding, and border*
+	// considering the determined `cols` and `rows` and all margins.
+	effectiveAvailableWidthForBinsContentArea := availableWidth - (totalHorizontalMarginPerBin * cols)
+	effectiveAvailableHeightForBinsContentArea := availableHeight - (totalVerticalMarginPerBin * rows)
+
+	// Ensure these effective available dimensions are not negative
+	if effectiveAvailableWidthForBinsContentArea < 0 {
+		effectiveAvailableWidthForBinsContentArea = 0
+	}
+
+	if effectiveAvailableHeightForBinsContentArea < 0 {
+		effectiveAvailableHeightForBinsContentArea = 0
+	}
+
+	// Calculate the "candidate" width and height for each bin div's *total area*
+	// (including its own padding and border but not outer margins).
+	candidateBinWidth := effectiveAvailableWidthForBinsContentArea / cols
+	candidateBinHeight := effectiveAvailableHeightForBinsContentArea / rows
+
+	// Adjust final bin height to maintain aspect ratio (3:1 assumed for content area)
+	// and to respect the minimum total height for the div (content + padding + border).
+	finalBinHeight := int(math.Min(float64(candidateBinHeight), float64(candidateBinWidth)/3.0))
+	if finalBinHeight < minBinDivTotalHeight {
+		finalBinHeight = minBinDivTotalHeight
+	}
+
+	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio
+
+	if finalBinWidth < 0 {
+		finalBinWidth = 0
+	}
+
+	if finalBinHeight < 0 {
+		finalBinHeight = 0
+	}
+
+	marginStyle := lipgloss.NewStyle().
+		MarginTop(binDivMargin.Top).
+		MarginRight(binDivMargin.Right).
+		MarginBottom(binDivMargin.Bottom).
+		MarginLeft(binDivMargin.Left)
+
+	var gridRows []string
+	binIndex := 0
+
+	// Build the grid row by row
+	for r := 0; r < rows; r++ {
+		var rowBins []string
+		for c := 0; c < cols; c++ {
+			var renderedBin string
+
+			if binIndex < len(m.bins) {
+				// Get the rendered view string from the bin model
+				b := m.bins[binIndex].SetSize(finalBinWidth, finalBinHeight)
+				renderedBin = b.View().Content
+			} else {
+				// If the shelf isn't completely full, render an empty box to preserve grid shape
+				renderedBin = lipgloss.NewStyle().
+					Width(finalBinWidth).
+					Height(finalBinHeight).
+					Render("")
+			}
+
+			// Wrap the bin string in the margin style and add to the current row
+			rowBins = append(rowBins, marginStyle.Render(renderedBin))
+			binIndex++
+		}
+
+		// Join all bins in this row horizontally
+		rowStr := lipgloss.JoinHorizontal(lipgloss.Top, rowBins...)
+		gridRows = append(gridRows, rowStr)
+	}
+
+	// Join all rows vertically
+	grid := lipgloss.JoinVertical(lipgloss.Left, gridRows...)
+
+	// 4. Place the completed grid in the absolute center of the available terminal space
+	return tea.NewView(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, grid))
+}
+
+func (m *Model) loadPhysicalShelf() {
+	s := m.physicalShelf
+	if s == nil {
+		return
+	}
+
+	m.bins = nil
+
+	// Choose style set based on the `focused` flag
+	var binStyles bin.Style
+	if m.focused {
+		alignedSelected := style.Centered.
+			Bold(true).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(style.LightWhite).
+			Foreground(style.LightGreen)
+		binStyles = bin.Style{
+			EmptySelected:   alignedSelected,
+			EmptyUnselected: style.Centered.BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhite),
+			FullSelected:    alignedSelected.Background(style.DarkBlue),
+			FullUnselected:  style.Centered.BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhite).Background(style.DarkBlue).Foreground(style.DarkBlack),
+		}
+	} else { // Blurred styles
+		alignedSelected := style.Centered.Foreground(style.LightGreenDimmed).BorderForeground(style.LightWhiteDimmed)
+		binStyles = bin.Style{
+			EmptySelected:   alignedSelected,
+			EmptyUnselected: style.Centered.Foreground(style.DarkWhiteDimmed).BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhiteDimmed),
+			FullSelected:    alignedSelected.Background(style.DarkBlueDimmed),
+			FullUnselected:  style.Centered.Foreground(style.DarkBlackDimmed).Background(style.DarkBlueDimmed).BorderStyle(lipgloss.NormalBorder()).BorderForeground(style.LightWhiteDimmed),
+		}
+	}
+
+	for _, pb := range s.Bins {
+		b := bin.New(pb, binStyles)
+		m.bins = append(m.bins, b)
+	}
+}
+
+func (m Model) SetSize(w, h int) Model {
+	m.width = w
+	m.height = h
+	return m
+}
+
+func (m Model) SelectBin(b int) Model {
+	numBins := len(m.physicalShelf.Bins)
+	if numBins == 0 {
+		return m
+	}
+	m.selectedBin = b % numBins
+
+	bin := m.bins[m.selectedBin]
+
+	m.bins[m.selectedBin] = bin.Select()
+
+	return m
+}
+
+func (m Model) SelectNextBin() Model {
+	numBins := len(m.physicalShelf.Bins)
+	if numBins == 0 {
+		return m
+	}
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Unselect()
+
+	m.selectedBin = (m.selectedBin + 1) % numBins
+
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Select()
+
+	return m
+}
+
+func (m Model) SelectPrevBin() Model {
+	numBins := len(m.physicalShelf.Bins)
+	if numBins == 0 {
+		return m
+	}
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Unselect()
+
+	m.selectedBin = (m.selectedBin - 1 + numBins) % numBins
+
+	m.bins[m.selectedBin] = m.bins[m.selectedBin].Select()
+	return m
+}
+
+func (m Model) GetSelectedBin() bin.Model {
+	return m.bins[m.selectedBin]
+}
+
+func (m Model) Title() string {
+	if m.physicalShelf == nil {
+		return ""
+	}
+	return m.physicalShelf.Name
+}
+
+func (m Model) FilterValue() string {
+	if m.physicalShelf == nil {
+		return ""
+	}
+	return m.physicalShelf.Name
+}
+
+func (m Model) Description() string {
+	if m.physicalShelf == nil {
+		return ""
+	}
+
+	bins := len(m.physicalShelf.Bins)
+	cap := bins * m.physicalShelf.BinSize
+
+	return fmt.Sprintf("%d bins, capacity %d", bins, cap)
+}
+
+func (m Model) PhysicalShelf() *shelf.Entity {
+	return m.physicalShelf
+}
+
+func (m Model) ID() uint {
+	return m.id
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedbin/model.go">
+package loadedbin
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/table"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/bin"
+	"github.com/dkaman/recordbaux/internal/tui/models/record"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+)
+
+type LoadedBinState struct {
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
+	bin            bin.Model
+	records        table.Model
+	selectedRecord record.Model
+	cursorIndex    int
+
+	width, height int
+}
+
+// New constructs a LoadedBinState ready to receive a LoadShelfMsg
+func New(svcs *services.AllServices, log *slog.Logger) LoadedBinState {
+	h := help.New()
+	h.Styles = style.DefaultHelpStyles()
+
+	t := table.New()
+
+	return LoadedBinState{
+		svcs:     svcs,
+		keys:     defaultKeybinds(),
+		logger:   log.WithGroup("loadedbin"),
+		handlers: getHandlers(),
+
+		records: t,
+	}
+}
+
+func (s LoadedBinState) Init() tea.Cmd {
+	s.logger.Debug("loadedbin state init")
+	return nil
+}
+
+func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(LoadedBinState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	oldIdx := s.records.Cursor()
+
+	var tableUpdateCmd tea.Cmd
+	s.records, tableUpdateCmd = s.records.Update(msg)
+	cmds = append(cmds, tableUpdateCmd)
+
+	idx := s.records.Cursor()
+	if idx != oldIdx {
+		selectedPhysicalRecord := s.bin.PhysicalBin().Records[idx]
+		s.selectedRecord = record.New(selectedPhysicalRecord)
+		s.cursorIndex = idx
+	}
+
+	var recordCmd tea.Cmd
+	s.selectedRecord, recordCmd = util.UpdateModel(s.selectedRecord, msg)
+	cmds = append(cmds, recordCmd)
+
+	return s, tea.Batch(cmds...)
+}
+
+func (s LoadedBinState) View() tea.View {
+	return tea.NewView(s.renderModel())
+}
+
+func (s LoadedBinState) Help() string {
+	return util.FmtKeymap(s.keys.ShortHelp())
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/loadedshelf/model.go">
+package loadedshelf
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
+	huh "charm.land/huh/v2"
+
+	"github.com/dkaman/discogs-golang"
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+)
+
+type LoadedShelfState struct {
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
+	// discogs info
+	discogsClient   *discogs.Client
+	discogsUsername string
+
+	shelf       shelf.Model
+	selectedBin int
+
+	loading            bool
+	fetching           bool
+	loadCollectionForm *loadCollectionForm
+
+	// Fields for fetching progress UI and state
+	spin          spinner.Model
+	prog          progress.Model
+	releases      []*record.Entity
+	currentIndex  int
+	totalReleases int
+	pct           float64
+	currentTitle  string
+
+	width, height int
+}
+
+type loadNextMsg struct{}
+
+func (s LoadedShelfState) loadNextRecord() tea.Cmd {
+	return func() tea.Msg {
+		return loadNextMsg{}
+	}
+}
+
+// New constructs a LoadedShelfState ready to receive a LoadShelfMsg
+func New(svcs *services.AllServices, log *slog.Logger, c *discogs.Client, u string) LoadedShelfState {
+	logGroup := log.WithGroup(states.LoadedShelf.String())
+
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(style.LightMagenta)
+
+	prg := progress.New(progress.WithDefaultBlend())
+
+	return LoadedShelfState{
+		svcs:     svcs,
+		keys:     defaultKeybinds(),
+		logger:   logGroup,
+		handlers: getHandlers(),
+
+		discogsClient:   c,
+		discogsUsername: u,
+
+		fetching: false,
+		loading:  false,
+
+		spin: sp,
+		prog: prg,
+	}
+}
+
+func (s LoadedShelfState) Init() tea.Cmd {
+	s.logger.Debug("loadedshelf state init")
+	return nil
+}
+
+func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(LoadedShelfState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	// If a modal is active, it captures all updates first.
+	if s.loading {
+		var formCmd tea.Cmd
+		s.loadCollectionForm, formCmd = util.UpdateModel(s.loadCollectionForm, msg)
+		cmds = append(cmds, formCmd)
+
+		if s.loadCollectionForm.Form.State == huh.StateCompleted {
+			folder := s.loadCollectionForm.Folder()
+			s.logger.Debug("folder selected, starting fetch", slog.String("folder", folder))
+			s.loading = false
+			s.fetching = true
+			cmds = append(cmds, s.spin.Tick, tcmds.RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder, s.logger))
+		} else if s.loadCollectionForm.Form.State == huh.StateAborted {
+			s.loading = false
+			s.shelf.Focus()
+		}
+		return s, tea.Batch(cmds...)
+	}
+
+	var shelfCmd tea.Cmd
+	s.shelf, shelfCmd = util.UpdateModel(s.shelf, msg)
+	cmds = append(cmds, shelfCmd)
+
+	return s, tea.Batch(cmds...)
+}
+
+func (s LoadedShelfState) View() tea.View {
+	return s.renderModel()
+}
+
+func (s LoadedShelfState) Help() string {
+	return util.FmtKeymap(s.keys.ShortHelp())
+}
+</file>
+
+<file path="internal/tui/models/statemachine/states/mainmenu/model.go">
+package mainmenu
+
+import (
+	"log/slog"
+
+	"charm.land/bubbles/v2/list"
+
+	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
+
+	"github.com/dkaman/recordbaux/internal/db/bin"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/flist"
+	"github.com/dkaman/recordbaux/internal/tui/style"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+)
+
+type focusedView int
+
+const (
+	shelvesView focusedView = iota
+	playlistsView
+)
+
+type MainMenuState struct {
+	// meta stuff
+	svcs     *services.AllServices
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
+	// main menu stuff
+	shelves   flist.Model
+	playlists flist.Model
+	creating  bool
+
+	// create shelf stuff
+	createShelfForm *createShelfForm
+
+	focus         focusedView
+	width, height int
+}
+
+func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
+	log = log.WithGroup("mainmenu")
+
+	// Shelves List
+	shelfDelegate := newShelfDelegate(shelfDelegateStyles{
+		ItemStyle:            style.TextStyle,
+		ItemStyleBlurred:     style.TextStyleDimmed,
+		SelectedStyle:        style.ActiveTextStyle,
+		SelectedStyleBlurred: style.ActiveLabelStyleDimmed,
+	})
+
+	shelfList := flist.New([]list.Item{}, shelfDelegate)
+	shelfList.Title = "shelves"
+	shelfList.Styles = style.DefaultListStyles()
+
+	// Playlists List
+	playlistDelegate := newPlaylistDelegate(playlistDelegateStyles{
+		ItemStyle:            style.TextStyle,
+		ItemStyleBlurred:     style.TextStyleDimmed,
+		SelectedStyle:        style.ActiveTextStyle,
+		SelectedStyleBlurred: style.ActiveLabelStyleDimmed,
+	})
+
+	playlistList := flist.New([]list.Item{}, playlistDelegate)
+	playlistList.Title = "playlists"
+	playlistList.Styles = style.DefaultListStyles()
+
+	return MainMenuState{
+		svcs:     svcs,
+		keys:     defaultKeybinds(),
+		logger:   log,
+		handlers: getHandlers(),
+
+		shelves:   shelfList,
+		playlists: playlistList,
+
+		focus: shelvesView,
+	}
+}
+
+func (s MainMenuState) Init() tea.Cmd {
+	s.logger.Debug("mainmenu state init",
+		slog.Int("numShelves", len(s.shelves.Items())),
+	)
+
+	return tea.Sequence(
+		s.svcs.GetAllShelvesCmd(),
+		s.svcs.GetAllPlaylistsCmd(),
+	)
+}
+
+func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	if handler, ok := s.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(s, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		s = model.(MainMenuState)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	// form updates go first so they can accep enter keys etc.
+	if s.creating {
+		var formCmd tea.Cmd
+		s.createShelfForm, formCmd = util.UpdateModel(s.createShelfForm, msg)
+		cmds = append(cmds, formCmd)
+
+		if s.createShelfForm.Form.State == huh.StateCompleted {
+			s.creating = false
+			if s.focus == shelvesView {
+				s.shelves = s.shelves.Focus()
+			} else {
+				s.playlists = s.playlists.Focus()
+			}
+
+			cmds = append(cmds, formCmd, s.handleShelfCreation())
+		}
+
+		return s, tea.Batch(cmds...)
+	}
+
+	var updateCmd tea.Cmd
+
+	if s.focus == shelvesView {
+		s.shelves, updateCmd = util.UpdateModel(s.shelves, msg)
+	} else {
+		s.playlists, updateCmd = util.UpdateModel(s.playlists, msg)
+	}
+
+	cmds = append(cmds, updateCmd)
+
+	return s, tea.Batch(cmds...)
+}
+
+func (s MainMenuState) View() tea.View {
+	return s.renderModel()
+}
+
+func (s MainMenuState) Help() string {
+	return util.FmtKeymap(s.keys.ShortHelp())
+}
+
+func (s MainMenuState) handleShelfCreation() tea.Cmd {
+	f := s.createShelfForm
+
+	x := f.DimX()
+	y := f.DimY()
+	size := f.BinSize()
+
+	var newShelf *shelf.Entity
+
+	if f.Shape() == Rect {
+		newShelf, _ = shelf.New(f.Name(), size,
+			shelf.WithShapeRect(x, y, size, bin.SortAlphaByArtist),
+		)
+	} else {
+		newShelf, _ = shelf.New(f.Name(), size)
+	}
+
+	s.logger.Debug("new shelf", slog.Any("shelf", newShelf))
+
+	return tea.Sequence(
+		s.svcs.SaveShelfCmd(newShelf),
+		s.svcs.GetAllShelvesCmd(),
+	)
+}
+</file>
+
+<file path="cmd/main.go">
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"log/slog"
+	"net/url"
+	"os"
+	"strings"
+
+	"gorm.io/gorm"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/db/infra"
+	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/db/shelf"
+	"github.com/dkaman/recordbaux/internal/db/track"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui"
+)
+
+// top level namespace for use in finding config file and env vars
+const (
+	Namespace = "recordbaux"
+)
+
+// subsections of the config that can be looked up by name
+var (
+	ConfigDB   = "db"
+	ConfigLogs = "logs"
+)
+
+func main() {
+	// read config from both a file and from env vars, based on the
+	// configured namespace.
+	cfg, err := config.New(
+		config.WithFile(fmt.Sprintf("config/%s.yaml", Namespace)),
+		config.WithEnv(Namespace),
+	)
+	if err != nil {
+		log.Fatalf("error in config construction: %v", err)
+	}
+
+	// logging configuration
+	var lConf logConfig
+	err = cfg.Unmarshal(ConfigLogs, &lConf)
+	if err != nil {
+		log.Fatalf("error unmarshalling logging config: %v", err)
+	}
+
+	logger, err := initLogger(lConf)
+	if err != nil {
+		log.Fatalf("error initializing logger: %v", err)
+	}
+
+	// database configuration
+	var dbConf infra.Config
+	err = cfg.Unmarshal(ConfigDB, &dbConf)
+	if err != nil {
+		log.Fatalf("error unmarshalling database config: %v", err)
+	}
+
+	gormDB, err := infra.New(dbConf)
+	if err != nil {
+		log.Fatalf("error connecting to database: %v", err)
+	}
+
+	svcs, err := initServices(gormDB, logger)
+	if err != nil {
+		log.Fatalf("error constructing shelf repo: %v", err)
+	}
+
+	// create the root tea.Model to begin execution loop
+	t, err := tui.New(cfg, logger, svcs)
+	if err != nil {
+		log.Fatalf("error constructing tui model: %v", err)
+	}
+
+	p := tea.NewProgram(t)
+	if _, err := p.Run(); err != nil {
+		log.Fatalf("error running tea program: %v", err)
+	}
+}
+
+type logConfig struct {
+	Level    string `koanf:"level"`
+	Format   string `koanf:"format"`
+	Location string `koanf:"location"`
+}
+
+func initLogger(c logConfig) (*slog.Logger, error) {
+	lvl, err := parseLogLevel(c.Level)
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(c.Location)
+	if err != nil {
+		return nil, err
+	}
+
+	var w io.Writer
+	switch u.Scheme {
+	case "file":
+		f, err := os.OpenFile(u.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			return nil, err
+		}
+		w = f
+	case "stream":
+		w = os.Stdout
+	}
+
+	var h slog.Handler
+	switch c.Format {
+	case "text":
+		h = slog.NewTextHandler(w, &slog.HandlerOptions{
+			Level: lvl,
+		})
+	case "json":
+		h = slog.NewJSONHandler(w, &slog.HandlerOptions{
+			Level: lvl,
+		})
+	}
+
+	return slog.New(h), nil
+}
+
+func parseLogLevel(levelStr string) (slog.Level, error) {
+	upper := strings.ToUpper(levelStr)
+
+	var lvl slog.Level
+	err := lvl.UnmarshalText([]byte(upper))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse log level '%s': %w", levelStr, err)
+	}
+
+	return lvl, nil
+}
+
+func initServices(db *gorm.DB, l *slog.Logger) (*services.AllServices, error) {
+	shelfRepo, err := shelf.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	trackRepo, err := track.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	playlistRepo, err := playlist.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	recordRepo, err := record.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
+	svc := services.New(l, shelfRepo, recordRepo, playlistRepo, trackRepo)
+
+	return svc, nil
+}
+</file>
+
+<file path="internal/tui/models/statemachine/model.go">
+package statemachine
+
+import (
+	"errors"
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+
+	discogs "github.com/dkaman/discogs-golang"
+	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
+	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
+	lps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedplaylist"
+	lss "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedshelf"
+	mms "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/mainmenu"
+)
+
+var (
+	StateNotFoundErr = errors.New("state not found in state map")
+)
+
+const (
+	ConfDiscogsKey  = "discogs.key"
+	ConfDiscogsUser = "discogs.username"
+)
+
+type Model struct {
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
+	currentState     states.State
+	currentStateType states.StateType
+	allStates        map[states.StateType]states.State
+
+	width, height int
+}
+
+func New(svcs *services.AllServices, c *config.Config, log *slog.Logger) (Model, error) {
+	logGroup := log.WithGroup("statemachine")
+
+	m := Model{
+		logger:   logGroup,
+		handlers: getHandlers(),
+	}
+
+	discogsAPIKey := c.String(ConfDiscogsKey)
+	discogsUsername := c.String(ConfDiscogsUser)
+	discogsClient, err := discogs.New(
+		discogs.WithToken(discogsAPIKey),
+	)
+	if err != nil {
+		return m, err
+	}
+
+	m.allStates = map[states.StateType]states.State{
+		states.MainMenu:         mms.New(svcs, log),
+		states.LoadedShelf:      lss.New(svcs, log, discogsClient, discogsUsername),
+		states.LoadedBin:        lbs.New(svcs, log),
+		states.CreatePlaylist:   cps.New(svcs, log),
+		states.LoadedPlaylist:   lps.New(svcs, log),
+	}
+
+	m.currentState = m.allStates[states.MainMenu]
+
+	return m, nil
+}
+
+func (m Model) Init() tea.Cmd {
+	m.logger.Debug("statemachine init",
+		slog.String("currentState", m.currentStateType.String()),
+	)
+
+	return m.currentState.Init()
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	if handler, ok := m.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(m, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		m = model.(Model)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	var stateCmds tea.Cmd
+	m.currentState, stateCmds = util.UpdateModel(m.currentState, msg)
+
+	return m, tea.Batch(stateCmds)
+}
+
+func (m Model) View() tea.View {
+	return m.renderModel()
+}
+
+func (m Model) Help() string {
+	return "statemachine: " + m.currentState.Help()
+}
+
+func (m Model) State(t states.StateType) states.State {
+	return m.allStates[t]
+}
+
+func (m Model) CurrentState() states.State {
+	return m.currentState
+}
+func (m Model) CurrentStateType() states.StateType {
+	return m.currentStateType
+}
+</file>
+
+<file path="internal/tui/model.go">
+package tui
+
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/services"
+	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/util"
+)
+
+var (
+	LoggerIsNilErr = errors.New("supplied slog logger is nil")
+)
+
+type MessageHandler func(tea.Model, tea.Msg) (tea.Model, tea.Cmd)
+
+type Model struct {
+	// global application config/state
+	cfg      *config.Config
+	keys     keyMap
+	logger   *slog.Logger
+	handlers *handlers.Registry
+
+	ready         bool
+	stateMachine  statemachine.Model
+	topBarText    string
+	statusBarText string
+	helpVisible   bool
+
+	width, height int
+}
+
+func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model, error) {
+	var m Model
+
+	if log == nil {
+		return m, LoggerIsNilErr
+	}
+
+	sm, err := statemachine.New(svcs, c, log)
+	if err != nil {
+		return m, fmt.Errorf("error creating state machine: %w", err)
+	}
+
+	m = Model{
+		cfg:           c,
+		keys:          defaultKeybinds(),
+		handlers:      getHandlers(),
+		helpVisible:   false,
+		ready:         false,
+		stateMachine:  sm,
+		logger:        log.WithGroup("root"),
+		topBarText:    "recordbaux - organize your record collection",
+		statusBarText: fmt.Sprintf("current state: %s", sm.CurrentStateType()),
+	}
+
+	return m, nil
+}
+
+func (m Model) Init() tea.Cmd {
+	m.logger.Debug("root tui model init called")
+	return m.stateMachine.Init()
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.logger.Info("event received",
+		slog.Any("event", fmt.Sprintf("%#v", msg)),
+	)
+
+	var cmds []tea.Cmd
+
+	if handler, ok := m.handlers.GetHandler(msg); ok {
+		model, cmd, passthruMsg := handler(m, msg)
+		if passthruMsg == nil {
+			return model, cmd
+		}
+		m = model.(Model)
+		msg = passthruMsg
+		cmds = append(cmds, cmd)
+	}
+
+	var stateMachineCmd tea.Cmd
+	m.stateMachine, stateMachineCmd = util.UpdateModel(m.stateMachine, msg)
+	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
+	cmds = append(cmds, stateMachineCmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) View() tea.View {
+	return m.renderModel()
+}
+
+func (m Model) Help() string {
+	return "global[ " +
+		util.FmtKeymap(m.keys.ShortHelp()) + "] " +
+		m.stateMachine.Help()
+}
+</file>
+
+</files>
