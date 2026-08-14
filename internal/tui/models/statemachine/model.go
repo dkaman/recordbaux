@@ -5,10 +5,11 @@ import (
 	"log/slog"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/handlers"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 
@@ -31,7 +32,6 @@ const (
 
 type Model struct {
 	logger   *slog.Logger
-	handlers *handlers.Registry
 
 	currentState     states.State
 	currentStateType states.StateType
@@ -45,7 +45,6 @@ func New(svcs *services.AllServices, c *config.Config, log *slog.Logger) (Model,
 
 	m := Model{
 		logger:   logGroup,
-		handlers: getHandlers(),
 	}
 
 	discogsAPIKey := c.String(ConfDiscogsKey)
@@ -79,16 +78,39 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
 
-	if handler, ok := m.handlers.GetHandler(msg); ok {
-		model, cmd, passthruMsg := handler(m, msg)
-		if passthruMsg == nil {
-			return model, cmd
+	case tcmds.StateTransitionMsg:
+		next := msg.Transition.Next
+
+		nextState := m.allStates[next]
+
+		sizeMsg := tea.WindowSizeMsg{
+			Width: m.width,
+			Height: m.height,
 		}
-		m = model.(Model)
-		msg = passthruMsg
-		cmds = append(cmds, cmd)
+
+		resizedNextState, sizeUpdateCmd := util.UpdateModel(nextState, sizeMsg)
+
+		m.logger.Info("state transition",
+			slog.String("from", m.currentStateType.String()),
+			slog.String("to", next.String()),
+		)
+
+		m.allStates[m.currentStateType] = m.currentState
+		m.currentState = resizedNextState
+		m.currentStateType = next
+		m.allStates[next] = resizedNextState
+
+		// new state will be initialized and then post-transition commands will
+		// run
+		return m, tea.Sequence(
+			m.currentState.Init(),
+			sizeUpdateCmd,
+			tea.Batch(msg.Transition.PostCmds...),
+		)
 	}
 
 	var stateCmds tea.Cmd
@@ -98,7 +120,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
-	return m.renderModel()
+	currentState := m.currentState.View()
+
+	viewportStyle := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height)
+
+	content := viewportStyle.Render(currentState.Content)
+
+	return tea.NewView(content)
 }
 
 func (m Model) Help() string {

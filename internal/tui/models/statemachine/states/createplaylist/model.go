@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/key"
 
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
@@ -11,7 +12,6 @@ import (
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/track"
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
@@ -23,7 +23,6 @@ type CreatePlaylistState struct {
 	svcs     *services.AllServices
 	logger   *slog.Logger
 	keys     keyMap
-	handlers *handlers.Registry
 
 	list           list.Model
 	namingPlaylist bool
@@ -44,7 +43,6 @@ func New(svcs *services.AllServices, log *slog.Logger) CreatePlaylistState {
 	return CreatePlaylistState{
 		svcs:   svcs,
 		logger: logger,
-		handlers: getHandlers(),
 		list:   trackList,
 		keys:   defaultKeybinds(),
 		namingPlaylist: false,
@@ -56,7 +54,9 @@ func (s CreatePlaylistState) Init() tea.Cmd {
 }
 
 func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var passthru tea.Msg
 	var cmds []tea.Cmd
+
 	if s.namingPlaylist {
 		s.logger.Debug("begin naming playlist")
 		fModel, formUpdatesCmds := s.nameForm.Update(msg)
@@ -100,18 +100,62 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, tea.Batch(cmds...)
 	}
 
-	if handler, ok := s.handlers.GetHandler(msg); ok {
-		model, cmd, passthruMsg := handler(s, msg)
-		if passthruMsg == nil {
-			return model, cmd
+	passthru = msg
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
+
+	case services.AllTracksLoadedMsg:
+		s.logger.Debug("refreshing tracks from service")
+		tracks := msg.Tracks
+		items := make([]list.Item, len(tracks))
+
+		for i, t := range tracks {
+			items[i] = ttrack.New(t)
 		}
-		s = model.(CreatePlaylistState)
-		msg = passthruMsg
-		cmds = append(cmds, cmd)
+
+		s.list.SetItems(items)
+		return s, nil
+
+	case tea.KeyPressMsg:
+
+		switch {
+		case key.Matches(msg, s.keys.Back):
+			return s, tcmds.Transition(states.MainMenu, nil, nil)
+
+		case key.Matches(msg, s.keys.Select):
+			if i, ok := s.list.SelectedItem().(ttrack.Model); ok {
+				s.logger.Debug("track selected", slog.Any("track", i))
+				i.Selected = !i.Selected
+				cmd := s.list.SetItem(s.list.Index(), i)
+				return s, cmd
+			}
+
+			return s, nil
+
+		case key.Matches(msg, s.keys.Create):
+			var selectedCount int
+
+			for _, item := range s.list.Items() {
+				if trackModel, ok := item.(ttrack.Model); ok && trackModel.Selected {
+					selectedCount++
+				}
+			}
+
+			if selectedCount > 0 {
+				s.namingPlaylist = true
+				s.nameForm = newNameForm()
+				return s, s.nameForm.Init()
+			}
+		}
+
+		passthru = msg
+		return s, nil
 	}
 
 	var listCmd tea.Cmd
-	s.list, listCmd = s.list.Update(msg)
+	s.list, listCmd = s.list.Update(passthru)
 	cmds = append(cmds, listCmd)
 	return s, tea.Batch(cmds...)
 }

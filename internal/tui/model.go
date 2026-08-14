@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/handlers"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
+	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 )
 
@@ -18,14 +20,13 @@ var (
 	LoggerIsNilErr = errors.New("supplied slog logger is nil")
 )
 
-type MessageHandler func(tea.Model, tea.Msg) (tea.Model, tea.Cmd)
-
+// root tui model
 type Model struct {
 	// global application config/state
-	cfg      *config.Config
-	keys     keyMap
-	logger   *slog.Logger
-	handlers *handlers.Registry
+	cfg    *config.Config
+	keys   keyMap
+	logger *slog.Logger
+	// handlers *handlers.Registry
 
 	ready         bool
 	stateMachine  statemachine.Model
@@ -34,6 +35,38 @@ type Model struct {
 	helpVisible   bool
 
 	width, height int
+}
+
+// local type def to define keybindings for this model
+type keyMap struct {
+	ToggleHelp key.Binding
+	Quit       key.Binding
+}
+
+func defaultKeybinds() keyMap {
+	return keyMap{
+		ToggleHelp: key.NewBinding(
+			key.WithKeys("H"),
+			key.WithHelp("H", "toggle help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("C-c", "quit"),
+		),
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.ToggleHelp,
+		k.Quit,
+	}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.ToggleHelp, k.Quit},
+	}
 }
 
 func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model, error) {
@@ -49,9 +82,9 @@ func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model,
 	}
 
 	m = Model{
-		cfg:           c,
-		keys:          defaultKeybinds(),
-		handlers:      getHandlers(),
+		cfg:  c,
+		keys: defaultKeybinds(),
+		// handlers:      getHandlers(),
 		helpVisible:   false,
 		ready:         false,
 		stateMachine:  sm,
@@ -69,32 +102,107 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var passthruMsg tea.Msg
+
 	m.logger.Info("event received",
 		slog.Any("event", fmt.Sprintf("%#v", msg)),
 	)
 
-	var cmds []tea.Cmd
+	passthruMsg = msg
 
-	if handler, ok := m.handlers.GetHandler(msg); ok {
-		model, cmd, passthruMsg := handler(m, msg)
-		if passthruMsg == nil {
-			return model, cmd
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// this code updates the root element's size, then constructs a
+		// size msg that represents the whole size of the viewport to
+		// pass thru to child model updates
+		m.width, m.height = msg.Width, msg.Height
+
+		if !m.ready {
+			m.ready = true
 		}
-		m = model.(Model)
-		msg = passthruMsg
-		cmds = append(cmds, cmd)
+
+		numBars := 2
+		if m.helpVisible {
+			numBars = 3
+		}
+
+		// modify window size msg and pass thru
+		passthruMsg = tea.WindowSizeMsg{
+			Width:  m.width - 2,
+			Height: m.height - numBars - 2,
+		}
+
+	case tea.KeyPressMsg:
+		// this branch also passes through the key message if there is
+		// no match so the child models can handle the keys
+		switch {
+		case key.Matches(msg, m.keys.Quit):
+			return m, tea.Quit
+
+		case key.Matches(msg, m.keys.ToggleHelp):
+			m.helpVisible = !m.helpVisible
+			return m, func() tea.Msg {
+				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+			}
+		}
 	}
 
 	var stateMachineCmd tea.Cmd
-	m.stateMachine, stateMachineCmd = util.UpdateModel(m.stateMachine, msg)
-	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
+	m.stateMachine, stateMachineCmd = util.UpdateModel(m.stateMachine, passthruMsg)
 	cmds = append(cmds, stateMachineCmd)
+
+	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() tea.View {
-	return m.renderModel()
+	if !m.ready {
+		return tea.NewView("\n initializing...")
+	}
+
+	numBars := 2
+	if m.helpVisible {
+		numBars = 3
+	}
+
+	barStyle := style.BarStyle.
+		Width(m.width).
+		Height(1)
+
+	helpStyle := style.HelpBarStyle.
+		Width(m.width).
+		Height(1)
+
+	viewportStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		Width(m.width).
+		Height(max(0, m.height-numBars))
+
+	topBar := barStyle.Render(m.topBarText)
+	statusBar := barStyle.Render(m.statusBarText)
+	viewPort := viewportStyle.Render(m.stateMachine.View().Content)
+
+	var content string
+
+	if m.helpVisible {
+		helpBar := helpStyle.Render(m.Help())
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			topBar,
+			viewPort,
+			helpBar,
+			statusBar,
+		)
+	} else {
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			topBar,
+			viewPort,
+			statusBar,
+		)
+	}
+
+	return tea.NewView(content)
 }
 
 func (m Model) Help() string {
