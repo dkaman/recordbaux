@@ -7,13 +7,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
-	"github.com/dkaman/recordbaux/internal/config"
-	"github.com/dkaman/recordbaux/internal/services"
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 
-	discogs "github.com/dkaman/discogs-golang"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
 	lps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedplaylist"
@@ -25,53 +22,25 @@ var (
 	StateNotFoundErr = errors.New("state not found in state map")
 )
 
-const (
-	ConfDiscogsKey  = "discogs.key"
-	ConfDiscogsUser = "discogs.username"
-)
 
 type Model struct {
-	logger   *slog.Logger
-
-	currentState     states.State
-	currentStateType states.StateType
-	allStates        map[states.StateType]states.State
-
 	width, height int
+
+	logger       *slog.Logger
+	currentState states.State
 }
 
-func New(svcs *services.AllServices, c *config.Config, log *slog.Logger) (Model, error) {
-	logGroup := log.WithGroup("statemachine")
-
-	m := Model{
-		logger:   logGroup,
-	}
-
-	discogsAPIKey := c.String(ConfDiscogsKey)
-	discogsUsername := c.String(ConfDiscogsUser)
-	discogsClient, err := discogs.New(
-		discogs.WithToken(discogsAPIKey),
-	)
-	if err != nil {
-		return m, err
-	}
-
-	m.allStates = map[states.StateType]states.State{
-		states.MainMenu:         mms.New(svcs, log),
-		states.LoadedShelf:      lss.New(svcs, log, discogsClient, discogsUsername),
-		states.LoadedBin:        lbs.New(svcs, log),
-		states.CreatePlaylist:   cps.New(svcs, log),
-		states.LoadedPlaylist:   lps.New(svcs, log),
-	}
-
-	m.currentState = m.allStates[states.MainMenu]
+func New(log *slog.Logger) (Model, error) {
+	m := Model{}
+	m.logger = log.WithGroup("statemachine")
+	m.currentState = mms.New(m.logger)
 
 	return m, nil
 }
 
 func (m Model) Init() tea.Cmd {
 	m.logger.Debug("statemachine init",
-		slog.String("currentState", m.currentStateType.String()),
+		slog.String("currentState", m.currentState.Type().String()),
 	)
 
 	return m.currentState.Init()
@@ -82,35 +51,54 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 
-	case tcmds.StateTransitionMsg:
-		next := msg.Transition.Next
+	case tcmds.TransitionToMainMenuMsg:
+		newState := mms.New(m.logger)
+		m.currentState = newState
+		return m, newState.Init()
 
-		nextState := m.allStates[next]
-
-		sizeMsg := tea.WindowSizeMsg{
-			Width: m.width,
-			Height: m.height,
+	case tcmds.TransitionToLoadedShelfMsg:
+		newState, err := lss.New(m.logger, msg.ShelfID)
+		if err != nil {
+			m.logger.Error("error during transition to loadedshelfstate",
+				slog.Any("err", err),
+			)
+			return m, nil
 		}
+		m.currentState = newState
+		return m, newState.Init()
 
-		resizedNextState, sizeUpdateCmd := util.UpdateModel(nextState, sizeMsg)
+	case tcmds.TransitionToLoadedPlaylistMsg:
+		newState, err := lps.New(m.logger, msg.PlaylistID)
+		if err != nil {
+			m.logger.Error("error during transition to loadedplayliststate",
+				slog.Any("err", err),
+			)
+			return m, nil
+		}
+		m.currentState = newState
+		return m, newState.Init()
 
-		m.logger.Info("state transition",
-			slog.String("from", m.currentStateType.String()),
-			slog.String("to", next.String()),
-		)
+	case tcmds.TransitionToLoadedBinMsg:
+		newState, err := lbs.New(m.logger, msg.BinID)
+		if err != nil {
+			m.logger.Error("error during transition to loadedbinstate",
+				slog.Any("err", err),
+			)
+			return m, nil
+		}
+		m.currentState = newState
+		return m, newState.Init()
 
-		m.allStates[m.currentStateType] = m.currentState
-		m.currentState = resizedNextState
-		m.currentStateType = next
-		m.allStates[next] = resizedNextState
-
-		// new state will be initialized and then post-transition commands will
-		// run
-		return m, tea.Sequence(
-			m.currentState.Init(),
-			sizeUpdateCmd,
-			tea.Batch(msg.Transition.PostCmds...),
-		)
+	case tcmds.TransitionToCreatePlaylistMsg:
+		newState, err := cps.New(m.logger, msg.ShelfIDs)
+		if err != nil {
+			m.logger.Error("error during transition to loadedbinstate",
+				slog.Any("err", err),
+			)
+			return m, nil
+		}
+		m.currentState = newState
+		return m, newState.Init()
 	}
 
 	var stateCmds tea.Cmd
@@ -135,13 +123,6 @@ func (m Model) Help() string {
 	return "statemachine: " + m.currentState.Help()
 }
 
-func (m Model) State(t states.StateType) states.State {
-	return m.allStates[t]
-}
-
 func (m Model) CurrentState() states.State {
 	return m.currentState
-}
-func (m Model) CurrentStateType() states.StateType {
-	return m.currentStateType
 }

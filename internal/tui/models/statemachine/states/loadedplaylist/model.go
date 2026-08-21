@@ -6,7 +6,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/util"
@@ -15,26 +14,32 @@ import (
 )
 
 type LoadedPlaylistState struct {
-	svcs   *services.AllServices
-	keys   keyMap
-	logger *slog.Logger
-
-	playlist playlist.Model
-
 	width, height int
+
+	logger *slog.Logger
+	keys   keyMap
+
+	playlistID uint
+	playlist   playlist.Model
 }
 
-func New(svcs *services.AllServices, log *slog.Logger) LoadedPlaylistState {
-	return LoadedPlaylistState{
-		svcs:     svcs,
-		keys:     defaultKeybinds(),
-		logger:   log.WithGroup("playlistloaded"),
-		playlist: playlist.New(),
+func New(log *slog.Logger, pID uint) (LoadedPlaylistState, error) {
+	s := LoadedPlaylistState{
+		keys: defaultKeybinds(),
 	}
+
+	s.logger = log.WithGroup("playlistloaded")
+	s.playlistID = pID
+	s.playlist = playlist.New()
+
+	return s, nil
 }
 
 func (s LoadedPlaylistState) Init() tea.Cmd {
-	return nil
+	return tea.Sequence(
+		tcmds.GetPlaylistCmd(s.playlistID),
+		tcmds.RefreshWindowSizeCmd(),
+	)
 }
 
 func (s LoadedPlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -51,20 +56,36 @@ func (s LoadedPlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			return s, tcmds.Transition(states.MainMenu, nil, nil)
+			return s, func() tea.Msg {
+				return tcmds.TransitionToMainMenuMsg{}
+			}
 		case key.Matches(msg, s.keys.Checkout):
-			return s, s.svcs.SetCheckoutCmd(s.playlist.PhysicalPlaylist(), true)
+			return s, tcmds.SetCheckoutCmd(s.playlist.PhysicalPlaylist(), true)
 		case key.Matches(msg, s.keys.Checkin):
-			return s, s.svcs.SetCheckoutCmd(s.playlist.PhysicalPlaylist(), false)
+			return s, tcmds.SetCheckoutCmd(s.playlist.PhysicalPlaylist(), false)
 		}
 
 		passthru = msg
 
-	case playlist.LoadPlaylistMsg:
-		s.playlist.SetEntity(msg.Phy)
+	case tcmds.PlaylistsLoadedMsg:
+		s.logger.Debug("loaded playlist", slog.Any("entity", msg.Playlists[0]))
+		if msg.Err != nil {
+			s.logger.Error("error loading playlist",
+				slog.Any("err", msg.Err),
+			)
+			return s, nil
+		}
+
+		if len(msg.Playlists) == 1 {
+			s.playlist.SetEntity(msg.Playlists[0])
+			return s, nil
+		} else {
+			s.logger.Warn("more than one playlist was returned from the db, this shouldn't happen")
+		}
+
 		return s, nil
 
-	case services.PlaylistCheckoutMsg:
+	case tcmds.PlaylistCheckoutMsg:
 		if msg.Err != nil {
 			s.logger.Error("failed to check out playlist",
 				slog.String("error", msg.Err.Error()),
@@ -94,4 +115,8 @@ func (s LoadedPlaylistState) View() tea.View {
 
 func (s LoadedPlaylistState) Help() string {
 	return util.FmtKeymap(s.keys.ShortHelp())
+}
+
+func (s LoadedPlaylistState) Type() states.StateType {
+	return states.LoadedPlaylist
 }

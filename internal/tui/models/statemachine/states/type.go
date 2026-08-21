@@ -10,10 +10,11 @@ type helper interface{
 	Help() string
 }
 
+
 type State interface {
 	tea.Model
-	tea.Model
 	helper
+	Type() StateType
 }
 
 const (

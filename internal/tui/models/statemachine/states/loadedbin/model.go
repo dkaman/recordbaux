@@ -3,13 +3,11 @@ package loadedbin
 import (
 	"log/slog"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/record"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
@@ -20,10 +18,10 @@ import (
 )
 
 type LoadedBinState struct {
-	svcs     *services.AllServices
-	keys     keyMap
-	logger   *slog.Logger
+	logger *slog.Logger
+	keys   keyMap
 
+	binID          uint
 	bin            bin.Model
 	records        table.Model
 	selectedRecord record.Model
@@ -33,24 +31,35 @@ type LoadedBinState struct {
 }
 
 // New constructs a LoadedBinState ready to receive a LoadShelfMsg
-func New(svcs *services.AllServices, log *slog.Logger) LoadedBinState {
-	h := help.New()
-	h.Styles = style.DefaultHelpStyles()
-
-	t := table.New()
-
-	return LoadedBinState{
-		svcs:     svcs,
-		keys:     defaultKeybinds(),
-		logger:   log.WithGroup("loadedbin"),
-
-		records: t,
+func New(log *slog.Logger, binID uint) (LoadedBinState, error) {
+	s := LoadedBinState{
+		keys: defaultKeybinds(),
 	}
+
+	s.logger = log.WithGroup("loadedbin")
+	s.records = table.New()
+	s.binID = binID
+
+	columns := []table.Column{
+		{Title: "catalog no.", Width: 15},
+		{Title: "release name", Width: 50},
+		{Title: "artist", Width: 30},
+	}
+
+	s.records = table.New(
+		table.WithColumns(columns),
+		table.WithStyles(style.DefaultTableStyles()),
+	)
+
+	return s, nil
 }
 
 func (s LoadedBinState) Init() tea.Cmd {
 	s.logger.Debug("loadedbin state init")
-	return nil
+	return tea.Sequence(
+		tcmds.GetBinCmd(s.binID),
+		tcmds.RefreshWindowSizeCmd(),
+	)
 }
 
 func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -65,19 +74,29 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			return s, tcmds.Transition(states.LoadedShelf, nil, nil)
+			return s, func() tea.Msg {
+				return tcmds.TransitionToLoadedShelfMsg{
+					ShelfID: s.bin.PhysicalBin().ShelfID,
+				}
+			}
 		}
 
 		passthru = msg
 
-	case bin.LoadBinMsg:
-		s.bin = bin.New(msg.Phy, bin.Style{})
-
-		columns := []table.Column{
-			{Title: "catalog no.", Width: 15},
-			{Title: "release name", Width: 50},
-			{Title: "artist", Width: 30},
+	case tcmds.BinsLoadedMsg:
+		if msg.Err != nil {
+			return s, nil
 		}
+
+		if len(msg.Bins) != 1 {
+			return s, nil
+		}
+
+		entity := msg.Bins[0]
+		s.logger.Debug("bin entity", slog.Any("e", entity))
+
+		s.bin = bin.New(entity, bin.Style{})
+
 
 		var rows []table.Row
 
@@ -94,12 +113,8 @@ func (s LoadedBinState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			rows = append(rows, row)
 		}
 
-		s.records = table.New(
-			table.WithColumns(columns),
-			table.WithRows(rows),
-			table.WithFocused(true),
-			table.WithStyles(style.DefaultTableStyles()),
-		)
+		s.records.SetRows(rows)
+		s.records.Focus()
 
 		s.cursorIndex = 0
 		if len(s.bin.PhysicalBin().Records) > 0 {
@@ -137,4 +152,8 @@ func (s LoadedBinState) View() tea.View {
 
 func (s LoadedBinState) Help() string {
 	return util.FmtKeymap(s.keys.ShortHelp())
+}
+
+func (s LoadedBinState) Type() states.StateType {
+	return states.LoadedBin
 }

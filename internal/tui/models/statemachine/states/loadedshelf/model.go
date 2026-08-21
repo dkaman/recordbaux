@@ -11,10 +11,7 @@ import (
 	huh "charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
-	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/db/record"
-	"github.com/dkaman/recordbaux/internal/services"
-	"github.com/dkaman/recordbaux/internal/tui/models/bin"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
@@ -24,14 +21,11 @@ import (
 )
 
 type LoadedShelfState struct {
-	svcs   *services.AllServices
 	keys   keyMap
 	logger *slog.Logger
 
-	// discogs info
-	discogsClient   *discogs.Client
-	discogsUsername string
-
+	// loaded shelf
+	shelfID     uint
 	shelf       shelf.Model
 	selectedBin int
 
@@ -59,94 +53,109 @@ func (s LoadedShelfState) loadNextRecord() tea.Cmd {
 	}
 }
 
-// New constructs a LoadedShelfState ready to receive a LoadShelfMsg
-func New(svcs *services.AllServices, log *slog.Logger, c *discogs.Client, u string) LoadedShelfState {
-	logGroup := log.WithGroup(states.LoadedShelf.String())
+// New constructs a LoadedShelfState
+func New(log *slog.Logger, shelfID uint) (LoadedShelfState, error) {
+	s := LoadedShelfState{
+		shelfID:  shelfID,
+		keys:     defaultKeybinds(),
+		fetching: false,
+		loading:  false,
+	}
+
+	s.logger = log.WithGroup(states.LoadedShelf.String())
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(style.LightMagenta)
+	s.spin = sp
 
 	prg := progress.New(progress.WithDefaultBlend())
+	s.prog = prg
 
-	return LoadedShelfState{
-		svcs:   svcs,
-		keys:   defaultKeybinds(),
-		logger: logGroup,
-
-		discogsClient:   c,
-		discogsUsername: u,
-
-		fetching: false,
-		loading:  false,
-
-		spin: sp,
-		prog: prg,
-	}
+	return s, nil
 }
 
 func (s LoadedShelfState) Init() tea.Cmd {
-	s.logger.Debug("loadedshelf state init")
-	return nil
+	s.logger.Debug("loadedshelf state init",
+		slog.Int("shelfID", int(s.shelfID)),
+	)
+
+	return tea.Sequence(
+		tcmds.GetShelfCmd(s.shelfID),
+		tcmds.RefreshWindowSizeCmd(),
+	)
 }
 
 func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	var passthru tea.Msg
 
-	passthru = msg
+	passthru := msg
+
+	if s.loading {
+		var formCmd tea.Cmd
+
+		if ws, ok := passthru.(tea.WindowSizeMsg); ok {
+			targetWidth := max(ws.Width / 3, 40)
+			ws.Width = targetWidth - style.ModalStyle.GetHorizontalFrameSize()
+			targetHeight := max(ws.Height / 3, 15)
+			ws.Height = targetHeight - style.ModalStyle.GetVerticalFrameSize()
+			passthru = ws
+		}
+
+		s.loadCollectionForm, formCmd = util.UpdateModel(s.loadCollectionForm, passthru)
+		cmds = append(cmds, formCmd)
+
+		if s.loadCollectionForm.Form.State == huh.StateCompleted {
+			folder := s.loadCollectionForm.Folder()
+			s.logger.Debug("folder selected, starting fetch", slog.String("folder", folder))
+			s.loading = false
+			s.fetching = true
+			cmds = append(cmds, s.spin.Tick, tcmds.RetrieveDiscogsCollectionCmd(folder))
+		} else if s.loadCollectionForm.Form.State == huh.StateAborted {
+			s.loading = false
+			s.shelf.Focus()
+		}
+		return s, tea.Batch(cmds...)
+
+	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
-		passthru = msg
 
 	case tea.KeyPressMsg:
 		sh := s.shelf.PhysicalShelf()
 		if sh == nil {
+			s.logger.Debug("physical shelf in loadedshelf is nil")
 			return s, nil
-		}
-
-		if s.loading || s.fetching {
-			passthru = msg
 		}
 
 		switch {
 		case key.Matches(msg, s.keys.Next):
 			s.shelf = s.shelf.SelectNextBin()
+			return s, nil
 
 		case key.Matches(msg, s.keys.Prev):
 			s.shelf = s.shelf.SelectPrevBin()
+			return s, nil
 
 		case key.Matches(msg, s.keys.Back):
-			return s, tcmds.Transition(states.MainMenu, nil, nil)
+			return s, func() tea.Msg {
+				return tcmds.TransitionToMainMenuMsg{}
+			}
 
 		case key.Matches(msg, s.keys.Load):
-			s.loading = true
 			s.shelf.Blur()
-			s.loadCollectionForm = newFolderSelectForm(s.discogsClient, s.discogsUsername)
-			return s, s.loadCollectionForm.Init()
+			return s, tcmds.ListDiscogsFoldersCmd()
 
 		case msg.String() == "enter":
 			b := s.shelf.GetSelectedBin().PhysicalBin()
-			return s, tcmds.Transition(
-				states.LoadedBin,
-				nil,
-				[]tea.Cmd{bin.WithPhysicalBin(b)},
-			)
+			return s, func() tea.Msg {
+				return tcmds.TransitionToLoadedBinMsg{
+					BinID: b.ID,
+				}
+			}
 		}
-
-		passthru = msg
-
-
-	case shelf.LoadShelfMsg:
-		sh := msg.Phy
-
-		s.shelf = shelf.New(sh, s.logger).
-			SetSize(s.width, s.height).
-			SelectBin(0)
-
-		return s, nil
 
 	case spinner.TickMsg:
 		if s.fetching {
@@ -154,7 +163,11 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.spin, cmd = s.spin.Update(msg)
 			return s, cmd
 		}
-		passthru = msg
+
+	case tcmds.GetDiscogsFoldersMsg:
+		s.loadCollectionForm = newFolderSelectForm(msg.Folders)
+		s.loading = true
+		return s, s.loadCollectionForm.Init()
 
 	case tcmds.NewDiscogsCollectionMsg:
 		s.releases = msg.Releases
@@ -170,12 +183,39 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.fetching = false
 			s.shelf.Focus()
 			// Reload the shelf from the DB to get all relationships correctly
-			return s, s.svcs.GetShelfCmd(s.shelf.ID())
+			return s, tcmds.GetShelfCmd(s.shelf.ID())
 		}
 
 		s.logger.Debug("enriching next release", slog.Int("index", s.currentIndex))
 		rec := s.releases[s.currentIndex]
-		return s, tcmds.EnrichReleaseInstance(s.discogsClient, rec)
+		return s, tcmds.EnrichReleaseInstanceCmd(rec)
+
+	case tcmds.ShelvesLoadedMsg:
+		if err := msg.Err; err != nil {
+			s.logger.Debug("error loading physical shelf",
+				slog.Any("err", err),
+			)
+			return s, nil
+		}
+
+		if len(msg.Shelves) != 1 {
+			s.logger.Warn("for some reason the database returned multiple shelves, this should be impossible, selecting first result to continume")
+		}
+
+		sh := msg.Shelves[0]
+
+		s.shelf = shelf.New(sh, s.logger).
+			SelectBin(0)
+
+		return s, nil
+
+	case tcmds.ShelfSavedMsg:
+		if msg.Err != nil {
+			s.logger.Error("failed to save shelf", slog.String("error", msg.Err.Error()))
+		}
+		s.currentIndex++
+		s.pct = float64(s.currentIndex) / float64(s.totalReleases)
+		return s, tea.Batch(s.prog.SetPercent(s.pct), s.loadNextRecord())
 
 	case tcmds.NewDiscogsEnrichRecordMsg:
 		if msg.Err != nil {
@@ -195,34 +235,8 @@ func (s LoadedShelfState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Persist the change to the database
-		return s, s.svcs.SaveShelfCmd(s.shelf.PhysicalShelf())
+		return s, tcmds.SaveShelfCmd(s.shelf.PhysicalShelf())
 
-	case services.ShelfSavedMsg:
-		if msg.Err != nil {
-			s.logger.Error("failed to save shelf", slog.String("error", msg.Err.Error()))
-		}
-		s.currentIndex++
-		s.pct = float64(s.currentIndex) / float64(s.totalReleases)
-		return s, tea.Batch(s.prog.SetPercent(s.pct), s.loadNextRecord())
-	}
-
-	// If a modal is active, it captures all updates first.
-	if s.loading {
-		var formCmd tea.Cmd
-		s.loadCollectionForm, formCmd = util.UpdateModel(s.loadCollectionForm, passthru)
-		cmds = append(cmds, formCmd)
-
-		if s.loadCollectionForm.Form.State == huh.StateCompleted {
-			folder := s.loadCollectionForm.Folder()
-			s.logger.Debug("folder selected, starting fetch", slog.String("folder", folder))
-			s.loading = false
-			s.fetching = true
-			cmds = append(cmds, s.spin.Tick, tcmds.RetrieveDiscogsCollection(s.discogsClient, s.discogsUsername, folder, s.logger))
-		} else if s.loadCollectionForm.Form.State == huh.StateAborted {
-			s.loading = false
-			s.shelf.Focus()
-		}
-		return s, tea.Batch(cmds...)
 	}
 
 	var shelfCmd tea.Cmd
@@ -238,4 +252,8 @@ func (s LoadedShelfState) View() tea.View {
 
 func (s LoadedShelfState) Help() string {
 	return util.FmtKeymap(s.keys.ShortHelp())
+}
+
+func (s LoadedShelfState) Type() states.StateType {
+	return states.LoadedShelf
 }

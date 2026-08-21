@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/config"
+	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/infra"
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/record"
@@ -150,6 +151,13 @@ func initServices(db *gorm.DB, l *slog.Logger) (*services.AllServices, error) {
 		)
 	}
 
+	binRepo, err := bin.NewRepo(db)
+	if err != nil {
+		l.Error("database error",
+			slog.Any("error", err),
+		)
+	}
+
 	trackRepo, err := track.NewRepo(db)
 	if err != nil {
 		l.Error("database error",
@@ -171,7 +179,7 @@ func initServices(db *gorm.DB, l *slog.Logger) (*services.AllServices, error) {
 		)
 	}
 
-	svc := services.New(l, shelfRepo, recordRepo, playlistRepo, trackRepo)
+	svc := services.New(l, shelfRepo, binRepo, recordRepo, playlistRepo, trackRepo)
 
 	return svc, nil
 }

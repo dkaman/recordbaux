@@ -7,6 +7,7 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/record"
+	"github.com/dkaman/recordbaux/internal/db/track"
 )
 
 var (
@@ -119,6 +120,26 @@ func (e *Entity) Insert(r *record.Entity) (*record.Entity, error) {
 // entitites
 func (e *Entity) TableName() string {
 	return "shelves"
+}
+
+func (e *Entity) AllRecords() []*record.Entity {
+	var records []*record.Entity
+
+	for _, bin := range e.Bins {
+		records = append(records, bin.Records...)
+	}
+
+	return records
+}
+
+func (e *Entity) AllTracks() []*track.Entity {
+	var tracks []*track.Entity
+
+	for _, r := range e.AllRecords() {
+		tracks = append(tracks, r.Tracklist...)
+	}
+
+	return tracks
 }
 
 func (e *Entity) TotalRecords() int {

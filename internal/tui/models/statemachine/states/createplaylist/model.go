@@ -3,15 +3,14 @@ package createplaylist
 import (
 	"log/slog"
 
-	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
 
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 	"github.com/dkaman/recordbaux/internal/db/track"
-	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 
@@ -20,10 +19,10 @@ import (
 )
 
 type CreatePlaylistState struct {
-	svcs     *services.AllServices
-	logger   *slog.Logger
-	keys     keyMap
+	logger *slog.Logger
+	keys   keyMap
 
+	shelfIDs       []uint
 	list           list.Model
 	namingPlaylist bool
 	nameForm       *form
@@ -32,33 +31,42 @@ type CreatePlaylistState struct {
 	width, height int
 }
 
-func New(svcs *services.AllServices, log *slog.Logger) CreatePlaylistState {
-	logger := log.WithGroup("createplayliststate")
+func New(log *slog.Logger, shelfIDs []uint) (CreatePlaylistState, error) {
+	s := CreatePlaylistState{
+		keys:           defaultKeybinds(),
+		namingPlaylist: false,
+		shelfIDs:       shelfIDs,
+	}
+
+	s.logger = log.WithGroup("createplayliststate")
 
 	delegate := trackDelegate{}
 	trackList := list.New([]list.Item{}, delegate, 0, 0)
 	trackList.Styles = style.DefaultListStyles()
 	trackList.Title = "select tracks for new playlist"
+	s.list = trackList
 
-	return CreatePlaylistState{
-		svcs:   svcs,
-		logger: logger,
-		list:   trackList,
-		keys:   defaultKeybinds(),
-		namingPlaylist: false,
-	}
+	return s, nil
 }
 
 func (s CreatePlaylistState) Init() tea.Cmd {
-	return nil
+	var cmds []tea.Cmd
+
+	for _, id := range s.shelfIDs {
+		cmds = append(cmds, tcmds.GetAllTracksFromShelfCmd(id))
+	}
+
+	cmds = append(cmds, tcmds.RefreshWindowSizeCmd())
+
+	return tea.Batch(cmds...)
 }
 
 func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var passthru tea.Msg
 	var cmds []tea.Cmd
 
+	passthru := msg
+
 	if s.namingPlaylist {
-		s.logger.Debug("begin naming playlist")
 		fModel, formUpdatesCmds := s.nameForm.Update(msg)
 		if f, ok := fModel.(*form); ok {
 			s.nameForm = f
@@ -78,7 +86,8 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					newPlaylist.Tracks = append(newPlaylist.Tracks, trackModel.PhysicalTrack())
 				}
 			}
-			cmds = append(cmds, s.svcs.SavePlaylistCmd(newPlaylist))
+
+			cmds = append(cmds, tcmds.SavePlaylistCmd(newPlaylist))
 
 			items := s.list.Items()
 			for i, item := range items {
@@ -90,23 +99,21 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			s.list.SetItems(items)
 			s.namingPlaylist = false
-			s.nameForm = newNameForm()
 
-			return s, tcmds.Transition(
-				states.MainMenu, cmds, nil,
-			)
+			cmds = append(cmds, func() tea.Msg {
+				return tcmds.TransitionToMainMenuMsg{}
+			})
 		}
 
 		return s, tea.Batch(cmds...)
 	}
 
-	passthru = msg
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
 
-	case services.AllTracksLoadedMsg:
+	case tcmds.ShelfAllTracksMsg:
 		s.logger.Debug("refreshing tracks from service")
 		tracks := msg.Tracks
 		items := make([]list.Item, len(tracks))
@@ -116,13 +123,15 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		s.list.SetItems(items)
+
 		return s, nil
 
 	case tea.KeyPressMsg:
-
 		switch {
 		case key.Matches(msg, s.keys.Back):
-			return s, tcmds.Transition(states.MainMenu, nil, nil)
+			return s, func() tea.Msg {
+				return tcmds.TransitionToMainMenuMsg{}
+			}
 
 		case key.Matches(msg, s.keys.Select):
 			if i, ok := s.list.SelectedItem().(ttrack.Model); ok {
@@ -149,9 +158,6 @@ func (s CreatePlaylistState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return s, s.nameForm.Init()
 			}
 		}
-
-		passthru = msg
-		return s, nil
 	}
 
 	var listCmd tea.Cmd
@@ -174,4 +180,8 @@ func (s CreatePlaylistState) State() states.StateType {
 
 func (s CreatePlaylistState) Help() string {
 	return "create a playlist"
+}
+
+func (s CreatePlaylistState) Type() states.StateType {
+	return states.CreatePlaylist
 }

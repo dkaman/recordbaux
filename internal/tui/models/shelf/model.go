@@ -94,6 +94,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.logger.Debug("shelf model received event", slog.Any("e", msg))
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -202,19 +204,9 @@ func (m Model) View() tea.View {
 	// Adjust final bin height to maintain aspect ratio (3:1 assumed for content area)
 	// and to respect the minimum total height for the div (content + padding + border).
 	finalBinHeight := int(math.Min(float64(candidateBinHeight), float64(candidateBinWidth)/3.0))
-	if finalBinHeight < minBinDivTotalHeight {
-		finalBinHeight = minBinDivTotalHeight
-	}
-
-	finalBinWidth := finalBinHeight * 3 // Maintain 3:1 aspect ratio
-
-	if finalBinWidth < 0 {
-		finalBinWidth = 0
-	}
-
-	if finalBinHeight < 0 {
-		finalBinHeight = 0
-	}
+	finalBinHeight = max(minBinDivTotalHeight, finalBinHeight)
+	finalBinWidth := max(0, finalBinHeight * 3) // Maintain 3:1 aspect ratio
+	finalBinHeight = max(0, finalBinHeight)
 
 	marginStyle := lipgloss.NewStyle().
 		MarginTop(binDivMargin.Top).
@@ -226,9 +218,9 @@ func (m Model) View() tea.View {
 	binIndex := 0
 
 	// Build the grid row by row
-	for r := 0; r < rows; r++ {
+	for range rows {
 		var rowBins []string
-		for c := 0; c < cols; c++ {
+		for range cols {
 			var renderedBin string
 
 			if binIndex < len(m.bins) {

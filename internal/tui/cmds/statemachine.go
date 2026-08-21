@@ -1,43 +1,19 @@
 package cmds
 
-import (
-	tea "charm.land/bubbletea/v2"
+type TransitionToMainMenuMsg struct {}
 
-	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
-)
-
-type envelope struct {
-	Next     states.StateType
-	PostCmds []tea.Cmd
+type TransitionToLoadedShelfMsg struct {
+	ShelfID uint
 }
 
-type StateTransitionMsg struct {
-	Transition envelope
+type TransitionToLoadedPlaylistMsg struct {
+	PlaylistID uint
 }
 
-func Transition(t states.StateType, before []tea.Cmd, after []tea.Cmd) tea.Cmd {
-	var pre tea.Cmd = nil
+type TransitionToLoadedBinMsg struct {
+	BinID uint
+}
 
-	if len(before) > 0 {
-		pre = tea.Batch(before...)
-	}
-
-	// lambda command that emits the actual transition message so that we
-	// can sequence against the precmds before the current state is parked
-	swap := func() tea.Msg {
-		e := envelope{
-			Next: t,
-			PostCmds: after,
-		}
-
-		return StateTransitionMsg{
-			Transition:  e,
-		}
-	}
-
-	if pre != nil {
-		return tea.Sequence(pre, swap)
-	}
-
-	return swap
+type TransitionToCreatePlaylistMsg struct {
+	ShelfIDs []uint
 }

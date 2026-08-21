@@ -6,14 +6,22 @@ import (
 	"log/slog"
 
 	"charm.land/bubbles/v2/key"
+
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
+	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/util"
+)
+
+const (
+	CONF_DISCOGS_KEY  = "discogs.key"
+	CONF_DISCOGS_USER = "discogs.username"
 )
 
 var (
@@ -22,76 +30,55 @@ var (
 
 // root tui model
 type Model struct {
-	// global application config/state
-	cfg    *config.Config
-	keys   keyMap
-	logger *slog.Logger
-	// handlers *handlers.Registry
+	width, height int
+	cfg           *config.Config
+	svcs          *services.AllServices
+	keys          keyMap
+	logger        *slog.Logger
 
-	ready         bool
+	discogsClient   *discogs.Client
+	discogsUsername string
+
 	stateMachine  statemachine.Model
+	ready         bool
 	topBarText    string
 	statusBarText string
 	helpVisible   bool
-
-	width, height int
-}
-
-// local type def to define keybindings for this model
-type keyMap struct {
-	ToggleHelp key.Binding
-	Quit       key.Binding
-}
-
-func defaultKeybinds() keyMap {
-	return keyMap{
-		ToggleHelp: key.NewBinding(
-			key.WithKeys("H"),
-			key.WithHelp("H", "toggle help"),
-		),
-		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("C-c", "quit"),
-		),
-	}
-}
-
-func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{
-		k.ToggleHelp,
-		k.Quit,
-	}
-}
-
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.ToggleHelp, k.Quit},
-	}
 }
 
 func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model, error) {
-	var m Model
+	m := Model{
+		cfg:         c,
+		svcs:        svcs,
+		keys:        defaultKeybinds(),
+		ready:       false,
+		helpVisible: false,
+	}
 
 	if log == nil {
 		return m, LoggerIsNilErr
 	}
 
-	sm, err := statemachine.New(svcs, c, log)
+	sm, err := statemachine.New(log)
 	if err != nil {
 		return m, fmt.Errorf("error creating state machine: %w", err)
 	}
 
-	m = Model{
-		cfg:  c,
-		keys: defaultKeybinds(),
-		// handlers:      getHandlers(),
-		helpVisible:   false,
-		ready:         false,
-		stateMachine:  sm,
-		logger:        log.WithGroup("root"),
-		topBarText:    "recordbaux - organize your record collection",
-		statusBarText: fmt.Sprintf("current state: %s", sm.CurrentStateType()),
+	discogsAPIKey := c.String(CONF_DISCOGS_KEY)
+	discogsUsername := c.String(CONF_DISCOGS_USER)
+	discogsClient, err := discogs.New(
+		discogs.WithToken(discogsAPIKey),
+	)
+	if err != nil {
+		return m, err
 	}
+
+	m.stateMachine = sm
+	m.logger = log.WithGroup("root")
+	m.topBarText = "recordbaux - organize your record collection"
+	m.statusBarText = fmt.Sprintf("current state: %s", sm.CurrentState().Type().String())
+	m.discogsClient = discogsClient
+	m.discogsUsername = discogsUsername
 
 	return m, nil
 }
@@ -146,13 +133,59 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
 			}
 		}
+
+	case tcmds.RefreshWindowSizeMsg:
+		return m, m.refreshWindowSize()
+
+	// handle intent messages
+	case tcmds.GetDiscogsFoldersIntentMsg:
+		return m, m.getDiscogsFolders()
+
+	case tcmds.NewDiscogsCollectionIntentMsg:
+		return m, m.retrieveDiscogsCollection(msg.Folder)
+
+	case tcmds.NewDiscogsEnrichRecordIntentMsg:
+		return m, m.enrichReleaseInstance(msg.Record)
+
+	case tcmds.BinsLoadedIntentMsg:
+		return m, m.getBinCmd(msg.ID)
+
+	case tcmds.ShelfLoadIntentMsg:
+		return m, m.getShelfCmd(msg.ID)
+
+	case tcmds.ShelvesLoadIntentMsg:
+		return m, m.getAllShelvesCmd()
+
+	case tcmds.ShelfSaveIntentMsg:
+		return m, m.saveShelfCmd(msg.Shelf)
+
+	case tcmds.ShelfDeleteIntentMsg:
+		return m, m.deleteShelfCmd(msg.ID)
+
+	case tcmds.ShelfAllTracksIntentMsg:
+		return m, m.getAllTracksFromShelfCmd(msg.ID)
+
+	case tcmds.PlaylistLoadIntentMsg:
+		return m, m.getPlaylistCmd(msg.ID)
+
+	case tcmds.PlaylistsLoadIntentMsg:
+		return m, m.getAllPlaylistsCmd()
+
+	case tcmds.PlaylistSaveIntentMsg:
+		return m, m.savePlaylistCmd(msg.Entity)
+
+	case tcmds.PlaylistDeleteIntentMsg:
+		return m, m.deletePlaylistsCmd(msg.ID)
+
+	case tcmds.PlaylistCheckoutIntentMsg:
+		return m, m.setCheckoutCmd(msg.Playlist, msg.Status)
 	}
 
 	var stateMachineCmd tea.Cmd
 	m.stateMachine, stateMachineCmd = util.UpdateModel(m.stateMachine, passthruMsg)
 	cmds = append(cmds, stateMachineCmd)
 
-	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentStateType())
+	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentState().Type())
 
 	return m, tea.Batch(cmds...)
 }

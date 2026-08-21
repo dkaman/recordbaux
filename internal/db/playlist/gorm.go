@@ -28,6 +28,7 @@ func (r *Repo) All() ([]*Entity, error) {
 func (r *Repo) Get(id uint) (*Entity, error) {
 	var e Entity
 	err := r.db.
+		Preload("Tracks").
 		First(&e, "id = ?", id).Error
 
 	if err != nil {

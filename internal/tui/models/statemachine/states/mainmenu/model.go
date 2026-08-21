@@ -11,15 +11,14 @@ import (
 
 	"github.com/dkaman/recordbaux/internal/db/bin"
 	"github.com/dkaman/recordbaux/internal/db/shelf"
-	"github.com/dkaman/recordbaux/internal/services"
 	"github.com/dkaman/recordbaux/internal/tui/models/flist"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
-	tshelf "github.com/dkaman/recordbaux/internal/tui/models/shelf"
 	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
+	tshelf "github.com/dkaman/recordbaux/internal/tui/models/shelf"
 )
 
 type focusedView int
@@ -30,24 +29,20 @@ const (
 )
 
 type MainMenuState struct {
-	// meta stuff
-	svcs   *services.AllServices
+	width, height int
 	keys   keyMap
 	logger *slog.Logger
 
-	// main menu stuff
 	shelves   flist.Model
 	playlists flist.Model
 	creating  bool
 
-	// create shelf stuff
 	createShelfForm *createShelfForm
 
 	focus         focusedView
-	width, height int
 }
 
-func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
+func New(log *slog.Logger) MainMenuState {
 	log = log.WithGroup("mainmenu")
 
 	// Shelves List
@@ -75,7 +70,6 @@ func New(svcs *services.AllServices, log *slog.Logger) MainMenuState {
 	playlistList.Styles = style.DefaultListStyles()
 
 	return MainMenuState{
-		svcs:   svcs,
 		keys:   defaultKeybinds(),
 		logger: log,
 
@@ -92,16 +86,48 @@ func (s MainMenuState) Init() tea.Cmd {
 	)
 
 	return tea.Sequence(
-		s.svcs.GetAllShelvesCmd(),
-		s.svcs.GetAllPlaylistsCmd(),
+		tcmds.GetAllShelvesCmd(),
+		tcmds.GetAllPlaylistsCmd(),
+		tcmds.RefreshWindowSizeCmd(),
 	)
 }
 
 func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	var passthru tea.Msg
 
-	passthru = msg
+	passthru := msg
+
+	// form updates go first so they can accep enter keys etc. i need to see
+	// if this is removable, i want all message handling first in all cases.
+	if s.creating {
+		var formCmd tea.Cmd
+
+		// Intercept the resize message to enforce a 1/3 ratio
+		if ws, ok := passthru.(tea.WindowSizeMsg); ok {
+			targetWidth := max(ws.Width / 3 , 40)
+			ws.Width = targetWidth - style.ModalStyle.GetHorizontalFrameSize()
+			targetHeight := max(ws.Height / 3, 15)
+			ws.Height = targetHeight - style.ModalStyle.GetVerticalFrameSize()
+			passthru = ws
+		}
+
+		s.createShelfForm, formCmd = util.UpdateModel(s.createShelfForm, passthru)
+		cmds = append(cmds, formCmd)
+
+		if s.createShelfForm.Form.State == huh.StateCompleted {
+			s.creating = false
+
+			if s.focus == shelvesView {
+				s.shelves = s.shelves.Focus()
+			} else {
+				s.playlists = s.playlists.Focus()
+			}
+
+			cmds = append(cmds, formCmd, s.handleShelfCreation())
+		}
+
+		return s, tea.Batch(cmds...)
+	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -130,20 +156,9 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.playlists, playlistUpdateCmds = util.UpdateModel(s.playlists, playlistSizeMsg)
 		cmds = append(cmds, playlistUpdateCmds)
 
-		s.logger.Debug("window sizes for child models",
-			slog.Any("shelf width", s.shelves.Width()),
-			slog.Any("shelf height", s.shelves.Height()),
-			slog.Any("playlist width", s.playlists.Width()),
-			slog.Any("playlist height", s.playlists.Height()),
-		)
-
 		return s, tea.Batch(cmds...)
 
 	case tea.KeyPressMsg:
-		if s.creating {
-			return s, nil
-		}
-
 		switch {
 		case key.Matches(msg, s.keys.Quit):
 			return s, nil
@@ -171,37 +186,50 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return s, s.createShelfForm.Init()
 			} else {
 				s.logger.Debug("create playlist selected")
-				return s, tcmds.Transition(
-					states.CreatePlaylist,
-					nil,
-					[]tea.Cmd{s.svcs.GetAllTracksCmd()},
-				)
+				var shelfIDs []uint
+
+				for _, item := range s.shelves.Items() {
+					if shM, ok := item.(tshelf.Model); ok {
+						shelfIDs = append(shelfIDs, shM.PhysicalShelf().ID)
+					}
+				}
+				return s, func() tea.Msg{
+					return tcmds.TransitionToCreatePlaylistMsg{
+						ShelfIDs: shelfIDs,
+					}
+				}
 			}
 
 		case key.Matches(msg, s.keys.Select):
 			if s.focus == shelvesView {
 				if sel, ok := s.shelves.SelectedItem().(tshelf.Model); ok {
-					return s, tcmds.Transition(
-						states.LoadedShelf,
-						nil,
-						[]tea.Cmd{tshelf.WithPhysicalShelf(sel.PhysicalShelf())},
-					)
+					return s, func() tea.Msg {
+						return tcmds.TransitionToLoadedShelfMsg{
+							ShelfID: sel.PhysicalShelf().ID,
+						}
+					}
 				}
 			} else {
 				if sel, ok := s.playlists.SelectedItem().(tplaylist.Model); ok {
-					return s, tcmds.Transition(
-						states.LoadedPlaylist,
-						nil,
-						[]tea.Cmd{tplaylist.WithPhysicalPlaylist(sel.PhysicalPlaylist())},
-					)
+					return s, func() tea.Msg {
+						return tcmds.TransitionToLoadedPlaylistMsg{
+							PlaylistID: sel.PhysicalPlaylist().ID,
+						}
+					}
 				}
 			}
 		}
 
-		// pass key message through if we aren't handling it
 		passthru = msg
 
-	case services.ShelvesLoadedMsg:
+	case tcmds.ShelvesLoadedMsg:
+		if err := msg.Err; err != nil {
+			s.logger.Error("error loading shelves",
+				slog.Any("err", err),
+			)
+			return s, nil
+		}
+
 		shlvs := msg.Shelves
 		items := make([]list.Item, len(shlvs))
 
@@ -213,7 +241,16 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return s, nil
 
-	case services.PlaylistsLoadedMsg:
+	case tcmds.ShelfSavedMsg:
+		if err := msg.Err; err != nil {
+			s.logger.Error("error saving shelf to database",
+				slog.Any("err", err),
+			)
+		}
+
+		return s, tcmds.GetAllShelvesCmd()
+
+	case tcmds.PlaylistsLoadedMsg:
 		playlists := msg.Playlists
 		playlistItems := make([]list.Item, len(playlists))
 
@@ -228,25 +265,7 @@ func (s MainMenuState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 	}
 
-	// form updates go first so they can accep enter keys etc.
-	if s.creating {
-		var formCmd tea.Cmd
-		s.createShelfForm, formCmd = util.UpdateModel(s.createShelfForm, passthru)
-		cmds = append(cmds, formCmd)
 
-		if s.createShelfForm.Form.State == huh.StateCompleted {
-			s.creating = false
-			if s.focus == shelvesView {
-				s.shelves = s.shelves.Focus()
-			} else {
-				s.playlists = s.playlists.Focus()
-			}
-
-			cmds = append(cmds, formCmd, s.handleShelfCreation())
-		}
-
-		return s, tea.Batch(cmds...)
-	}
 
 	var updateCmd tea.Cmd
 
@@ -269,6 +288,10 @@ func (s MainMenuState) Help() string {
 	return util.FmtKeymap(s.keys.ShortHelp())
 }
 
+func (s MainMenuState) Type() states.StateType {
+	return states.MainMenu
+}
+
 func (s MainMenuState) handleShelfCreation() tea.Cmd {
 	f := s.createShelfForm
 
@@ -288,8 +311,6 @@ func (s MainMenuState) handleShelfCreation() tea.Cmd {
 
 	s.logger.Debug("new shelf", slog.Any("shelf", newShelf))
 
-	return tea.Sequence(
-		s.svcs.SaveShelfCmd(newShelf),
-		s.svcs.GetAllShelvesCmd(),
-	)
+	// change this to save shelf and catch reply in update
+	return tcmds.SaveShelfCmd(newShelf)
 }

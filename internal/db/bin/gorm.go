@@ -31,6 +31,10 @@ func (r *Repo) All() ([]*Entity, error) {
 func (r *Repo) Get(id uint) (*Entity, error) {
 	var e Entity
 	err := r.db.
+		Preload("Records", func(db *gorm.DB) *gorm.DB {
+			return db.Order("coordinate ASC")
+		}).
+		Preload("Records.Tracklist").
 		First(&e, "id = ?", id).Error
 
 	if err != nil {

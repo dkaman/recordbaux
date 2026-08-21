@@ -1,8 +1,6 @@
 package loadedshelf
 
 import (
-	"context"
-
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
 
@@ -15,14 +13,12 @@ type loadCollectionForm struct {
 	folder string
 }
 
-func newFolderSelectForm(c *discogs.Client, u string) *loadCollectionForm {
+func newFolderSelectForm(fs []discogs.Folder) *loadCollectionForm {
 	f := &loadCollectionForm{}
-
-	folders, _ := c.Collection.ListFolders(context.TODO(), u)
 
 	var folderOptions []huh.Option[string]
 
-	for _, fol := range folders {
+	for _, fol := range fs {
 		name := fol.Name
 		o := huh.NewOption(name, name)
 		folderOptions = append(folderOptions, o)

@@ -1,10 +1,6 @@
 package services
 
 import (
-	"log/slog"
-
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/db/playlist"
 )
@@ -13,65 +9,26 @@ type playlistDB db.Repository[*playlist.Entity]
 
 type PlaylistService struct {
 	playlists playlistDB
-	logger    *slog.Logger
 }
 
-type PlaylistsLoadedMsg struct {
-	Playlists []*playlist.Entity
-	Err       error
-}
-
-type PlaylistSavedMsg struct {
-	Err error
-}
-
-type PlaylistDeletedMsg struct {
-	Err error
-}
-
-func NewPlaylistService(repo playlistDB, log *slog.Logger) *PlaylistService {
-	log.WithGroup("playlistservice")
+func NewPlaylistService(repo playlistDB) *PlaylistService {
 	return &PlaylistService{
 		playlists: repo,
-		logger:    log,
 	}
 }
 
-func (s *PlaylistService) GetAllPlaylistsCmd() tea.Cmd {
-	return func() tea.Msg {
-		ps, err := s.playlists.All()
-		if err != nil {
-			s.logger.Error("repo error",
-				slog.String("error", err.Error()),
-			)
-			return PlaylistsLoadedMsg{Playlists: nil, Err: err}
-		}
-
-		return PlaylistsLoadedMsg{Playlists: ps, Err: err}
-	}
+func (s *PlaylistService) GetPlaylist(id uint) (*playlist.Entity, error) {
+	return s.playlists.Get(id)
 }
 
-func (s *PlaylistService) SavePlaylistCmd(p *playlist.Entity) tea.Cmd {
-	return func() tea.Msg {
-		err := s.playlists.Save(p)
-		if err != nil {
-			s.logger.Error("error saving playlist to repo",
-				slog.String("error", err.Error()),
-			)
-		}
-		return PlaylistSavedMsg{Err: err}
-	}
+func (s *PlaylistService) GetAllPlaylists() ([]*playlist.Entity, error) {
+	return s.playlists.All()
 }
 
-func (s *PlaylistService) DeletePlaylistCmd(id uint) tea.Cmd {
-	return func() tea.Msg {
-		err := s.playlists.Delete(id)
-		if err != nil {
-			s.logger.Error("error deleting playlist",
-				slog.String("error", err.Error()),
-				slog.Any("id", id),
-			)
-		}
-		return PlaylistDeletedMsg{Err: err}
-	}
+func (s *PlaylistService) SavePlaylist(p *playlist.Entity) error {
+		return s.playlists.Save(p)
+}
+
+func (s *PlaylistService) DeletePlaylist(id uint) error {
+		return s.playlists.Delete(id)
 }

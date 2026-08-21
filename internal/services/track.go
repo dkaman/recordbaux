@@ -1,10 +1,6 @@
 package services
 
 import (
-	"log/slog"
-
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/dkaman/recordbaux/internal/db"
 	"github.com/dkaman/recordbaux/internal/db/track"
 )
@@ -13,29 +9,26 @@ type trackDB db.Repository[*track.Entity]
 
 type TrackService struct {
 	tracks trackDB
-	logger *slog.Logger
 }
 
-type AllTracksLoadedMsg struct {
-	Tracks []*track.Entity
-	Err    error
-}
-
-func NewTrackService(repo trackDB, log *slog.Logger) *TrackService {
-	logger := log.WithGroup("trackservice")
+func NewTrackService(repo trackDB) *TrackService {
 	return &TrackService{
-		logger: logger,
 		tracks: repo,
 	}
 }
 
-func (s *TrackService) GetAllTracksCmd() tea.Cmd {
-	return func() tea.Msg {
-		ts, err := s.tracks.All()
-		if err != nil {
-			s.logger.Error("repo error", slog.String("error", err.Error()))
-			return AllTracksLoadedMsg{Tracks: nil, Err: err}
-		}
-		return AllTracksLoadedMsg{Tracks: ts, Err: nil}
-	}
+func (s *TrackService) GetTrack(id uint) (*track.Entity, error) {
+	return s.tracks.Get(id)
+}
+
+func (s *TrackService) GetAllTracks() ([]*track.Entity, error) {
+	return s.tracks.All()
+}
+
+func (s *TrackService) SaveTrack(e *track.Entity) error {
+	return s.tracks.Save(e)
+}
+
+func (s *TrackService) DeleteTrack(id uint) error {
+	return s.tracks.Delete(id)
 }
