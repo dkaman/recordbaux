@@ -6,11 +6,10 @@ import (
 
 type keyMap struct {
 	Select      key.Binding
-	NewShelf    key.Binding
+	New         key.Binding
 	SwitchFocus key.Binding
 	Edit        key.Binding
 	Delete      key.Binding
-	Quit        key.Binding
 }
 
 func defaultKeybinds() keyMap {
@@ -19,9 +18,9 @@ func defaultKeybinds() keyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "select"),
 		),
-		NewShelf: key.NewBinding(
+		New: key.NewBinding(
 			key.WithKeys("o"),
-			key.WithHelp("o", "new shelf"),
+			key.WithHelp("o", "new shelf or playlist"),
 		),
 		SwitchFocus: key.NewBinding(
 			key.WithKeys("tab"),
@@ -35,26 +34,21 @@ func defaultKeybinds() keyMap {
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete"),
 		),
-		Quit: key.NewBinding(
-			key.WithKeys("q"),
-			key.WithHelp("q", "nop"),
-		),
 	}
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Select,
-		k.NewShelf,
+		k.New,
 		k.SwitchFocus,
 		k.Edit,
 		k.Delete,
-		k.Quit,
 	}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Select, k.NewShelf, k.SwitchFocus, k.Edit, k.Delete, k.Quit},
+		{k.Select, k.New, k.SwitchFocus, k.Edit, k.Delete},
 	}
 }

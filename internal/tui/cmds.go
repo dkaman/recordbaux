@@ -150,6 +150,29 @@ func (m *Model) getAllTracksFromShelfCmd(id uint) tea.Cmd {
 	}
 }
 
+func (m *Model) getAllTracksFromShelvesCmd(ids []uint) tea.Cmd {
+	return func() tea.Msg {
+		var tracks []*track.Entity
+
+		for _, id := range ids {
+			shlf, err := m.svcs.ShelfService.GetShelf(id)
+			if err != nil {
+				return tcmds.ShelfAllTracksMsg{
+					ID:  id,
+					Err: err,
+				}
+			}
+
+			tracks = append(tracks, shlf.AllTracks()...)
+		}
+
+		return tcmds.ShelvesAllTracksMsg{
+			IDs:     ids,
+			Tracks: tracks,
+		}
+	}
+}
+
 // bin commands
 
 func (m *Model) getBinCmd(id uint) tea.Cmd {

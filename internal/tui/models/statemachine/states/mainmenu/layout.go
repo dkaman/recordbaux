@@ -41,15 +41,5 @@ func (s MainMenuState) renderModel() tea.View {
 		)
 	}
 
-	if s.creating {
-		formView := s.createShelfForm.View().Content
-		modal := style.ModalStyle.Render(formView)
-		return tea.NewView(lipgloss.Place(
-			s.width, s.height,
-			lipgloss.Center, lipgloss.Center,
-			modal,
-		))
-	}
-
 	return tea.NewView(background)
 }

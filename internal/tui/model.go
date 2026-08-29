@@ -13,10 +13,12 @@ import (
 	"github.com/dkaman/discogs-golang"
 	"github.com/dkaman/recordbaux/internal/config"
 	"github.com/dkaman/recordbaux/internal/services"
-	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
+	"github.com/dkaman/recordbaux/internal/tui/models/overlay"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine"
 	"github.com/dkaman/recordbaux/internal/tui/style"
 	"github.com/dkaman/recordbaux/internal/tui/util"
+
+	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
 )
 
 const (
@@ -39,7 +41,8 @@ type Model struct {
 	discogsClient   *discogs.Client
 	discogsUsername string
 
-	stateMachine  statemachine.Model
+	stateMachine overlay.Model[statemachine.Model]
+
 	ready         bool
 	topBarText    string
 	statusBarText string
@@ -64,6 +67,8 @@ func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model,
 		return m, fmt.Errorf("error creating state machine: %w", err)
 	}
 
+	m.stateMachine = overlay.New(sm)
+
 	discogsAPIKey := c.String(CONF_DISCOGS_KEY)
 	discogsUsername := c.String(CONF_DISCOGS_USER)
 	discogsClient, err := discogs.New(
@@ -73,7 +78,6 @@ func New(c *config.Config, log *slog.Logger, svcs *services.AllServices) (Model,
 		return m, err
 	}
 
-	m.stateMachine = sm
 	m.logger = log.WithGroup("root")
 	m.topBarText = "recordbaux - organize your record collection"
 	m.statusBarText = fmt.Sprintf("current state: %s", sm.CurrentState().Type().String())
@@ -120,6 +124,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Height: m.height - numBars - 2,
 		}
 
+	case tcmds.ShowModalMsg:
+		m.stateMachine.Base = m.stateMachine.Base.Blur().(statemachine.Model)
+		m.stateMachine.SetModal(msg.Modal)
+		return m, msg.Modal.Init()
+
+	case tcmds.ClearModalMsg:
+		m.stateMachine.Base = m.stateMachine.Base.Focus().(statemachine.Model)
+		m.stateMachine.ClearModal()
+		return m, nil
+
 	case tea.KeyPressMsg:
 		// this branch also passes through the key message if there is
 		// no match so the child models can handle the keys
@@ -165,6 +179,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tcmds.ShelfAllTracksIntentMsg:
 		return m, m.getAllTracksFromShelfCmd(msg.ID)
 
+	case tcmds.ShelvesAllTracksIntentMsg:
+		return m, m.getAllTracksFromShelvesCmd(msg.IDs)
+
 	case tcmds.PlaylistLoadIntentMsg:
 		return m, m.getPlaylistCmd(msg.ID)
 
@@ -182,10 +199,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var stateMachineCmd tea.Cmd
-	m.stateMachine, stateMachineCmd = util.UpdateModel(m.stateMachine, passthruMsg)
+	m.stateMachine, stateMachineCmd = m.stateMachine.Update(passthruMsg)
 	cmds = append(cmds, stateMachineCmd)
 
-	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.CurrentState().Type())
+	m.statusBarText = fmt.Sprintf("current state: %s", m.stateMachine.Base.CurrentState().Type())
 
 	return m, tea.Batch(cmds...)
 }
@@ -241,5 +258,5 @@ func (m Model) View() tea.View {
 func (m Model) Help() string {
 	return "global[ " +
 		util.FmtKeymap(m.keys.ShortHelp()) + "] " +
-		m.stateMachine.Help()
+		m.stateMachine.Base.Help()
 }

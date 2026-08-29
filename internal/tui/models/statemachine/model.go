@@ -7,11 +7,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
+	"github.com/dkaman/recordbaux/internal/tui/models/overlay"
 	"github.com/dkaman/recordbaux/internal/tui/models/statemachine/states"
 	"github.com/dkaman/recordbaux/internal/tui/util"
 
 	tcmds "github.com/dkaman/recordbaux/internal/tui/cmds"
-	cps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/createplaylist"
 	lbs "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedbin"
 	lps "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedplaylist"
 	lss "github.com/dkaman/recordbaux/internal/tui/models/statemachine/states/loadedshelf"
@@ -88,17 +88,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.currentState = newState
 		return m, newState.Init()
-
-	case tcmds.TransitionToCreatePlaylistMsg:
-		newState, err := cps.New(m.logger, msg.ShelfIDs)
-		if err != nil {
-			m.logger.Error("error during transition to loadedbinstate",
-				slog.Any("err", err),
-			)
-			return m, nil
-		}
-		m.currentState = newState
-		return m, newState.Init()
 	}
 
 	var stateCmds tea.Cmd
@@ -117,6 +106,16 @@ func (m Model) View() tea.View {
 	content := viewportStyle.Render(currentState.Content)
 
 	return tea.NewView(content)
+}
+
+// overlay.teaFocusBlurer implementation
+
+func (m Model) Focus() overlay.TeaFocusBlurer {
+	return m
+}
+
+func (m Model) Blur() overlay.TeaFocusBlurer {
+	return m
 }
 
 func (m Model) Help() string {

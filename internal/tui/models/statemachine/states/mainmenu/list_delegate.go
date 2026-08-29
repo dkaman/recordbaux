@@ -11,9 +11,8 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/dkaman/recordbaux/internal/tui/models/flist"
+	playlist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
 	"github.com/dkaman/recordbaux/internal/tui/models/shelf"
-
-	tplaylist "github.com/dkaman/recordbaux/internal/tui/models/playlist"
 )
 
 type shelfDelegateStyles struct {
@@ -120,7 +119,7 @@ func (d playlistDelegate) Height() int { return 1 }
 func (d playlistDelegate) Spacing() int { return 0 }
 
 func (d playlistDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	plM, ok := listItem.(tplaylist.Model)
+	plM, ok := listItem.(playlist.Model)
 	if !ok {
 		return
 	}

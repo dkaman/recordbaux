@@ -4,13 +4,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/dkaman/recordbaux/internal/db/playlist"
+	"github.com/dkaman/recordbaux/internal/db/track"
 )
 
 type PlaylistLoadIntentMsg struct {
 	ID uint
 }
 
-type PlaylistsLoadIntentMsg struct {}
+type PlaylistsLoadIntentMsg struct{}
 
 type PlaylistsLoadedMsg struct {
 	Err       error
@@ -45,12 +46,22 @@ func GetAllPlaylistsCmd() tea.Cmd {
 	}
 }
 
+func NewPlaylistCmd(name string, tracks []*track.Entity) tea.Cmd {
+	return func() tea.Msg {
+		return PlaylistSaveIntentMsg{
+			Entity: &playlist.Entity{
+				Name:   name,
+				Tracks: tracks,
+			},
+		}
+	}
+}
+
 func SavePlaylistCmd(e *playlist.Entity) tea.Cmd {
 	return func() tea.Msg {
 		return PlaylistSaveIntentMsg{Entity: e}
 	}
 }
-
 
 func DeletePlaylistCmd(id uint) tea.Cmd {
 	return func() tea.Msg {

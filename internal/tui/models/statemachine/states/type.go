@@ -23,7 +23,6 @@ const (
 	LoadedShelf
 	LoadedBin
 	SelectShelf
-	CreatePlaylist
 	LoadedPlaylist
 	Quit
 	Undefined
@@ -35,7 +34,6 @@ func (s StateType) String() string {
 		"LoadedShelf",
 		"LoadedBin",
 		"SelectShelf",
-		"CreatePlaylist",
 		"LoadedPlaylist",
 		"Quit",
 		"Undefined",
